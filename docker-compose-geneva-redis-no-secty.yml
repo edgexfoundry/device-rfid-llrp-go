@@ -300,7 +300,7 @@ services:
 #      - metadata
 
   device-llrp:
-    image: edgexfoundry/docker-device-llrp-go:0.0.1-dev
+    image: edgexfoundry/docker-device-llrp-go:0.0.0-dev
     ports:
       - "127.0.0.1:49992:49992"
     container_name: edgex-device-llrp
