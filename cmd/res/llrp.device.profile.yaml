@@ -1,0 +1,12 @@
+name: "Device.LLRP.Profile"
+manufacturer: "Intel"
+model: "RFIDSensor"
+labels:
+- "LLRP"
+description: "Device profile of RFID based readers that communicate using LLRP protocol"
+
+deviceResources:
+
+deviceCommands:
+
+coreCommands:
