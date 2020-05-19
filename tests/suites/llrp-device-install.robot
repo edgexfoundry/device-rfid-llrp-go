@@ -40,13 +40,13 @@
 | Suite_Teardown
 |    | Log To Console                  | ${SUITE NAME}: Suite Teardown started.       |
 #|    | llrp-device.Shutdown Simulator LLRP Device Environment    | host_environment=${execution_environment}    |
-#|    | llrp-device.Shutdown LLRP Device Environment              | host_environment=${execution_environment}    |
+|    | llrp-device.Shutdown LLRP Device Environment              | host_environment=${execution_environment}    |
 |    | Log To Console                  | ${SUITE NAME}: Suite Teardown finished.      |
 
 *** Test cases ***
 | TC0001_Execute_Appliance_Test
 |    | [Tags]             | Run                                       | generic | install
-|    | [Documentation]    | RSP Controller Installtion Check          |
+|    | [Documentation]    | LLRP Device Installtion Check          |
 |    | Log To Console     | Testcase ${TEST NAME} started.            |
 #|    | Log To Console     | ${execution_environment}                  |
 #|    | ${result}=         | Run Process            | screen -list     |  shell=true              |
