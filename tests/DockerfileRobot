@@ -1,0 +1,22 @@
+FROM python:3.6
+
+# ENV http_proxy=http://proxy-chain.intel.com:911
+# ENV https_proxy=http://proxy-chain.intel.com:912
+
+#from Alpine image
+#RUN apt-get update && apt-get purge -y go git runc docker musl-dev
+
+#from debian image
+# RUN apt-get update && apt-get install -y sudo screen mosquitto-clients
+
+
+# RUN git config --global http.proxy http://proxy-chain.intel.com:911
+# RUN git config --global https.proxy http://proxy-chain.intel.com:912
+
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+
+#CMD ["robot", "-i", "install", "-x","/reports/xunit/results.xml","--console", "verbose", "--outputdir", "/reports", "/suites"]
+CMD ["robot", "-x","/reports/xunit/results.xml","--console", "verbose", "--outputdir", "/reports", "/suites"]

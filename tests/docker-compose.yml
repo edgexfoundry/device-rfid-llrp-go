@@ -1,0 +1,37 @@
+version: '2'
+
+services:
+  LLRP-platform:
+    image: robot:latest
+    network_mode: host
+  #  extra_hosts:
+  #    - 'intel-admin.local:127.0.0.1'
+    # - "${HOSTNAME}.local:127.0.0.1"
+    #command: ["robot", "--console", "verbose", "--outputdir", "/reports", "/suites"]
+    # command: ["/bin/sh","-c"]
+    # stdin_open: true
+    # tty: true
+    # entrypoint: ["/bin/sh","-c"]
+    environment:
+#      - MQTT_BROKER=127.0.0.1
+      - SERVICE_TOKEN
+      - GIT_BRANCH
+      - http_proxy
+      - https_proxy
+      - no_proxy
+    volumes: 
+      - ./output:/output
+      - ./reports:/reports
+      - ./suites:/suites
+      - ./scenarios:/scenarios
+      - ./scripts:/scripts
+      - ./config:/config
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
+    build:
+      context: .
+      dockerfile: DockerfileRobot
+      args:
+        - http_proxy
+        - https_proxy
+
