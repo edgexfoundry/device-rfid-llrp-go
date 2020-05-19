@@ -21,12 +21,12 @@ sudo make build
 sudo make docker
 ```
 
-#### Run as docker-compose with other Edgex services (Geneva Release) ####
+#### Docker-compose run with other Edgex services (Geneva Release) ####
 ```
 sudo make run
 ```
 
-#### Stop and remove the docker services ####
+#### Docker-compose stop ####
 ```
 sudo make stop
 ```
