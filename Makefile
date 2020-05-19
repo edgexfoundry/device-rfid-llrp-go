@@ -37,3 +37,9 @@ docker_device_llrp_go:
 		-t edgexfoundry/docker-device-llrp-go:$(GIT_SHA) \
 		-t edgexfoundry/docker-device-llrp-go:$(VERSION)-dev \
 		.
+
+run:
+	docker-compose -f docker-compose-geneva-redis-no-secty.yml up -d
+
+stop:
+	docker-compose -f docker-compose-geneva-redis-no-secty.yml down

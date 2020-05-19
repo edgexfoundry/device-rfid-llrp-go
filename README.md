@@ -23,12 +23,12 @@ sudo make docker
 
 #### Run as docker-compose with other Edgex services (Geneva Release) ####
 ```
-sudo docker-compose -f docker-compose-geneva-redis-no-secty.yml up -d
+sudo make run
 ```
 
 #### Stop and remove the docker services ####
 ```
-sudo docker-compose -f docker-compose-geneva-redis-no-secty.yml down
+sudo make stop
 ```
 ## License
 [Apache-2.0](LICENSE)
