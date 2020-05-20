@@ -2,7 +2,7 @@
 
 ## Basic file layout for test infrastructure for LLRP Device Service.
 
- Below This structure will be copied into the desired development repo. 
+ Below This structure will be inside the development repo. 
 
 ```
 └── device-llrp-go
@@ -40,12 +40,16 @@ For tests locally, Create a file "/tests/.env" and added below these two lines -
     - SERVICE_TOKEN=<Place the key you generate in github here.>
     - GIT_BRANCH=<Your local branch.>
 
+    Note : Can use `FAST` as branch name, likes GIT_BRANCH=FAST
+
+    `docker-compose config` - command to check the all env and args.
+
 
 # 2. Build Command 
 
-  Goto at path "device-llrp-go/tests/"
+  Goto at path `device-llrp-go/tests/`
 
-  'docker-compose -f docker-compose.yml up --build'
+  `docker-compose -f docker-compose.yml up --build`
 
 
 ## How do I verify the build result/reports?
