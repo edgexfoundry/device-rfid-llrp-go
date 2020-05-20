@@ -8,7 +8,7 @@ FROM python:3.6
 
 #from debian image
 # RUN apt-get update && apt-get install -y sudo screen mosquitto-clients
-RUN apt-get update && apt-get install -y sudo docker.io
+RUN apt-get update && apt-get install -y sudo bash docker.io
 
 
 # RUN git config --global http.proxy http://proxy-chain.intel.com:911
