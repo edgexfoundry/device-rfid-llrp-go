@@ -1,7 +1,7 @@
 def notify = [ email: false, slack: [ success: '#ima-build-success', failure: '#ima-build-failure' ] ]
 
 pipeline {
-    agent { label 'LLRP-testing' }
+    agent { label 'docker' }
     triggers {
         cron('07 02 * * *')
     }
@@ -13,7 +13,7 @@ pipeline {
     
     stages {
         // Changed the stage name to reflect you project
-        stage('LLRP Device Test Execution') {
+        stage('LLRP Test Execution') {
             environment {
                 // this will expose SERVICE_TOKEN_USR and SERVICE_TOKEN_PSW in the build environment
                 SERVICE_TOKEN = credentials('github-rsd-service-pat')
