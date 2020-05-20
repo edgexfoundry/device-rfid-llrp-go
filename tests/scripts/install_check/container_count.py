@@ -8,7 +8,18 @@ import subprocess
 
 #Docker containers list for device LLRP service
 myDockerList = [
-"edgex-device-llrp"
+"edgex-kuiper",
+"edgex-sys-mgmt-agent",
+"edgex-ui-go",
+"edgex-device-llrp",
+"edgex-app-service-configurable-rules",
+"edgex-core-data",
+"edgex-core-command",
+"edgex-core-metadata",
+"edgex-support-notifications",
+"edgex-support-scheduler",
+"edgex-core-consul",
+"edgex-redis"
 ]
 
 class container_count():

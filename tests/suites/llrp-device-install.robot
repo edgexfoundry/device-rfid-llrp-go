@@ -23,9 +23,9 @@
 |    | Log To Console                                                                       | ${SUITE NAME}: Suite Setup started.          |
 |    | llrp-device.Clone LLRP Device Environment   | host_environment=${execution_environment}    | git_config=${git_config}                     |
 |    | llrp-device.Build LLRP Device Environment                                                  | host_environment=${execution_environment}    |
-|    | Sleep | 30s                                                                          |
-|    | llrp-device.Simulator LLRP Device Environment                                              | host_environment=${execution_environment}    |
-|    | Sleep | 10s                                                                          |
+|    | Sleep | 20s                                                                          |
+#|    | llrp-device.Simulator LLRP Device Environment                                              | host_environment=${execution_environment}    |
+#|    | Sleep | 10s                                                                          |
 |    | Log To Console                                                                       | ${SUITE NAME}: Suite Setup finished.         |
 
 
@@ -39,18 +39,16 @@
 
 | Suite_Teardown
 |    | Log To Console                  | ${SUITE NAME}: Suite Teardown started.       |
-#|    | llrp-device.Shutdown Simulator LLRP Device Environment    | host_environment=${execution_environment}    |
+#|    | llrp-device.Shutdown LLRP Simulator Environment    | host_environment=${execution_environment}    |
 |    | llrp-device.Shutdown LLRP Device Environment              | host_environment=${execution_environment}    |
 |    | Log To Console                  | ${SUITE NAME}: Suite Teardown finished.      |
 
 *** Test cases ***
-| TC0001_Execute_Appliance_Test
+| TC0001_Execute_LLRP_Device_Service_Test
 |    | [Tags]             | Run                                       | generic | install
-|    | [Documentation]    | LLRP Device Installtion Check          |
+|    | [Documentation]    | LLRP Device Installtion Check             |
 |    | Log To Console     | Testcase ${TEST NAME} started.            |
-#|    | Log To Console     | ${execution_environment}                  |
-#|    | ${result}=         | Run Process            | screen -list     |  shell=true              |
-#|    | Log to Console     | ${result.stdout}       | ${result.stderr} |
 |    | ${status}=         | verify_containers_running | positive      |
+|    | Log To Console     | Status = ${status}            |
 |    | Should Be True     | ${status}                                 |
 |    | Log To Console     | Testcase ${TEST NAME} finished.           |

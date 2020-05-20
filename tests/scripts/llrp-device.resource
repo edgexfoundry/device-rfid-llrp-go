@@ -46,17 +46,18 @@
 |                   | ${start_time}=         | Convert Date                          | ${start_time}           | epoch |
 |                   | Log to Console         | Build LLRP Device Environment            |
 |                   | Should Match RegExp    | ${host_environment['working_dir']}    | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory     |
-| | ${result}=      | Run Process            | ls                                    | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go            |
+#| | ${result}=      | Run Process            | ls                                    | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go            |
+#|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
+| | ${result}=      | Run Process            | make docker                           |  shell=true             | cwd=${host_environment['working_dir']}/device-llrp-go            |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | Log To Console  | \n: Build Env Setup is started...Take few minutes- \n          |
-| | ${result}=      | Run Process            | make docker                           |  shell=true             | cwd=${host_environment['working_dir']}/device-llrp-go             |
-|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | ${result}=      | Run Process            | docker-compose -f docker-compose-geneva-redis-no-secty.yml up -d |  shell=true             | cwd=${host_environment['working_dir']}/device-llrp-go             |
-|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | ${result}=      | Run Process            | docker ps                             | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go     |
-|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-|                   | Log to Console         |  LLRP Device Build Done.....             |
-|                   | Log to Console         |  \n After Build wait for 30s.....\n   |
+| | Log To Console  | \n -----: Dockcer Build Env Setup is started...Take few minutes- :----\n  |
+| | ${result}=      | Run Process            | docker-compose "-f" "docker-compose-geneva-redis-no-secty.yml" "up" "-d" | shell=true  |  stdout=DEVNULL | stderr=DEVNUL  | cwd=${host_environment['working_dir']}/device-llrp-go     | 
+#|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
+| | Log To Console  | \n -----: Ddocker Containers :----\n  |
+| | ${result}=      | Run Process            | docker "ps" "--format" "{{.Names}}"   | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go     |
+|                   | Log to Console         |  ${result.stdout}                     | ${result.stderr}        |
+|                   | Log to Console         |  \n LLRP Device Build Done.....\n          |
+|                   | Log to Console         |  \n After Build wait for 10s.....\n   |
 
 ####=============================================================####
 
@@ -67,11 +68,13 @@
 |                 | Log to Console         | Simulator LLRP Service Environment         |
 |                 | Log to Console         | \n LLRP Device Service Simulating......\n      |
 |                 | Should Match RegExp    | ${host_environment['working_dir']}     | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory        |
+#| | ${result}=    | Run Process            | docker ps --format  {{.Names}}        | shell=true              | cwd=${host_environment['working_dir']}     |
+#|                 | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 
 
 ####=============================================================####
 
-| Shutdown LLRP Device Environment
+| Shutdown LLRP Simulator Environment
 |                 | [Arguments]            | ${git_config}=                         | ${host_environment}=    |
 |                 | ${start_time}=         | Get Time                               |
 |                 | ${start_time}=         | Convert Date                           | ${start_time}           | epoch |
@@ -86,18 +89,22 @@
 |                 | ${start_time}=         | Convert Date                                | ${start_time}           | epoch |
 |                 | Log to Console         | Shutdown LLRP Device Environment...            |
 |                 | Should Match RegExp    | ${host_environment['working_dir']}          | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory    |
-| | ${result}=    | Run Process            | sudo docker container stop $(sudo docker container ls  | grep "llrp" | awk '{print $1}')  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+#| | ${result}=    | Run Process            | docker container stop $( docker container ls  | grep "llrp" | awk '{print $1}')  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+#|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
+| | ${result}=    | Run Process            | docker-compose -f docker-compose-geneva-redis-no-secty.yml down  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
 |                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
-| | ${result}=    | Run Process            | sudo docker-compose -f docker-compose-geneva-redis-no-secty.yml down  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
-|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
-| | ${result}=    | Run Process            | docker images -a | grep "llrp" | awk '{print $3}' | xargs sudo docker rmi  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+| | ${result}=    | Run Process            | docker images -a | grep "edgexfoundry"      | awk '{print $3}' | xargs docker rmi  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
 |                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
+#| | ${result}=    | Run Process            | docker rmi $(docker images -f dangling=true -q)  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+#|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
+| | ${result}=    | Run Process            | docker "rmi" "$(docker images -a -q)"       | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
 |                 | Log to Console          |   NOTE:: ALL Shutdown Completed            |
-#| | ${result}=    | Run Process            | sduo rm -rf device-llrp-go              | shell=true              | cwd=${host_environment['working_dir']} |
+#| | ${result}=    | Run Process            | sduo rm -rf device-llrp-go                 | shell=true              | cwd=${host_environment['working_dir']} |
 #|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
 #| | ${result}=    | Run Process            | sudo docker network prune -f               | shell=true              | cwd=${host_environment['working_dir']} |
 #|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
-#| | ${result}=    | Run Process            | sudo docker volume prune -f                | shell=true              | cwd=${host_environment['working_dir']} |
+#| | ${result}=    | Run Process            | docker volume ls -f dangling=true          | shell=true              | cwd=${host_environment['working_dir']} |
 #|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
 #| | ${result}=    | Run Process            | sudo docker-compose -f docker-compose.yml down     | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go/tests |
 #|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |

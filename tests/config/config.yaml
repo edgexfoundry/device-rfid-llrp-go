@@ -3,7 +3,7 @@ execution_environment:
   host: localhost
   ssh_port: 22
   username: root
-  working_dir: /tmp/device-llrp-go
+  working_dir: /tmp/device-llrp
   
 git_config:
   repo: https://${SERVICE_TOKEN}@github.impcloud.net/RSP-Inventory-Suite/device-llrp-go.git
