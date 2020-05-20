@@ -6,6 +6,7 @@ LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
 
 #### Prerequisites ####
 
+ - Go language
  - GNU Make
  - Docker
  - Docker-compose
@@ -13,7 +14,7 @@ LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
 #### Build ####
 
 ```
-sudo make build
+make build
 ```
 
 #### Build Docker image ####
