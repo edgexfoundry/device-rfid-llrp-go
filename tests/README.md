@@ -37,8 +37,8 @@ NOTE: Do not push this file to your repo.
     
 For tests locally, Create a file "/tests/.env" and added below these two lines -
 
-    - SERVICE_TOKEN=\<Place the key you generate in github here.>
-    - GIT_BRANCH=\<Your local branch.>
+    - SERVICE_TOKEN=<Place the key you generate in github here.>
+    - GIT_BRANCH=<Your local branch.>
 
 
 # 2. Build Command 
