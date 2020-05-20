@@ -29,13 +29,13 @@
   docker-compose -f docker-compose.yml up --build
   
 
-# tests/.env
+# tests/.env 
+NOTE: Do not push this file to your repo.
     
 For tests locally, Then create a file "/tests/.env" and added below these two lines -
 
-SERVICE_TOKEN= <Place the key you generate in github here.>
-GIT_BRANCH= <Your local branch.>
+    - **SERVICE_TOKEN=** \<Place the key you generate in github here.>
+    - **GIT_BRANCH=** \<Your local branch.>
 
 
-NOTE: Do not push this file to your repo.
 
