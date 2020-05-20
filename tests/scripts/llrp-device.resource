@@ -93,12 +93,12 @@
 #|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
 | | ${result}=    | Run Process            | docker-compose -f docker-compose-geneva-redis-no-secty.yml down  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
 |                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
-| | ${result}=    | Run Process            | docker images -a | grep "edgexfoundry"      | awk '{print $3}' | xargs docker rmi  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
-|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
-#| | ${result}=    | Run Process            | docker rmi $(docker images -f dangling=true -q)  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
-#|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
+| | ${result}=    | Run Process            | docker images -a  | grep "edgexfoundry"     | awk '{print $3}' | xargs docker rmi -f | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
 | | ${result}=    | Run Process            | docker "rmi" "$(docker images -a -q)"       | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
 |                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
+#| | ${result}=    | Run Process            | docker rmi $(docker images -f dangling=true -q)  | shell=true | cwd=${host_environment['working_dir']}/device-llrp-go |
+#|                 | Log to Console         | ${result.stdout}                            | ${result.stderr}        |
 |                 | Log to Console          |   NOTE:: ALL Shutdown Completed            |
 #| | ${result}=    | Run Process            | sduo rm -rf device-llrp-go                 | shell=true              | cwd=${host_environment['working_dir']} |
 #|                 | Log to Console         | ${result.stdout}                           | ${result.stderr}        |
