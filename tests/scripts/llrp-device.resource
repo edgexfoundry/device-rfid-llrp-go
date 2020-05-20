@@ -45,10 +45,12 @@
 |                   | ${start_time}=         | Get Time                              |
 |                   | ${start_time}=         | Convert Date                          | ${start_time}           | epoch |
 |                   | Log to Console         | Build LLRP Device Environment            |
-|                   | Should Match RegExp    | ${host_environment['working_dir']}    | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory     |
+|                   | Should Match RegExp    | ${host_environment['working_dir']}    | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory      |
 #| | ${result}=      | Run Process            | ls                                    | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go            |
 #|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | ${result}=      | Run Process            | make docker                           |  shell=true             | cwd=${host_environment['working_dir']}/device-llrp-go            |
+| | ${result}=      | Run Process            | ./installPkg.sh                       | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go/tests/utils  |
+|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
+| | ${result}=      | Run Process            | make docker                           |  shell=true             | cwd=${host_environment['working_dir']}/device-llrp-go              |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 | | Log To Console  | \n -----: Dockcer Build Env Setup is started...Take few minutes- :----\n  |
 | | ${result}=      | Run Process            | docker-compose "-f" "docker-compose-geneva-redis-no-secty.yml" "up" "-d" | shell=true  |  stdout=DEVNULL | stderr=DEVNUL  | cwd=${host_environment['working_dir']}/device-llrp-go     | 
