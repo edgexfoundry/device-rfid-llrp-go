@@ -47,8 +47,8 @@ type protocolMap = map[string]contract.ProtocolProperties
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
-	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleReadCommands: protocols: %v resource: %v attributes: %v",
-		p, reqs[0].DeviceResourceName, reqs[0].Attributes))
+	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
+		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
 
 	if len(reqs) == 0 {
 		return nil, errors.New("missing requests")
@@ -68,9 +68,9 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 // a ResourceOperation for a specific device resource.
 // Since the commands are actuation commands, params provide parameters for the individual
 // command.
-func (d *Driver) HandleWriteCommands(deviceName string, protocols map[string]contract.ProtocolProperties, reqs []dsModels.CommandRequest,
-	params []*dsModels.CommandValue) error {
-	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: protocols: %v, resource: %v, parameters: %v", protocols, reqs[0].DeviceResourceName, params))
+func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest, params []*dsModels.CommandValue) error {
+	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
+		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
 	return nil
 }
 
@@ -83,27 +83,37 @@ func (d *Driver) Stop(force bool) error {
 	if d.lc != nil {
 		d.lc.Debug(fmt.Sprintf("LLRP-Driver.Stop called: force=%v", force))
 	}
+	d.readerMapMu.Lock()
+	defer d.readerMapMu.Unlock()
+	for _, r := range d.readers {
+		go r.Close() // best effort
+	}
+	d.readers = make(map[string]*Reader)
 	return nil
 }
 
 // AddDevice is a callback function that is invoked
 // when a new Device associated with this Device Service is added
-func (d *Driver) AddDevice(deviceName string, protocols map[string]contract.ProtocolProperties, adminState contract.AdminState) error {
-	d.lc.Debug(fmt.Sprintf("a new Device is added: %s", deviceName))
-	return nil
+func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
+	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
+		deviceName, protocols, adminState))
+	_, err := d.getReader(deviceName, protocols)
+	return err
 }
 
 // UpdateDevice is a callback function that is invoked
 // when a Device associated with this Device Service is updated
-func (d *Driver) UpdateDevice(deviceName string, protocols map[string]contract.ProtocolProperties, adminState contract.AdminState) error {
-	d.lc.Debug(fmt.Sprintf("Device %s is updated", deviceName))
+func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
+	d.lc.Debug(fmt.Sprintf("Updating device: %s protocols: %v adminState: %v",
+		deviceName, protocols, adminState))
 	return nil
 }
 
 // RemoveDevice is a callback function that is invoked
 // when a Device associated with this Device Service is removed
-func (d *Driver) RemoveDevice(deviceName string, protocols map[string]contract.ProtocolProperties) error {
-	d.lc.Debug(fmt.Sprintf("Device %s is removed", deviceName))
+func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
+	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
+	d.removeReader(deviceName)
 	return nil
 }
 
@@ -166,7 +176,7 @@ func (d *Driver) getReader(name string, p protocolMap) (*Reader, error) {
 }
 
 // removeReader deletes a Reader from the readers map.
-func (d *Driver) removeReader(deviceName string) error {
+func (d *Driver) removeReader(deviceName string) {
 	d.readerMapMu.Lock()
 	r, ok := d.readers[deviceName]
 	if ok {
@@ -174,7 +184,7 @@ func (d *Driver) removeReader(deviceName string) error {
 	}
 	delete(d.readers, deviceName)
 	d.readerMapMu.Unlock()
-	return nil
+	return
 }
 
 // getAddr extracts an address from a protocol mapping.
