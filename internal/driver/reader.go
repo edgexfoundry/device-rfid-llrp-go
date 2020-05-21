@@ -211,7 +211,25 @@ const (
 	headerSz     = 10                           // LLRP message headers are 10 bytes
 	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
 	maxMsgType   = uint16(1<<10 - 1)            // highest valid message type
+
+	// Message types
+	GetSupportedVersion           = 46
+	GetSupportedVersionResponse   = 56
+	SetProtocolVersion            = 47
+	SetProtocolVersionResponse    = 57
+	GetReaderCapabilities         = 1
+	GetReaderCapabilitiesResponse = 11
+	KeepAlive                     = 62
+	KeepAliveAck                  = 72
+	ReaderEventNotification       = 63
 )
+
+// responseType maps certain message types to their response type.
+var responseType = map[uint16]uint16{
+	GetSupportedVersion:   GetSupportedVersionResponse,
+	SetProtocolVersion:    SetProtocolVersionResponse,
+	GetReaderCapabilities: GetReaderCapabilitiesResponse,
+}
 
 // header holds information about an LLRP message header.
 //
@@ -446,13 +464,6 @@ func (r *Reader) sendAck(mid uint32) {
 	}
 }
 
-// responseType maps certain message types to their response type.
-var responseType = map[uint16]uint16{
-	GetSupportedVersion:   GetSupportedVersionResponse,
-	SetProtocolVersion:    SetProtocolVersionResponse,
-	GetReaderCapabilities: GetReaderCapabilitiesResponse,
-}
-
 // getHandler returns the handler for a given message.
 //
 // If the payload length is non-zero,
@@ -599,18 +610,19 @@ func (r *Reader) send(mOut msgOut) (*response, error) {
 	pr, pw := io.Pipe()
 	req := request{msg: mOut, replyChan: replyChan, pw: pw}
 
-	// Wait until the message is sent, unless the context is canceled.
+	// Wait until the message is sent, unless the Reader is closed.
 	select {
 	case <-r.done:
 		close(replyChan)
 		return nil, ErrReaderClosed
 	case r.sendQueue <- req:
-		// The message is accepted by send queue.
-		// Sending can no longer be canceled.
-		// The receiver now owns the reply channel and we should not close it.
 	}
 
-	// Wait for reply.
+	// The message was accepted by send queue.
+	// Sending can no longer be canceled.
+	// The receiver now owns the reply channel,
+	// and we should not close it.
+	// Now we wait for the reply.
 	select {
 	case <-r.done:
 		// Don't close the reply channel; the receiver owns it now.
@@ -623,36 +635,6 @@ func (r *Reader) send(mOut msgOut) (*response, error) {
 		}
 		return resp, nil
 	}
-}
-
-// readParamHeader
-// todo: process LLRP parameters
-func (r *Reader) readParamHeader() (ph paramHeader, err error) {
-	buf := make([]byte, 4)
-
-	// TVs can be as short as a single byte. TLVs are at least 2.
-	if _, err = r.conn.Read(buf[0:1]); err != nil {
-		return
-	}
-
-	// The first bit in the stream of a TV is 1.
-	// The next 7 bits are the type; length depends on type.
-	if buf[0]&0b1000_0000 != 0 {
-
-	}
-
-	// TLVs have a 0 bit first. The next 5 bits must be zero.
-	// The following 10 are the Type, then 16 for the length
-	if _, err = r.conn.Read(buf[1:4]); err != nil {
-		return
-	}
-
-	return
-}
-
-type paramHeader struct {
-	typ    uint16 // 8 or 10 bits; TVs are 0-127; TLVs are 128-2047.
-	length uint16 // only present for TLVs
 }
 
 // negotiate performs version negotiation with a Reader.
@@ -703,14 +685,32 @@ func (r *Reader) negotiate() error {
 	return nil
 }
 
-const (
-	GetSupportedVersion           = 46
-	GetSupportedVersionResponse   = 56
-	SetProtocolVersion            = 47
-	SetProtocolVersionResponse    = 57
-	GetReaderCapabilities         = 1
-	GetReaderCapabilitiesResponse = 11
-	KeepAlive                     = 62
-	KeepAliveAck                  = 72
-	ReaderEventNotification       = 63
-)
+// readParamHeader
+// todo: process LLRP parameters
+func (r *Reader) readParamHeader() (ph paramHeader, err error) {
+	buf := make([]byte, 4)
+
+	// TVs can be as short as a single byte. TLVs are at least 2.
+	if _, err = r.conn.Read(buf[0:1]); err != nil {
+		return
+	}
+
+	// The first bit in the stream of a TV is 1.
+	// The next 7 bits are the type; length depends on type.
+	if buf[0]&0b1000_0000 != 0 {
+
+	}
+
+	// TLVs have a 0 bit first. The next 5 bits must be zero.
+	// The following 10 are the Type, then 16 for the length
+	if _, err = r.conn.Read(buf[1:4]); err != nil {
+		return
+	}
+
+	return
+}
+
+type paramHeader struct {
+	typ    uint16 // 8 or 10 bits; TVs are 0-127; TLVs are 128-2047.
+	length uint16 // only present for TLVs
+}
