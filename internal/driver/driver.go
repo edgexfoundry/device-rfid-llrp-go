@@ -177,7 +177,7 @@ func (d *Driver) removeReader(deviceName string) error {
 	return nil
 }
 
-// getTCPAddr extracts an address from a protocol mapping.
+// getAddr extracts an address from a protocol mapping.
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 // todo: TLS options? retry/timeout options? LLRP version options?
