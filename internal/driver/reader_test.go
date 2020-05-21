@@ -87,11 +87,13 @@ func TestReader_readHeader(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
+			errs := make(chan error, 1)
 			p1, p2 := net.Pipe()
 			go func() {
 				if _, err := p1.Write(tc.data); err != nil {
-					t.Fatal(err)
+					errs <- err
 				}
+				close(errs)
 			}()
 
 			if err := p2.SetDeadline(time.Now().Add(time.Millisecond * 100)); err != nil {
@@ -119,6 +121,10 @@ func TestReader_readHeader(t *testing.T) {
 			} else if !reflect.DeepEqual(tc.expected, msg) {
 				t.Errorf("expected %+v; got %+v", tc.expected, msg)
 			}
+
+			if err, ok := <-errs; ok && err != nil {
+				t.Errorf("error during writing: %+v", err)
+			}
 		})
 	}
 }
@@ -132,15 +138,18 @@ func TestReader_newMessage(t *testing.T) {
 
 	client, server := net.Pipe()
 
+	errs := make(chan error, 1)
 	v := uint8(1)
 	mid := uint32(1)
 	go func() {
+		defer close(errs)
 		lr, err := NewReader(WithConn(client), WithVersion(v))
 		if err != nil {
-			t.Fatal(err)
+			errs <- err
+			return
 		}
 		if err := lr.writeHeader(mid, ack.length, ack.typ); err != nil {
-			t.Fatal(err)
+			errs <- err
 		}
 	}()
 
@@ -161,5 +170,9 @@ func TestReader_newMessage(t *testing.T) {
 	}
 	if expHdr != hdr {
 		t.Errorf("expected %+v; got %+v", expHdr, hdr)
+	}
+
+	if err, ok := <-errs; ok && err != nil {
+		t.Errorf("error during writing: %+v", err)
 	}
 }
