@@ -2,8 +2,6 @@
 
 ## Basic file layout for test infrastructure for LLRP Device Service.
 
- Below This structure will be inside the development repo. 
-
 ```
 └── device-llrp-go
 ├── <Note: LLRP Device Service Soruce/files >

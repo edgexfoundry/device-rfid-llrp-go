@@ -6,7 +6,7 @@
 echo "Remove all EDGEX-FOUNDRY images"
 $(docker images -a  | grep "edgexfoundry" | awk '{print $3}' | xargs docker rmi -f)
 
-echo "Cleaning up unused Resources"
+echo "Cleaning up unused resources"
 $(docker "rmi" "$(docker images -a -q)")
 
 echo "Cleaning all DANGLING images"
