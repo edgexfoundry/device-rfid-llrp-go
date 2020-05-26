@@ -1,4 +1,6 @@
 #! /bin/bash
+# Copyright (C) 2020 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 vREPORT_TEXT_TEMPLATE="${TM_TRIGGER_PATH}/${TM_REPORT_TEML}"
 vPLT="platform.yaml"

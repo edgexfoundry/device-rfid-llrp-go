@@ -30,17 +30,17 @@
 └── version.go
 ```
 
-## How do I build locally this in my repo?
+## How do I build locally in my repo?
 
 # 1. tests/.env 
-NOTE: Do not push this file to your repo.
+NOTE: Do not push this file to your repo/branch.
     
-For tests locally, Create a file "/tests/.env" and added below these two lines -
+For tests locally, Create a file "/tests/.env" and add below these two lines -
 
-    SERVICE_TOKEN=<Place the key you generate in github here.>
-    GIT_BRANCH=<Your local branch.>
+    SERVICE_TOKEN=<Place your git token here>
+    GIT_BRANCH=<Your local branch>
 
-    Note : Can use `FAST` as branch name, likes GIT_BRANCH=FAST
+    e.g : `FAST` is branch name, then GIT_BRANCH=FAST
 
     `docker-compose config` - command to check the all env and args.
 
@@ -72,7 +72,3 @@ For tests locally, Create a file "/tests/.env" and added below these two lines -
 7. One the left hand side of the page look for *Open Blue Ocean* and click it.
 8. Search your your repo in the list and click on it.
 9. **TBD... Work in progress**
-  
-
-
-

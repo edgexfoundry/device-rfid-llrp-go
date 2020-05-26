@@ -5,15 +5,10 @@ services:
     image: robot:latest
     network_mode: host
   #  extra_hosts:
-  #    - 'intel-admin.local:127.0.0.1'
+    # - 'intel-admin.local:127.0.0.1' <note: intel-admin here is a hostname>
     # - "${HOSTNAME}.local:127.0.0.1"
-    #command: ["robot", "--console", "verbose", "--outputdir", "/reports", "/suites"]
-    # command: ["/bin/sh","-c"]
-    # stdin_open: true
-    # tty: true
-    # entrypoint: ["/bin/sh","-c"]
     environment:
-#      - MQTT_BROKER=127.0.0.1
+  #   - MQTT_BROKER=127.0.0.1
       - SERVICE_TOKEN
       - GIT_BRANCH
       - http_proxy

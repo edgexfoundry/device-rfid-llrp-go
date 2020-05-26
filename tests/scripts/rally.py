@@ -1,3 +1,6 @@
+# Copyright (C) 2020 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import sys
 from pyral import Rally, rallyWorkset
 options = [arg for arg in sys.argv[1:] if arg.startswith('--')]
@@ -6,8 +9,8 @@ args = [arg for arg in sys.argv[1:] if arg not in options]
 server = "rally1.rallydev.com"
 user = ""
 password = ""
-workspace = "IOTG/RSD"
-project = "Go Ninjas Team"
+workspace = "IOTG/RBHE"
+project = "Guardians Team"
 rally = Rally(server, user, password, apikey=os.environ.get('RALLY_TOKEN'),
               workspace=workspace, project=project)
 rally.enableLogging('mypyral.log')

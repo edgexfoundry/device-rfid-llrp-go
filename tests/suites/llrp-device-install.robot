@@ -1,11 +1,13 @@
-# @file LLRP Device install.robot
-#    @author : Surajit Pal
-#    @created:
+# @file llrp-device-install.robot
+
+# Copyright (C) 2020 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 
 *** Settings ***
 | Documentation     | This file collects the Test Cases associated with the
-| ...               | LLRP Device Service installtiom, and generally all Test Cases will
-| ...               | be prefixed with their corresponding TC Number in Rally.
+| ...               | LLRP Device Service Installtion, and generally all Test Cases will
+| ...               | be prefixed with their corresponding Test Case(TC) Number in Rally.
 | Resource          | /scripts/llrp-device.resource                                                            |                                                  
 | Library           | /scripts/install_check/container_count.py                                                |
 | Suite Setup       | Suite_Setup                                                                              |

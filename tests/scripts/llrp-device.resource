@@ -1,6 +1,7 @@
+# Copyright (C) 2020 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 # @file llrp device.resource.robot
-#    @author : Surajit Pal
-#    @created: 
 
 *** Settings ***
 | Documentation    |
