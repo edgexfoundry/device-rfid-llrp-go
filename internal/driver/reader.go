@@ -725,6 +725,9 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.payload.Close()
 	// todo: unmarshal message; check version
+	if err := resp.typesMatch(GetSupportedVersion); err != nil {
+		return errors.WithMessage(err, "failed to Get Supported Versions")
+	}
 
 	resp, err = r.send(context.TODO(), newHdrOnlyMsg(SetProtocolVersion))
 	if err != nil {
@@ -732,6 +735,9 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.payload.Close()
 	// todo: unmarshal message; confirm version match or downgrade
+	if err := resp.typesMatch(SetProtocolVersion); err != nil {
+		return errors.WithMessage(err, "failed to Set Protocol Version")
+	}
 
 	return nil
 }
