@@ -6,9 +6,14 @@
 package driver
 
 import (
+	"context"
+	"github.com/pkg/errors"
+	"io"
+	"io/ioutil"
 	"net"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -153,12 +158,12 @@ func TestReader_newMessage(t *testing.T) {
 		}
 	}()
 
-	lr, err := NewReader(WithConn(server))
+	r, err := NewReader(WithConn(server))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	hdr, err := lr.readHeader()
+	hdr, err := r.readHeader()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,5 +179,103 @@ func TestReader_newMessage(t *testing.T) {
 
 	if err, ok := <-errs; ok && err != nil {
 		t.Errorf("error during writing: %+v", err)
+	}
+}
+
+func dummyRead(h *header, rfid net.Conn) error {
+	buf := make([]byte, headerSz)
+	if n, err := io.ReadFull(rfid, buf); err != nil {
+		return errors.Wrapf(err, "read failed after %d bytes", n)
+	}
+	if err := h.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	n, err := io.CopyN(ioutil.Discard, rfid, int64(h.payloadLen))
+	if err != nil {
+		return errors.Wrapf(err, "read failed after %d bytes", n)
+	}
+	return nil
+}
+
+func init() {
+	// this is only useful during testing
+	responseType[0] = ReaderEventNotification
+}
+
+func dummyReply(h *header, rfid net.Conn) error {
+	reply := header{id: h.id, version: 1, typ: responseType[h.typ]}
+	data, err := reply.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	if n, err := rfid.Write(data); err != nil {
+		return errors.Wrapf(err, "write failed after %d bytes", n)
+	}
+	return nil
+}
+
+func TestReader_Close(t *testing.T) {
+	// a simple message: mid == 1, type == 1, 1 byte payload (0xF)
+	data := []byte{4, 1, 0, 0, 0, 0xB, 0, 0, 0, 1, 0xF}
+
+	client, rfid := net.Pipe()
+	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+		return
+	}
+	if err := rfid.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := NewReader(WithConn(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	errs := make(chan error, 2)
+	go func() {
+		defer wg.Done()
+		errs <- r.Connect()
+	}()
+
+	// lazy RFID device: discard incoming messages & send empty replies
+	go func() {
+		defer wg.Done()
+		var h header
+		for _, proc := range []func(*header, net.Conn) error{
+			dummyReply, // connection attempt
+			dummyRead,  // incoming message
+			dummyReply, // response
+		} {
+			if err := proc(&h, rfid); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+
+	resp, err := r.SendMessage(context.Background(), data, uint16(0))
+	if err != nil {
+		t.Error(err)
+	} else if resp == nil {
+		t.Error("expected non-nil response")
+	}
+
+	if err := r.Close(); err != nil {
+		t.Error(err)
+	}
+
+	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
+		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
+	}
+
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if !errors.Is(err, ErrReaderClosed) {
+			t.Error(err)
+		}
 	}
 }

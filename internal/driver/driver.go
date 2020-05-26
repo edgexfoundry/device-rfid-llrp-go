@@ -161,9 +161,9 @@ func (d *Driver) getReader(name string, p protocolMap) (*Reader, error) {
 
 	go func() {
 		// blocks until the Reader is closed
-		err = r.Connect(conn)
+		err = r.Connect()
 
-		if err == ErrReaderClosed || err == nil {
+		if err == nil || errors.Is(err, ErrReaderClosed) {
 			return
 		}
 
