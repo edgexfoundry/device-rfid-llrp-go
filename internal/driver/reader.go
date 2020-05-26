@@ -430,8 +430,6 @@ func (r *Reader) handleOutgoing() error {
 
 				// Give the read-side a way to correlate the response
 				// with something the sender can listen to.
-				// Only the read-side should close this channel.
-				// If the message is canceled, the reference is dropped anyway.
 				replyChan := make(chan response, 1)
 				r.awaitMu.Lock()
 				r.awaiting[mid] = replyChan
