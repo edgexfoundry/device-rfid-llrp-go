@@ -6,7 +6,7 @@
 
 *** Settings ***
 | Documentation     | This file collects the Test Cases associated with the
-| ...               | LLRP Device Service Installtion, and generally all Test Cases will
+| ...               | LLRP Device Service Installation, and generally all Test Cases will
 | ...               | be prefixed with their corresponding Test Case(TC) Number in Rally.
 | Resource          | /scripts/llrp-device.resource                                                            |                                                  
 | Library           | /scripts/install_check/container_count.py                                                |
