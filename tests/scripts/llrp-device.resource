@@ -51,7 +51,7 @@
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 #| | ${result}=      | Run Process            | ./installPkg.sh                       | shell=true              | cwd=/utils            |
 #|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | ${result}=      | Run Process            | make docker                           |  shell=true             | cwd=/build              |
+| | ${result}=      | Run Process            | make "docker"                           |  shell=true             | cwd=/build              |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 | | Log To Console  | \n -----: Dockcer Build Env Setup is started...Take few minutes- :----\n  |
 | | ${result}=      | Run Process            | docker-compose "-f" "docker-compose-geneva-redis-no-secty.yml" "up" "-d" | shell=true  |  stdout=DEVNULL | stderr=DEVNULL  | cwd=/build     | 
