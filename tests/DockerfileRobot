@@ -10,8 +10,8 @@ FROM python:3.6
 RUN apt-get update && apt-get install -y sudo bash docker.io make
 
 
-RUN git config --global http.proxy http://proxy-chain.intel.com:911
-RUN git config --global https.proxy http://proxy-chain.intel.com:912
+#RUN git config --global http.proxy http://proxy-chain.intel.com:911
+#RUN git config --global https.proxy http://proxy-chain.intel.com:912
 
 
 COPY requirements.txt .
