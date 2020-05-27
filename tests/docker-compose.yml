@@ -21,6 +21,7 @@ services:
       - ./scenarios:/scenarios
       - ./scripts:/scripts
       - ./config:/config
+      - ./utils:/utils
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp
     build:
