@@ -6,6 +6,7 @@
 source "textutils.sh"
 
 clear
+sudo apt -y install iputils-ping make
 printDatedMsg "Checking Internet connectivity"
 PING1="$(ping -c 1 8.8.8.8)"
 
