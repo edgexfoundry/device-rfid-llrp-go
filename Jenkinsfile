@@ -1,7 +1,7 @@
 def notify = [ email: false, slack: [ success: '#ima-build-success', failure: '#ima-build-failure' ] ]
 
 pipeline {
-    agent { label 'docker' }
+    agent { label 'edgex-testing' }
     triggers {
         cron('07 02 * * *')
     }
