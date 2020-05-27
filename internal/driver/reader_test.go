@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"reflect"
 	"strconv"
@@ -145,7 +146,7 @@ func TestReader_newMessage(t *testing.T) {
 
 	errs := make(chan error, 1)
 	v := uint8(1)
-	mid := uint32(1)
+	mid := messageID(1)
 	go func() {
 		defer close(errs)
 		lr, err := NewReader(WithConn(client), WithVersion(v))
@@ -198,12 +199,12 @@ func dummyRead(h *header, rfid net.Conn) error {
 }
 
 func init() {
-	// this is only useful during testing
+	// this is only useful during testing; lets dummyReply send initial message on connect
 	responseType[0] = ReaderEventNotification
 }
 
 func dummyReply(h *header, rfid net.Conn) error {
-	reply := header{id: h.id, version: 1, typ: responseType[h.typ]}
+	reply := header{id: h.id, version: h.version, typ: responseType[h.typ]}
 	data, err := reply.MarshalBinary()
 	if err != nil {
 		return err
@@ -214,10 +215,41 @@ func dummyReply(h *header, rfid net.Conn) error {
 	return nil
 }
 
-func TestReader_Close(t *testing.T) {
-	// a simple message: mid == 1, type == 1, 1 byte payload (0xF)
-	data := []byte{4, 1, 0, 0, 0, 0xB, 0, 0, 0, 1, 0xF}
+// randomReply returns a function that sends replies with random data.
+func randomReply(minSz, maxSz uint32) func(h *header, rfid net.Conn) error {
+	rnd := rand.New(rand.NewSource(1))
+	if minSz > maxSz {
+		panic(errors.Errorf("bad sizes: %d > %d", minSz, maxSz))
+	}
+	dist := int64(maxSz - minSz)
+	min64 := int64(minSz)
 
+	return func(h *header, rfid net.Conn) error {
+		// Use int64 to get full uint32; CopyN needs an int64 anyway.
+		sz := rnd.Int63n(dist) + min64
+		reply := header{
+			payloadLen: uint32(sz),
+			id:         h.id,
+			typ:        responseType[h.typ],
+			version:    h.version,
+		}
+
+		data, err := reply.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		if n, err := rfid.Write(data); err != nil {
+			return errors.Wrapf(err, "write header failed after %d bytes", n)
+		}
+		if n, err := io.CopyN(rfid, rnd, sz); err != nil {
+			return errors.Wrapf(err, "write data failed after %d bytes", n)
+		}
+		return nil
+	}
+}
+
+func TestReader_Connection(t *testing.T) {
+	// Connect to a Reader, send some messages, close the Reader.
 	client, rfid := net.Pipe()
 	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
@@ -230,6 +262,12 @@ func TestReader_Close(t *testing.T) {
 	r, err := NewReader(WithConn(client))
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := r.SendMessage(ctx, nil, messageType(0)); context.DeadlineExceeded != err {
+		t.Errorf("expected DeadlineExceeded; got: %v", err)
 	}
 
 	wg := sync.WaitGroup{}
@@ -256,26 +294,156 @@ func TestReader_Close(t *testing.T) {
 		}
 	}()
 
-	resp, err := r.SendMessage(context.Background(), data, uint16(0))
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	resp, err := r.SendMessage(context.Background(), data, messageType(0))
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
 		t.Error("expected non-nil response")
 	}
 
+	// The first time we Close should be fine.
 	if err := r.Close(); err != nil {
 		t.Error(err)
+	}
+	wg.Wait()
+
+	if _, err := rfid.Write([]byte{1}); err == nil {
+		t.Error("expected connection to be closed, but write succeeded")
 	}
 
 	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
 
-	wg.Wait()
+	_, err = r.SendMessage(context.Background(), data, messageType(0))
+	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
+		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
+	}
+
 	close(errs)
 	for err := range errs {
 		if !errors.Is(err, ErrReaderClosed) {
 			t.Error(err)
 		}
 	}
+}
+
+func TestReader_ManySenders(t *testing.T) {
+	client, rfid := net.Pipe()
+	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+		return
+	}
+	if err := rfid.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := NewReader(WithConn(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connGrp := sync.WaitGroup{}
+	connGrp.Add(2)
+	errs := make(chan error, 2)
+	go func() {
+		defer connGrp.Done()
+		errs <- r.Connect()
+	}()
+
+	// RFID device: discard incoming messages; send random replies
+	done := make(chan struct{})
+	go func() {
+		defer connGrp.Done()
+		var h header
+		err := dummyReply(&h, rfid) // initial connection message
+		op, nextOp := dummyRead, randomReply(0, 1024)
+		for err == nil {
+			select {
+			case <-done:
+				return
+			default:
+				err = op(&h, rfid)
+				op, nextOp = nextOp, op
+			}
+		}
+		errs <- err
+	}()
+
+	msgGrp := sync.WaitGroup{}
+	senders := 100
+	msgGrp.Add(senders)
+	sendErrs := make(chan error, senders)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	defer cancel()
+	for i := 0; i < senders; i++ {
+		go func() {
+			defer msgGrp.Done()
+			sz := rand.Int31n(1024)
+			data := make([]byte, sz)
+			_, err := r.SendMessage(ctx, data, messageType(0))
+			if err != nil {
+				sendErrs <- err
+				return
+			}
+		}()
+	}
+
+	msgGrp.Wait()
+	cancel()
+	close(sendErrs)
+	for err := range sendErrs {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	close(done)
+	if err := r.Close(); err != nil {
+		t.Error(err)
+	}
+	connGrp.Wait()
+
+	close(errs)
+	for err := range errs {
+		if !errors.Is(err, ErrReaderClosed) {
+			t.Errorf("%+v", err)
+		}
+	}
+}
+
+func TestParamReader(t *testing.T) {
+	errDesc := "error description"
+	errLen := uint16(len(errDesc))
+
+	payload := append([]byte{
+		0x01, 0x1F, // type 287, LLRPStatus Parameter
+		0x00, 0x00, // total length (including 4 byte header)
+		0x00, 0x00, // StatusCode
+		uint8(errLen >> 8), uint8(errLen & 0xFF), // Error Description ByteCount
+	}, []byte(errDesc)...)
+	payload[2] = uint8(len(payload) >> 8)
+	payload[3] = uint8(len(payload) & 0xFF)
+	msg, err := newByteMessage(payload, LLRPErrorMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pr := newParamReader(msg)
+
+	pTyp, err := pr.next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if LLRPStatusParam != pTyp {
+		t.Fatalf("expected %v; got %v", LLRPStatusParam, pTyp)
+	}
+
+	t.Log(pr.cur)
+	ls, err := pr.llrpStatus(pr.cur.length)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Logf("%+v", ls)
 }
