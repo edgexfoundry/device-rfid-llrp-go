@@ -166,6 +166,16 @@ func (r *Reader) Connect() error {
 	return err
 }
 
+// Shutdown attempts to gracefully close the connection.
+func (r *Reader) Shutdown(ctx context.Context) error {
+	_, err := r.SendMessage(ctx, nil, CloseConnection)
+	if err != nil {
+		return err
+	}
+	// todo
+	return nil
+}
+
 // Close closes the Reader.
 //
 // After closing, the Reader can no longer serve connections.
@@ -199,6 +209,15 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 		return nil, err
 	}
 	defer resp.payload.Close()
+
+	if resp.hdr.typ == LLRPErrorMessage {
+		/* todo
+		if err := resp.parseErr(); err != nil {
+			return nil, errors.WithMessage(err,
+				"received ErrorMessage, but unable to parse it")
+		}
+		*/
+	}
 
 	if resp.hdr.payloadLen > maxBufferedPayloadSz {
 		return nil, errors.Errorf("message payload exceeds max: %d > %d",
@@ -386,18 +405,6 @@ func (r *Reader) handleIncoming() error {
 			return err
 		}
 
-		// Handle keep-alive messages directly.
-		// todo: however we write handle async handlers,
-		//  we can probably make this use the same idea.
-		if m.typ == KeepAlive {
-			if m.payloadLen != 0 {
-				return errors.New("received keep alive with non-zero length")
-			}
-
-			r.sendAck(m.id)
-			continue
-		}
-
 		// Handle the payload.
 		incoming := io.LimitReader(r.conn, int64(m.payloadLen))
 		handler := r.getResponseHandler(m)
@@ -511,6 +518,7 @@ func (r *Reader) handleOutgoing() error {
 func (r *Reader) sendAck(mid messageID) {
 	select {
 	case r.ackQueue <- mid:
+		r.logger.Println("Sending ACK")
 	default:
 		r.logger.Println("Discarding KeepAliveAck as queue is full. " +
 			"This may indicate the Reader's write side is broken " +
