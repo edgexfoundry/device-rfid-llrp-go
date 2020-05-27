@@ -13,10 +13,10 @@ PING1="$(ping -c 1 8.8.8.8)"
 
 if [[ $PING1 == *"unreachable"* ]]; then
     printDatedErrMsg "ERROR: No network connection found, exiting."
-#    exit 1
+    exit 1
 elif [[ $PING1 == *"100% packet loss"* ]]; then
     printDatedErrMsg "ERROR: No Internet connection found, exiting."
-#    exit 1
+    exit 1
 else
     printDatedOkMsg "Connectivity OK"
 fi
