@@ -1,24 +1,35 @@
-# device-llrp-go
-Edgex device service to handle LLRP Messages from 3rd Party RFID Readers.
+# Device LLRP Go
+## Overview
+LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
 
-## Build and deploy ##
+## Installation and Execution ##
 
-### Prerequisites ###
+#### Prerequisites ####
 
+ - Go language
+ - GNU Make
  - Docker
- - Make
  - Docker-compose
  
-### Build ###
+#### Build ####
 
 ```
-git clone https://github.impcloud.net/RSP-Inventory-Suite/device-llrp-go.git
-cd device-llrp-go
 make build
 ```
- 
 
+#### Build Docker image ####
+```
+sudo make docker
+```
 
+#### Docker-compose run with other Edgex services (Geneva Release) ####
+```
+sudo make run
+```
 
-
-
+#### Docker-compose stop ####
+```
+sudo make stop
+```
+## License
+[Apache-2.0](LICENSE)
