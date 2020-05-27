@@ -49,9 +49,9 @@
 |                   | Should Match RegExp    | ${host_environment['working_dir']}    | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory      |
 | | ${result}=      | Run Process            | ls "-R"                               | shell=true              | cwd=/utils            |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-#| | ${result}=      | Run Process            | ./installPkg.sh                       | shell=true              | cwd=/utils            |
-#|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
-| | ${result}=      | Run Process            | make "docker"                           |  shell=true             | cwd=/build              |
+| | ${result}=      | Run Process            | ./installPkg.sh                       | shell=true              | cwd=/utils            |
+|                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
+| | ${result}=      | Run Process            | make "docker"                         |  shell=true             | cwd=/build              |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 | | Log To Console  | \n -----: Dockcer Build Env Setup is started...Take few minutes- :----\n  |
 | | ${result}=      | Run Process            | docker-compose "-f" "docker-compose-geneva-redis-no-secty.yml" "up" "-d" | shell=true  |  stdout=DEVNULL | stderr=DEVNULL  | cwd=/build     | 
@@ -59,7 +59,7 @@
 | | Log To Console  | \n -----: Ddocker Containers :----\n  |
 | | ${result}=      | Run Process            | docker "ps" "--format" "{{.Names}}"   | shell=true              | cwd=/build     |
 |                   | Log to Console         |  ${result.stdout}                     | ${result.stderr}        |
-|                   | Log to Console         |  \n LLRP Device Build Done.....\n          |
+|                   | Log to Console         |  \n LLRP Device Build Done.....\n     |
 |                   | Log to Console         |  \n After Build wait for 10s.....\n   |
 
 ####=============================================================####
