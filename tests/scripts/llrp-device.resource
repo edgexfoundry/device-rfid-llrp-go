@@ -47,7 +47,7 @@
 |                   | ${start_time}=         | Convert Date                          | ${start_time}           | epoch |
 |                   | Log to Console         | Build LLRP Device Environment            |
 |                   | Should Match RegExp    | ${host_environment['working_dir']}    | /tmp/.+                 | Working Directories should be nested in the `/tmp` directory      |
-| | ${result}=      | Run Process            | ls "-R"                                   | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go            |
+| | ${result}=      | Run Process            | ls "-R"                                   | shell=true              | cwd=${host_environment['working_dir']}            |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
 | | ${result}=      | Run Process            | ./installPkg.sh                       | shell=true              | cwd=${host_environment['working_dir']}/device-llrp-go/tests/utils  |
 |                   | Log to Console         | ${result.stdout}                      | ${result.stderr}        |
