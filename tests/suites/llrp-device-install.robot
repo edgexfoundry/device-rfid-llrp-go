@@ -25,7 +25,7 @@
 |    | Log To Console                                                                       | ${SUITE NAME}: Suite Setup started.          |
 |    | llrp-device.Clone LLRP Device Environment   | host_environment=${execution_environment}    | git_config=${git_config}                     |
 |    | llrp-device.Build LLRP Device Environment                                                  | host_environment=${execution_environment}    |
-|    | Sleep | 20s                                                                          |
+|    | Sleep | 10s                                                                          |
 #|    | llrp-device.Simulator LLRP Device Environment                                              | host_environment=${execution_environment}    |
 #|    | Sleep | 10s                                                                          |
 |    | Log To Console                                                                       | ${SUITE NAME}: Suite Setup finished.         |
