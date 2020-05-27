@@ -24,13 +24,13 @@ type Reader struct {
 	done      chan struct{}  // closed when the Reader is closed
 	isClosed  uint32         // used atomically to prevent duplicate closure of done
 	sendQueue chan request   // controls write-side of connection
-	ackQueue  chan messageID // gesundheit
+	ackQueue  chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
 	awaitMu   sync.Mutex     // synchronize awaiting map access
 	awaiting  awaitMap       // message IDs -> awaiting reply
 	logger    ReaderLogger   // reports pressure on the ACK queue
 
 	handlerMu sync.RWMutex
-	handlers  map[messageType]responseHandler
+	handlers map[messageType]responseHandler
 
 	version uint8 // sent in headers; established during negotiation
 }
@@ -572,9 +572,9 @@ type msgOut struct {
 // exactly payloadLen bytes must be streamed from data,
 // blocking other writers until the message completes.
 // Because the message header is written before streaming data,
-// the write must completely, otherwise the connection must be reset.
+// the write must complete, otherwise the connection must be reset.
 // If writing the data may fail or take a long time,
-// the caller's should buffer the reader.
+// the caller should buffer the message.
 func newMessage(data io.Reader, payloadLen uint32, typ messageType) msgOut {
 	if err := validateHeader(payloadLen, typ); err != nil {
 		panic(err)
