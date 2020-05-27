@@ -35,6 +35,7 @@ VERSION
 
 # Binaries for programs and plugins
 main
+DEVNULL
 
 test.txt
 **/go.sum
