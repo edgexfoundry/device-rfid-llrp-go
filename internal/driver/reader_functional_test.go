@@ -49,8 +49,16 @@ func TestReader_withGolemu(t *testing.T) {
 	}
 
 	<-time.After(10 * time.Second)
+	cancel()
 
-	if err := r.Close(); err != nil {
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := r.Shutdown(ctx); err != nil {
+		if err == context.DeadlineExceeded {
+			if err := r.Close(); err != nil {
+				t.Error(err)
+			}
+		}
 		t.Error(err)
 	}
 	wg.Wait()

@@ -12,7 +12,37 @@ import (
 	"io"
 )
 
-type paramType uint16 // 8 (TL) or 10 bits (TLV)
+// paramParser wraps an io.Reader to iteratively extract LLRP Parameters
+type paramParser struct {
+	r       *bufio.Reader
+	n       uint32
+	cur     paramHeader
+	unknown bool
+}
+
+// paramType is an 8 or 10 bit value identifying
+// both the encoding and content of an LLRP Parameter.
+type paramType uint16
+
+// A TLV-encoded parameter must be at least 4 bytes:
+// 6 reserved bits (zero), 10 bits to indicate the type, and 16 bits of length.
+// The type field of a TLV is specified as 128-2047,
+// though it's not clear how types 1024-2047 fit in 10 bits.
+// The initial 6 bits of the 2-byte field containing the paramType must be zeros.
+// EPCglobal indicates that TLV-encoded parameters are 128-2047,
+// though it's not clear how they fit types 1024-2047 in 10 bits.
+//
+// TV parameters can (in theory) be as short as 1 byte.
+// The MSBit is always 1, then the next 7 are the type: 1-127
+// (so in a certain sense, they range 128-255).
+//
+// The TV vs TLV encoding is designed for more efficient message packing,
+// though parameter fields always start with TLV,
+// wherein the L indicates the size of the full parameter.
+// Sometimes, this is needed to infer there are optional parameters.
+// If it happens that we don't know a TV-param's type,
+// we can skip the encapsulating TLV to continue parsing.
+// Clients are required to accept messages with custom parameters.
 
 const (
 	LLRPStatusParam     = paramType(287)
@@ -20,14 +50,21 @@ const (
 	ParameterErrorParam = paramType(289)
 )
 
-func (pt paramType) isTL() bool {
+// isTV returns true if the paramType is TV-encoded.
+// TV-encoded parameters have specific lengths which must be looked up.
+func (pt paramType) isTV() bool {
 	return pt <= 127
 }
+
+// isTLV returns true if the paramType is TLV-encoded.
+// TLV-encoded parameters include their length in their headers.
 func (pt paramType) isTLV() bool {
 	return pt >= 128 && pt <= 2047
 }
+
+// isValid returns true if the paramType is within the valid LLRP Parameter range.
 func (pt paramType) isValid() bool {
-	return pt <= 2047
+	return pt > 0 && pt <= 2047
 }
 
 type paramHeader struct {
@@ -35,19 +72,12 @@ type paramHeader struct {
 	length uint16    // only present for TLVs
 }
 
-type paramReader struct {
-	r       *bufio.Reader
-	n       uint32
-	cur     paramHeader
-	unknown bool
-}
-
-func newParamReader(m msgOut) *paramReader {
-	pr := paramReader{r: bufio.NewReader(m.data), n: m.length}
+func newParamReader(m msgOut) *paramParser {
+	pr := paramParser{r: bufio.NewReader(m.data), n: m.length}
 	return &pr
 }
 
-func (pr *paramReader) next() (paramType, error) {
+func (pr *paramParser) next() (paramType, error) {
 	if pr.n == 0 {
 		return 0, nil
 	}
@@ -118,7 +148,7 @@ func paramParseWrap(err error, pt paramType, msg string, args ...interface{}) er
 		append([]interface{}{pt}, args...))
 }
 
-func (pr *paramReader) llrpStatus(n uint16) (llrpStatus, error) {
+func (pr *paramParser) llrpStatus(n uint16) (llrpStatus, error) {
 	var ls llrpStatus
 	if n < 4 {
 		return ls, paramParseErr(LLRPStatusParam, "not enough data")
@@ -174,7 +204,7 @@ func (pr *paramReader) llrpStatus(n uint16) (llrpStatus, error) {
 	return ls, nil
 }
 
-func (pr *paramReader) parameterError() (paramError, error) {
+func (pr *paramParser) parameterError() (paramError, error) {
 	pe := paramError{}
 	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
 		&pe.typ, &pe.errCode})
@@ -185,7 +215,7 @@ func (pr *paramReader) parameterError() (paramError, error) {
 	return pe, nil
 }
 
-func (pr *paramReader) fieldError() (fieldError, error) {
+func (pr *paramParser) fieldError() (fieldError, error) {
 	fe := fieldError{}
 	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
 		&fe.fieldNum, &fe.errCode})

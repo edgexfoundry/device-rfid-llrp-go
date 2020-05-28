@@ -145,7 +145,7 @@ func TestReader_newMessage(t *testing.T) {
 	client, server := net.Pipe()
 
 	errs := make(chan error, 1)
-	v := uint8(1)
+	v := Version1_0_1
 	mid := messageID(1)
 	go func() {
 		defer close(errs)

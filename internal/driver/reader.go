@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 )
@@ -30,9 +31,9 @@ type Reader struct {
 	logger    ReaderLogger   // reports pressure on the ACK queue
 
 	handlerMu sync.RWMutex
-	handlers map[messageType]responseHandler
+	handlers  map[messageType]responseHandler
 
-	version uint8 // sent in headers; established during negotiation
+	version LLRPVersion // sent in headers; established during negotiation
 }
 
 type messageID uint32
@@ -41,6 +42,16 @@ type awaitMap = map[messageID]chan<- response
 type responseHandler interface {
 	handle(r *response)
 }
+
+type LLRPVersion uint8 // only 3 bits legal
+const (
+	versionInvalid = LLRPVersion(0)
+	Version1_0_1   = LLRPVersion(1)
+	// Version1_1     = LLRPVersion(2)
+
+	versionMin = Version1_0_1 // min version we support
+	versionMax = Version1_0_1 // max version we support
+)
 
 // NewReader returns a Reader configured by the given options.
 func NewReader(opts ...ReaderOpt) (*Reader, error) {
@@ -66,9 +77,8 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		return nil, errors.New("Reader has no connection")
 	}
 
-	// currently, only supporting version 1
-	if r.version == 0 || r.version > 1 {
-		return nil, errors.Errorf("unsupported version: %d", r.version)
+	if r.version < versionMin || r.version > versionMax {
+		return nil, errors.Errorf("unsupported version: %v", r.version)
 	}
 
 	if r.logger == nil {
@@ -100,9 +110,9 @@ func WithConn(conn net.Conn) ReaderOpt {
 // WithVersion sets the expected LLRP version number.
 // The actual version number used during communication is selected when connecting.
 // Currently, only version 1 is supported; others will panic.
-func WithVersion(v uint8) ReaderOpt {
-	if v != 1 {
-		panic("currently, only version 1 is supported")
+func WithVersion(v LLRPVersion) ReaderOpt {
+	if v < versionMin || v > versionMax {
+		panic(errors.Errorf("unsupported version %v", v))
 	}
 	return readerOpt(func(r *Reader) error {
 		r.version = v
@@ -124,8 +134,8 @@ type ReaderLogger interface {
 	Printf(fmt string, v ...interface{})
 }
 
-// stdGoLogger uses the standard Go logger to satisfy the ReaderLogger interface.
-var stdGoLogger = &log.Logger{}
+// stdGoLogger uses a standard Go logger to satisfy the ReaderLogger interface.
+var stdGoLogger = log.New(os.Stderr, "LLRP", log.LstdFlags)
 
 // ErrReaderClosed is returned if an operation is attempted on a closed Reader.
 var ErrReaderClosed = errors.New("Reader closed")
@@ -167,13 +177,23 @@ func (r *Reader) Connect() error {
 }
 
 // Shutdown attempts to gracefully close the connection.
+//
+// Using Shutdown allows in-progress and queued requests to complete
 func (r *Reader) Shutdown(ctx context.Context) error {
 	_, err := r.SendMessage(ctx, nil, CloseConnection)
 	if err != nil {
 		return err
 	}
-	// todo
-	return nil
+
+	// todo: process the response, as it can contain status information
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	return r.Close()
 }
 
 // Close closes the Reader.
@@ -235,24 +255,28 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 const (
 	headerSz     = 10                           // LLRP message headers are 10 bytes
 	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
-	maxMsgType   = messageType(1<<10 - 1)       // highest legal message type
 
 	// Known Message Types
-	GetSupportedVersion           = messageType(46)
-	GetSupportedVersionResponse   = messageType(56)
-	SetProtocolVersion            = messageType(47)
-	SetProtocolVersionResponse    = messageType(57)
 	GetReaderCapabilities         = messageType(1)
+	GetReaderConfig               = messageType(2)
+	GetReaderConfigResponse       = messageType(12)
+	SetReaderConfig               = messageType(3)
+	CloseConnectionResponse       = messageType(4)
 	GetReaderCapabilitiesResponse = messageType(11)
-	KeepAlive                     = messageType(62)
-	KeepAliveAck                  = messageType(72)
-	ReaderEventNotification       = messageType(63)
-	SetReaderConfig               = messageType(2)
 	SetReaderConfigResponse       = messageType(13)
 	CloseConnection               = messageType(14)
-	CloseConnectionResponse       = messageType(4)
-	CustomMessage                 = messageType(1023)
+	GetSupportedVersion           = messageType(46)
+	SetProtocolVersion            = messageType(47)
+	GetSupportedVersionResponse   = messageType(56)
+	SetProtocolVersionResponse    = messageType(57)
+	KeepAlive                     = messageType(62)
+	ReaderEventNotification       = messageType(63)
+	KeepAliveAck                  = messageType(72)
 	LLRPErrorMessage              = messageType(100)
+	CustomMessage                 = messageType(1023)
+
+	minMsgType = GetReaderCapabilities
+	maxMsgType = messageType(1<<10 - 1) // highest legal message type
 )
 
 // responseType maps certain message types to their response type.
@@ -264,8 +288,9 @@ var responseType = map[messageType]messageType{
 	CloseConnection:       CloseConnectionResponse,
 }
 
+// isValid returns true if the messageType is within the permitted messageType space.
 func (mt messageType) isValid() bool {
-	return mt <= maxMsgType
+	return mt >= minMsgType && mt <= maxMsgType
 }
 
 // responseType returns the messageType of a response to a request of this type,
@@ -285,7 +310,7 @@ type header struct {
 	payloadLen uint32      // length of payload; 0 if message is header-only
 	id         messageID   // for correlating request/response
 	typ        messageType // message type: 10 bits
-	version    uint8       // version: 3 bits
+	version    LLRPVersion // version: 3 bits
 }
 
 // writeHeader writes a message header to the connection.
@@ -349,11 +374,12 @@ func (h *header) UnmarshalBinary(buf []byte) error {
 		return msgErr("not enough data for a message header: %d < %d", len(buf), headerSz)
 	}
 
+	_ = buf[9] // prevent extraneous bounds checks: golang.org/issue/14808
 	*h = header{
 		id:         messageID(binary.BigEndian.Uint32(buf[6:10])),
 		payloadLen: binary.BigEndian.Uint32(buf[2:6]),
 		typ:        messageType(binary.BigEndian.Uint16(buf[0:2]) & (0b0011_1111_1111)),
-		version:    buf[0] >> 2 & 0b111,
+		version:    LLRPVersion(buf[0] >> 2 & 0b111),
 	}
 
 	if h.payloadLen < headerSz {
@@ -762,11 +788,9 @@ func (r *Reader) initiate() error {
 // It assumes the connection has just started.
 func (r *Reader) negotiate() error {
 	// In version 1, there is no version negotiation.
-	if r.version == 1 {
+	if r.version == Version1_0_1 {
 		return nil
 	}
-
-	// todo: version negotiation if r.version > 1
 
 	resp, err := r.send(context.TODO(), newHdrOnlyMsg(GetSupportedVersion))
 	if err != nil {
