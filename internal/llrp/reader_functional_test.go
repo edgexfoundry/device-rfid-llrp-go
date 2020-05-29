@@ -3,11 +3,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package driver
+package llrp
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"net"
 	"sync"
 	"testing"

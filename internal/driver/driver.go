@@ -8,6 +8,7 @@ package driver
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"net"
 	"sync"
 	"time"
@@ -24,7 +25,7 @@ type Driver struct {
 	lc      logger.LoggingClient
 	asyncCh chan<- *dsModels.AsyncValues
 
-	readers     map[string]*Reader
+	readers     map[string]*llrp.Reader
 	readerMapMu sync.RWMutex
 }
 
@@ -88,7 +89,7 @@ func (d *Driver) Stop(force bool) error {
 	for _, r := range d.readers {
 		go r.Close() // best effort
 	}
-	d.readers = make(map[string]*Reader)
+	d.readers = make(map[string]*llrp.Reader)
 	return nil
 }
 
@@ -122,7 +123,7 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 // If a Reader with this name already exists, it returns it.
 // Otherwise, calls the createNew function to get a new Reader,
 // which it adds to the map and then returns.
-func (d *Driver) getReader(name string, p protocolMap) (*Reader, error) {
+func (d *Driver) getReader(name string, p protocolMap) (*llrp.Reader, error) {
 	// Try with just a read lock.
 	d.readerMapMu.RLock()
 	r, ok := d.readers[name]
@@ -154,7 +155,7 @@ func (d *Driver) getReader(name string, p protocolMap) (*Reader, error) {
 		return nil, err
 	}
 
-	r, err = NewReader(WithConn(conn))
+	r, err = llrp.NewReader(llrp.WithConn(conn))
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +164,7 @@ func (d *Driver) getReader(name string, p protocolMap) (*Reader, error) {
 		// blocks until the Reader is closed
 		err = r.Connect()
 
-		if err == nil || errors.Is(err, ErrReaderClosed) {
+		if err == nil || errors.Is(err, llrp.ErrReaderClosed) {
 			return
 		}
 

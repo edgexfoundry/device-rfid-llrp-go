@@ -3,12 +3,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package driver
+package llrp
 
 import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	goErrs "errors"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Reader represents a connection to an LLRP-compatible RFID reader.
@@ -138,7 +140,7 @@ type ReaderLogger interface {
 var stdGoLogger = log.New(os.Stderr, "LLRP", log.LstdFlags)
 
 // ErrReaderClosed is returned if an operation is attempted on a closed Reader.
-var ErrReaderClosed = errors.New("Reader closed")
+var ErrReaderClosed = goErrs.New("Reader closed")
 
 // Connect to a Reader and start processing messages.
 //
@@ -214,7 +216,7 @@ const maxBufferedPayloadSz = uint32((1 << 10) * 640)
 // It returns the response data or an error.
 func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) ([]byte, error) {
 	var mOut msgOut
-	if data == nil {
+	if len(data) == 0 {
 		mOut = newHdrOnlyMsg(typ)
 	} else {
 		var err error
