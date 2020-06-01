@@ -6,7 +6,6 @@
 package llrp
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	goErrs "errors"
@@ -18,13 +17,13 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // Reader represents a connection to an LLRP-compatible RFID reader.
 type Reader struct {
 	conn      net.Conn       // underlying network connection
 	done      chan struct{}  // closed when the Reader is closed
+	ready     chan struct{}  // closed when the connection is negotiated
 	isClosed  uint32         // used atomically to prevent duplicate closure of done
 	sendQueue chan request   // controls write-side of connection
 	ackQueue  chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
@@ -35,21 +34,21 @@ type Reader struct {
 	handlerMu sync.RWMutex
 	handlers  map[messageType]responseHandler
 
-	version LLRPVersion // sent in headers; established during negotiation
+	version VersionNum // sent in headers; established during negotiation
 }
 
 type messageID uint32
 type messageType uint16
-type awaitMap = map[messageID]chan<- response
+type awaitMap = map[messageID]chan<- message
 type responseHandler interface {
-	handle(r *response)
+	handle(r *message)
 }
 
-type LLRPVersion uint8 // only 3 bits legal
+type VersionNum uint8 // only 3 bits legal
 const (
-	versionInvalid = LLRPVersion(0)
-	Version1_0_1   = LLRPVersion(1)
-	// Version1_1     = LLRPVersion(2)
+	versionInvalid = VersionNum(0)
+	Version1_0_1   = VersionNum(1)
+	// Version1_1     = VersionNum(2)
 
 	versionMin = Version1_0_1 // min version we support
 	versionMax = Version1_0_1 // max version we support
@@ -60,11 +59,17 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 	// todo: allow connection timeout parameters;
 	//   call SetReadDeadline/SetWriteDeadline as needed
 
+	// ackQueueSz is arbitrary, but if it fills,
+	// warnings are logged, as it likely indicates a Write problem.
+	// At some point, we might consider resetting the connection.
+	const ackQueueSz = 5
+
 	r := &Reader{
-		version:   1,
+		version:   versionMax,
 		done:      make(chan struct{}),
+		ready:     make(chan struct{}),
 		sendQueue: make(chan request),
-		ackQueue:  make(chan messageID, 5),
+		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
 		handlers:  make(map[messageType]responseHandler),
 	}
@@ -112,7 +117,7 @@ func WithConn(conn net.Conn) ReaderOpt {
 // WithVersion sets the expected LLRP version number.
 // The actual version number used during communication is selected when connecting.
 // Currently, only version 1 is supported; others will panic.
-func WithVersion(v LLRPVersion) ReaderOpt {
+func WithVersion(v VersionNum) ReaderOpt {
 	if v < versionMin || v > versionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
@@ -139,8 +144,14 @@ type ReaderLogger interface {
 // stdGoLogger uses a standard Go logger to satisfy the ReaderLogger interface.
 var stdGoLogger = log.New(os.Stderr, "LLRP", log.LstdFlags)
 
-// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
-var ErrReaderClosed = goErrs.New("Reader closed")
+var (
+	// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
+	// It may be wrapped, so to check for it, use errors.Is.
+	ErrReaderClosed = goErrs.New("reader closed")
+
+	// errAlreadyNegotiated is returned if negotiate is called on an open connection.
+	errAlreadyNegotiated = goErrs.New("connection is already negotiated")
+)
 
 // Connect to a Reader and start processing messages.
 //
@@ -155,10 +166,6 @@ var ErrReaderClosed = goErrs.New("Reader closed")
 func (r *Reader) Connect() error {
 	defer r.conn.Close()
 	defer r.Close()
-
-	if err := r.initiate(); err != nil {
-		return err
-	}
 
 	errs := make(chan error, 2)
 	go func() { errs <- r.handleOutgoing() }()
@@ -181,6 +188,21 @@ func (r *Reader) Connect() error {
 // Shutdown attempts to gracefully close the connection.
 //
 // Using Shutdown allows in-progress and queued requests to complete
+// and sends the LLRP CloseConnection message.
+// You can use this in combination with `Close` to attempt a graceful shutdown,
+// followed by a forced shutdown if necessary:
+//
+//     ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+//	   defer cancel()
+//	   if err := r.Shutdown(ctx); err != nil {
+//	       if !errors.Is(err, context.DeadlineExceeded) {
+//             panic(err)
+//         }
+//         // It's still possible to get ErrReaderClosed
+//	       if err := r.Close(); err != nil && !errors.Is(err, ErrReaderClosed) {
+//		       panic(err)
+//         }
+//     }
 func (r *Reader) Shutdown(ctx context.Context) error {
 	_, err := r.SendMessage(ctx, nil, CloseConnection)
 	if err != nil {
@@ -188,12 +210,6 @@ func (r *Reader) Shutdown(ctx context.Context) error {
 	}
 
 	// todo: process the response, as it can contain status information
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
 
 	return r.Close()
 }
@@ -215,7 +231,14 @@ const maxBufferedPayloadSz = uint32((1 << 10) * 640)
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
 func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) ([]byte, error) {
-	var mOut msgOut
+	select {
+	default:
+	case <-r.ready: // ensure the connection is negotiated
+	case <-r.done:
+		return nil, ErrReaderClosed
+	}
+
+	var mOut message
 	if len(data) == 0 {
 		mOut = newHdrOnlyMsg(typ)
 	} else {
@@ -232,7 +255,7 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 	}
 	defer resp.payload.Close()
 
-	if resp.hdr.typ == LLRPErrorMessage {
+	if resp.typ == ErrorMessage {
 		/* todo
 		if err := resp.parseErr(); err != nil {
 			return nil, errors.WithMessage(err,
@@ -241,78 +264,17 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 		*/
 	}
 
-	if resp.hdr.payloadLen > maxBufferedPayloadSz {
+	if resp.payloadLen > maxBufferedPayloadSz {
 		return nil, errors.Errorf("message payload exceeds max: %d > %d",
-			resp.hdr.payloadLen, maxBufferedPayloadSz)
+			resp.payloadLen, maxBufferedPayloadSz)
 	}
 
-	buffResponse := make([]byte, resp.hdr.payloadLen)
+	buffResponse := make([]byte, resp.payloadLen)
 	if _, err := io.ReadFull(resp.payload, buffResponse); err != nil {
 		return nil, err
 	}
 
 	return buffResponse, nil
-}
-
-const (
-	headerSz     = 10                           // LLRP message headers are 10 bytes
-	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
-
-	// Known Message Types
-	GetReaderCapabilities         = messageType(1)
-	GetReaderConfig               = messageType(2)
-	GetReaderConfigResponse       = messageType(12)
-	SetReaderConfig               = messageType(3)
-	CloseConnectionResponse       = messageType(4)
-	GetReaderCapabilitiesResponse = messageType(11)
-	SetReaderConfigResponse       = messageType(13)
-	CloseConnection               = messageType(14)
-	GetSupportedVersion           = messageType(46)
-	SetProtocolVersion            = messageType(47)
-	GetSupportedVersionResponse   = messageType(56)
-	SetProtocolVersionResponse    = messageType(57)
-	KeepAlive                     = messageType(62)
-	ReaderEventNotification       = messageType(63)
-	KeepAliveAck                  = messageType(72)
-	LLRPErrorMessage              = messageType(100)
-	CustomMessage                 = messageType(1023)
-
-	minMsgType = GetReaderCapabilities
-	maxMsgType = messageType(1<<10 - 1) // highest legal message type
-)
-
-// responseType maps certain message types to their response type.
-var responseType = map[messageType]messageType{
-	GetSupportedVersion:   GetSupportedVersionResponse,
-	SetProtocolVersion:    SetProtocolVersionResponse,
-	GetReaderCapabilities: GetReaderCapabilitiesResponse,
-	SetReaderConfig:       SetReaderConfigResponse,
-	CloseConnection:       CloseConnectionResponse,
-}
-
-// isValid returns true if the messageType is within the permitted messageType space.
-func (mt messageType) isValid() bool {
-	return mt >= minMsgType && mt <= maxMsgType
-}
-
-// responseType returns the messageType of a response to a request of this type,
-// or the zero value and false if there is not a known response type.
-func (mt messageType) responseType() (messageType, bool) {
-	t, ok := responseType[mt]
-	return t, ok
-}
-
-// header holds information about an LLRP message header.
-//
-// Importantly, payloadLen does not include the header's 10 bytes;
-// when a message is read, it's automatically subtracted,
-// and when a message is written, it's automatically added.
-// See header.UnmarshalBinary and header.MarshalBinary for more information.
-type header struct {
-	payloadLen uint32      // length of payload; 0 if message is header-only
-	id         messageID   // for correlating request/response
-	typ        messageType // message type: 10 bits
-	version    LLRPVersion // version: 3 bits
 }
 
 // writeHeader writes a message header to the connection.
@@ -349,61 +311,6 @@ func (r *Reader) readHeader() (mh header, err error) {
 	}
 	err = errors.Wrap(err, "read header failed")
 	return
-}
-
-// validateHeader returns an error if the parameters aren't valid for an LLRP header.
-func validateHeader(payloadLen uint32, typ messageType) error {
-	if typ > maxMsgType {
-		return msgErr("typ exceeds max message type")
-	}
-
-	if payloadLen > maxPayloadSz {
-		return msgErr(
-			"payload length is larger than the max LLRP message size: %d > %d",
-			payloadLen, maxPayloadSz)
-	}
-
-	return nil
-}
-
-// UnmarshalBinary unmarshals the a header buffer into the message header.
-//
-// The payload length is the message length less the header size,
-// unless the subtraction would overflow,
-// in which case this returns an error indicating the impossible size.
-func (h *header) UnmarshalBinary(buf []byte) error {
-	if len(buf) < headerSz {
-		return msgErr("not enough data for a message header: %d < %d", len(buf), headerSz)
-	}
-
-	_ = buf[9] // prevent extraneous bounds checks: golang.org/issue/14808
-	*h = header{
-		id:         messageID(binary.BigEndian.Uint32(buf[6:10])),
-		payloadLen: binary.BigEndian.Uint32(buf[2:6]),
-		typ:        messageType(binary.BigEndian.Uint16(buf[0:2]) & (0b0011_1111_1111)),
-		version:    LLRPVersion(buf[0] >> 2 & 0b111),
-	}
-
-	if h.payloadLen < headerSz {
-		return msgErr("message length is smaller than the minimum: %d < %d",
-			h.payloadLen, headerSz)
-	}
-	h.payloadLen -= headerSz
-
-	return nil
-}
-
-// MarshalBinary marshals a header to a byte array.
-func (h *header) MarshalBinary() ([]byte, error) {
-	if err := validateHeader(h.payloadLen, h.typ); err != nil {
-		return nil, err
-	}
-
-	header := make([]byte, headerSz)
-	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
-	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+headerSz)
-	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
-	return header, nil
 }
 
 // handleIncoming handles the read side of the connection.
@@ -472,18 +379,19 @@ func (r *Reader) handleOutgoing() error {
 	for {
 		// Get the next message to send, giving priority to ACKs.
 		var mid messageID
-		var msg msgOut
+		var msg message
 
 		select {
 		case <-r.done:
 			return ErrReaderClosed
 		case mid = <-r.ackQueue:
+			msg = message{header: header{typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return ErrReaderClosed
 			case mid = <-r.ackQueue:
-				msg = msgOut{typ: KeepAliveAck}
+				msg = message{header: header{typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -493,7 +401,7 @@ func (r *Reader) handleOutgoing() error {
 
 				// Give the read-side a way to correlate the response
 				// with something the sender can listen to.
-				replyChan := make(chan response, 1)
+				replyChan := make(chan message, 1)
 				r.awaitMu.Lock()
 				r.awaiting[mid] = replyChan
 				r.awaitMu.Unlock()
@@ -504,11 +412,11 @@ func (r *Reader) handleOutgoing() error {
 					replyChan: replyChan,
 					cancel: func() {
 						r.awaitMu.Lock()
+						defer r.awaitMu.Unlock()
 						if c, ok := r.awaiting[mid]; ok {
 							close(c)
 							delete(r.awaiting, mid)
 						}
-						r.awaitMu.Unlock()
 					},
 				}
 
@@ -518,22 +426,20 @@ func (r *Reader) handleOutgoing() error {
 			}
 		}
 
-		if err := r.writeHeader(mid, msg.length, msg.typ); err != nil {
+		if err := r.writeHeader(mid, msg.payloadLen, msg.typ); err != nil {
 			return err
 		}
 
-		if msg.length == 0 {
+		if msg.payloadLen == 0 {
 			continue
 		}
 
-		if msg.data == nil {
-			return errors.Errorf("message data is nil, but has length >0 (%d)",
-				msg.length)
+		if msg.payload == nil {
+			return errors.Errorf("message data is nil, but has length >0 (%v)", msg)
 		}
 
-		if n, err := io.Copy(r.conn, msg.data); err != nil {
-			return errors.Wrapf(err, "write failed after %d bytes for "+
-				"mid %d, type %d, length %d", n, mid, msg.typ, msg.length)
+		if n, err := io.Copy(r.conn, msg.payload); err != nil {
+			return errors.Wrapf(err, "write failed after %d bytes for %v", n, msg)
 		}
 	}
 }
@@ -555,16 +461,16 @@ func (r *Reader) sendAck(mid messageID) {
 }
 
 // getResponseHandler returns the handler for a given message's response.
-func (r *Reader) getResponseHandler(m header) io.Writer {
+func (r *Reader) getResponseHandler(hdr header) io.Writer {
 	// todo: handle LLRP error message type
-	if m.typ == KeepAlive {
-		r.sendAck(m.id)
+	if hdr.typ == KeepAlive {
+		r.sendAck(hdr.id)
 		return ioutil.Discard
 	}
 
 	r.awaitMu.Lock()
-	replyChan, ok := r.awaiting[m.id]
-	delete(r.awaiting, m.id)
+	replyChan, ok := r.awaiting[hdr.id]
+	delete(r.awaiting, hdr.id)
 	r.awaitMu.Unlock()
 
 	if !ok {
@@ -572,111 +478,10 @@ func (r *Reader) getResponseHandler(m header) io.Writer {
 	}
 
 	pr, pw := io.Pipe()
-	resp := response{hdr: m, payload: pr}
+	resp := message{header: hdr, payload: pr}
 	replyChan <- resp
 	close(replyChan)
 	return pw
-}
-
-// msgOut represents an outgoing message.
-type msgOut struct {
-	data   io.Reader   // nil if no payload, in which case length MUST be 0.
-	length uint32      // does not include header size
-	typ    messageType // LLRP msg type
-}
-
-// newMessage prepares a message for sending.
-//
-// payloadLen should NOT include the header size,
-// as it'll be added for you.
-// If it is zero, data MUST be nil.
-// Likewise, if data is nil, payloadLen MUST be zero.
-// This method panics if these constraints are invalid.
-//
-// Calling this method does not block other operations,
-// and it is safe for concurrent use.
-//
-// On the other hand, when the message is sent,
-// exactly payloadLen bytes must be streamed from data,
-// blocking other writers until the message completes.
-// Because the message header is written before streaming data,
-// the write must complete, otherwise the connection must be reset.
-// If writing the data may fail or take a long time,
-// the caller should buffer the message.
-func newMessage(data io.Reader, payloadLen uint32, typ messageType) msgOut {
-	if err := validateHeader(payloadLen, typ); err != nil {
-		panic(err)
-	}
-
-	if data != nil {
-		if payloadLen == 0 {
-			panic("data is not nil, but length is 0")
-		}
-	} else if payloadLen != 0 {
-		panic("length >0, but data is nil")
-	}
-
-	return msgOut{
-		data:   data,
-		length: payloadLen,
-		typ:    typ,
-	}
-}
-
-// newHdrOnlyMsg prepares a message that has no payload.
-func newHdrOnlyMsg(typ messageType) msgOut {
-	return newMessage(nil, 0, typ)
-}
-
-// newByteMessage uses a payload to create a msgOut.
-// The caller should not modify the slice until the message is sent.
-func newByteMessage(payload []byte, typ messageType) (m msgOut, err error) {
-	// check this here, since len(data) could overflow a uint32
-	if int64(len(payload)) > int64(maxPayloadSz) {
-		return msgOut{}, errors.New("LLRP messages are limited to 4GiB (minus a 10 byte header)")
-	}
-	n := uint32(len(payload))
-	return newMessage(bytes.NewReader(payload), n, typ), nil
-}
-
-// msgErr returns a new error for LLRP message issues.
-func msgErr(why string, v ...interface{}) error {
-	return errors.Errorf("invalid LLRP message: "+why, v...)
-}
-
-// response is returned to a message sender.
-//
-// payload is guaranteed not to be nil,
-// though if the payload length is zero,
-// it will immediately return EOF.
-//
-// If the payload length is non-zero,
-// the connection's read side blocks until the payload is read or closed.
-// Message senders are responsible for closing the payload,
-// though it is not necessary to read it entirely.
-//
-// If the Reader may be slow or can panic,
-// the caller should read the message into a buffer
-// and/or arrange for the payload to be closed.
-type response struct {
-	hdr     header        // the response's LLRP header
-	payload io.ReadCloser // always non-nil; callers should read or close
-}
-
-// typesMatch returns an error if a response's type does not match
-// the expected type associated with a given request type.
-func (resp response) typesMatch(reqType messageType) error {
-	expectedRespType, ok := reqType.responseType()
-	if !ok {
-		return errors.Errorf("unknown request type %d", reqType)
-	}
-
-	if resp.hdr.typ != expectedRespType {
-		return errors.Errorf("response message type (%d) "+
-			"does not match request's expected response type (%d -> %d)",
-			resp.hdr.typ, reqType, expectedRespType)
-	}
-	return nil
 }
 
 // request is sent to the write coordinator to start a new request.
@@ -684,17 +489,18 @@ func (resp response) typesMatch(reqType messageType) error {
 // When the write coordinator processes the request,
 // it'll use the channel to send back response/cancellation data.
 type request struct {
-	msg       msgOut           // the message to send
+	msg       message          // the message to send
 	tokenChan chan<- sendToken // closed by the write coordinator
 }
 
 // sendToken is sent back to the sender in response to a send request.
 type sendToken struct {
-	replyChan <-chan response // closed by the read coordinator
-	cancel    func()          // The sender should call this if it stops waiting for the reply.
+	replyChan <-chan message // closed by the read coordinator
+	cancel    func()         // The sender should call this if it stops waiting for the reply.
 }
 
 // send a message as soon as possible and wait for its response.
+// The reader must be connected and serving the incoming/outgoing queues.
 //
 // It is the caller's responsibility to read the data or close the response.
 // If the caller is slow or may panic, it should buffer its data.
@@ -707,7 +513,7 @@ type sendToken struct {
 // you'll receive an error wrapping ErrReaderClosed.
 //
 // This method is meant primarily as an internal building block
-// (see SendMessage for a more friendly wrapper).
+// (see SendMessage for the primary external API).
 // This method streams the outgoing and incoming data
 // to avoid duplicating the memory of outgoing messages
 // or processing unwanted responses, in full or in part.
@@ -717,13 +523,7 @@ type sendToken struct {
 //
 // If err is non-nil, the response payload is non-nil;
 // however, if payloadLen is zero, it will return EOF immediately.
-func (r *Reader) send(ctx context.Context, mOut msgOut) (*response, error) {
-	select {
-	default:
-	case <-r.done:
-		return nil, errors.Wrap(ErrReaderClosed, "failed to send")
-	}
-
+func (r *Reader) send(ctx context.Context, mOut message) (*message, error) {
 	// The write coordinator sends us a token to read or cancel the reply.
 	// We shouldn't close this channel once the request is accepted.
 	tokenChan := make(chan sendToken, 1)
@@ -756,11 +556,21 @@ func (r *Reader) send(ctx context.Context, mOut msgOut) (*response, error) {
 	}
 }
 
-// initiate reads what it assumes to be the first message on a connection,
-// confirms it's a ReaderEventNotification,
-// and verifies its payload.
-// It should be called before handling incoming other requests.
-func (r *Reader) initiate() error {
+// negotiate performs version negotiation with a Reader.
+// Upon success, it closes the "ready" channel
+// to signal the Reader is ready to accept external requests.
+//
+// If called on a Reader that previously opened and negotiated a connection,
+// this returns errAlreadyNegotiated.
+func (r *Reader) negotiate() error {
+	select {
+	case <-r.ready:
+		return errAlreadyNegotiated
+	case <-r.done:
+		return ErrReaderClosed
+	default:
+	}
+
 	connStatus, err := r.readHeader()
 	if err != nil {
 		return err
@@ -783,12 +593,6 @@ func (r *Reader) initiate() error {
 		return errors.Wrap(err, "unable to read connection status")
 	}
 
-	return nil
-}
-
-// negotiate performs version negotiation with a Reader.
-// It assumes the connection has just started.
-func (r *Reader) negotiate() error {
 	// In version 1, there is no version negotiation.
 	if r.version == Version1_0_1 {
 		return nil
@@ -800,7 +604,7 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.payload.Close()
 	// todo: unmarshal message; check version
-	if err := resp.typesMatch(GetSupportedVersion); err != nil {
+	if err := resp.isResponseTo(GetSupportedVersion); err != nil {
 		return errors.WithMessage(err, "failed to Get Supported Versions")
 	}
 
@@ -810,7 +614,7 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.payload.Close()
 	// todo: unmarshal message; confirm version match or downgrade
-	if err := resp.typesMatch(SetProtocolVersion); err != nil {
+	if err := resp.isResponseTo(SetProtocolVersion); err != nil {
 		return errors.WithMessage(err, "failed to Set Protocol Version")
 	}
 

@@ -45,9 +45,9 @@ type paramType uint16
 // Clients are required to accept messages with custom parameters.
 
 const (
-	LLRPStatusParam     = paramType(287)
-	FieldErrorParam     = paramType(288)
-	ParameterErrorParam = paramType(289)
+	PStatus         = paramType(287)
+	PFieldError     = paramType(288)
+	PParameterError = paramType(289)
 )
 
 // isTV returns true if the paramType is TV-encoded.
@@ -72,8 +72,8 @@ type paramHeader struct {
 	length uint16    // only present for TLVs
 }
 
-func newParamReader(m msgOut) *paramParser {
-	pr := paramParser{r: bufio.NewReader(m.data), n: m.length}
+func newParamReader(m message) *paramParser {
+	pr := paramParser{r: bufio.NewReader(m.payload), n: m.payloadLen}
 	return &pr
 }
 
@@ -151,19 +151,19 @@ func paramParseWrap(err error, pt paramType, msg string, args ...interface{}) er
 func (pr *paramParser) llrpStatus(n uint16) (llrpStatus, error) {
 	var ls llrpStatus
 	if n < 4 {
-		return ls, paramParseErr(LLRPStatusParam, "not enough data")
+		return ls, paramParseErr(PStatus, "not enough data")
 	}
 
 	err := binary.Read(pr.r, binary.BigEndian, &ls.statusCode)
 	err = binary.Read(pr.r, binary.BigEndian, &ls.errDescLen)
 	if err != nil {
-		return ls, paramParseWrap(err, LLRPStatusParam, "couldn't read initial fields")
+		return ls, paramParseWrap(err, PStatus, "couldn't read initial fields")
 	}
 	n -= 4
 
 	if ls.errDescLen > 0 {
 		if n < ls.errDescLen {
-			return ls, paramParseErr(LLRPStatusParam,
+			return ls, paramParseErr(PStatus,
 				"not enough bytes to read err description: %d < %d", n, ls.errDescLen)
 		}
 
@@ -189,16 +189,16 @@ func (pr *paramParser) llrpStatus(n uint16) (llrpStatus, error) {
 
 	typ := binary.BigEndian.Uint16(b)
 	switch paramType(typ) {
-	case FieldErrorParam:
+	case PFieldError:
 		fe, err := pr.fieldError()
 		if err != nil {
 			return ls, errors.WithMessage(err, "failed parsing LLRPStatus")
 		}
 		n -= 4
 		ls.fieldError = &fe
-	case ParameterErrorParam:
+	case PParameterError:
 	default:
-		return ls, paramParseErr(LLRPStatusParam, "invalid sub-parameter type: %d", typ)
+		return ls, paramParseErr(PStatus, "invalid sub-parameter type: %d", typ)
 	}
 
 	return ls, nil
@@ -209,7 +209,7 @@ func (pr *paramParser) parameterError() (paramError, error) {
 	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
 		&pe.typ, &pe.errCode})
 	if err != nil {
-		return pe, paramParseWrap(err, FieldErrorParam, "failed filling fields")
+		return pe, paramParseWrap(err, PFieldError, "failed filling fields")
 	}
 	// todo: read other params
 	return pe, nil
@@ -220,7 +220,7 @@ func (pr *paramParser) fieldError() (fieldError, error) {
 	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
 		&fe.fieldNum, &fe.errCode})
 	if err != nil {
-		return fe, paramParseWrap(err, FieldErrorParam, "failed filling fields")
+		return fe, paramParseWrap(err, PFieldError, "failed filling fields")
 	}
 	return fe, nil
 }

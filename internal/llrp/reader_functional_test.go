@@ -7,6 +7,7 @@ package llrp
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"net"
 	"sync"
 	"testing"
@@ -40,6 +41,7 @@ func TestReader_withGolemu(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var empty []byte
+
 	resp, err := r.SendMessage(ctx, empty, SetReaderConfig)
 	if err != nil {
 		t.Error(err)
@@ -47,7 +49,6 @@ func TestReader_withGolemu(t *testing.T) {
 		t.Error("expected non-nil response")
 	}
 
-	<-time.After(10 * time.Second)
 	cancel()
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)

@@ -107,7 +107,7 @@ func TestReader_readHeader(t *testing.T) {
 
 func TestReader_newMessage(t *testing.T) {
 	ack := newHdrOnlyMsg(KeepAliveAck)
-	expMsg := msgOut{typ: KeepAliveAck}
+	expMsg := message{header: header{typ: KeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -124,7 +124,7 @@ func TestReader_newMessage(t *testing.T) {
 			errs <- err
 			return
 		}
-		if err := lr.writeHeader(mid, ack.length, ack.typ); err != nil {
+		if err := lr.writeHeader(mid, ack.payloadLen, ack.typ); err != nil {
 			errs <- err
 		}
 	}()
@@ -381,39 +381,4 @@ func TestReader_ManySenders(t *testing.T) {
 			t.Errorf("%+v", err)
 		}
 	}
-}
-
-func TestParamReader(t *testing.T) {
-	errDesc := "error description"
-	errLen := uint16(len(errDesc))
-
-	payload := append([]byte{
-		0x01, 0x1F, // type 287, LLRPStatus Parameter
-		0x00, 0x00, // total length (including 4 byte header)
-		0x00, 0x00, // StatusCode
-		uint8(errLen >> 8), uint8(errLen & 0xFF), // Error Description ByteCount
-	}, []byte(errDesc)...)
-	payload[2] = uint8(len(payload) >> 8)
-	payload[3] = uint8(len(payload) & 0xFF)
-	msg, err := newByteMessage(payload, LLRPErrorMessage)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pr := newParamReader(msg)
-
-	pTyp, err := pr.next()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if LLRPStatusParam != pTyp {
-		t.Fatalf("expected %v; got %v", LLRPStatusParam, pTyp)
-	}
-
-	t.Log(pr.cur)
-	ls, err := pr.llrpStatus(pr.cur.length)
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
-	t.Logf("%+v", ls)
 }
