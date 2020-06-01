@@ -7,6 +7,7 @@ package llrp
 
 import (
 	"context"
+	"flag"
 	"github.com/pkg/errors"
 	"net"
 	"sync"
@@ -14,8 +15,17 @@ import (
 	"time"
 )
 
+// ex: go test -reader="localhost:5084"
+// if using Goland, put that in the 'program arguments' part of the test config
+var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables functional tests")
+
 func TestReader_withGolemu(t *testing.T) {
-	conn, err := net.Dial("tcp", "localhost:5084")
+	addr := *readerAddr
+	if addr == "" {
+		t.Skip("functional tests disabled")
+	}
+
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		t.Fatal(err)
 	}
