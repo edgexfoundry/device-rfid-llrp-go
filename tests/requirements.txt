@@ -11,7 +11,7 @@ robotframework==3.1.2
 robotframework-sshlibrary==3.4.0
 scp==0.13.2
 six==1.12.
-paho-mqtt==1.5.0
 pymongo==3.10.1
 pyral==1.4.2
 pexpect
+
