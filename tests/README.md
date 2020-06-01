@@ -60,13 +60,6 @@ For tests locally, Create a file "/tests/.env" and add below these two lines -
 ## Remotely
 # How do I build remotely at jenkins agent?
  
+Build: [![Build Status](https://rrpdevops01.amr.corp.intel.com/job/RSP-Inventory-Suite/job/device-llrp-go/view/change-requests/job/PR-3/)](https://rrpdevops01.amr.corp.intel.com/job/RSP-Inventory-Suite/job/device-llrp-go/view/change-requests/job/PR-3/)
 
-1. Edit `tests/config/config.yaml` and replace localhost with your test machine's IP.
-2. Edit `tests/scripts/<validation script>.py` and replace localhost with your test machine's IP.
-3. Commit and push the changes.
-4. Navigate to `https://rrpdevops01.amr.corp.intel.com/job/RSP-Inventory-Suite/job/device-llrp-go/`
-5. On the left hand side of the page look for *scan organization* and click it.
-6. You repo show now appear in the list of pipelines.
-7. One the left hand side of the page look for *Open Blue Ocean* and click it.
-8. Search your your repo in the list and click on it.
-9. **TBD... Work in progress**
+Navigate to `https://rrpdevops01.amr.corp.intel.com/job/RSP-Inventory-Suite/job/device-llrp-go/`
