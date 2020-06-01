@@ -31,7 +31,9 @@ type Driver struct {
 
 func NewProtocolDriver() dsModels.ProtocolDriver {
 	once.Do(func() {
-		driver = new(Driver)
+		driver = &Driver{
+		    readers: make(map[string]*Reader),
+		}
 	})
 	return driver
 }
