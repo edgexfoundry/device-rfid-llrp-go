@@ -42,6 +42,7 @@ func NewProtocolDriver() dsModels.ProtocolDriver {
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, devs chan<- []dsModels.DiscoveredDevice) error {
 	d.lc = lc
 	d.asyncCh = asyncCh
+	go Discover()
 	return nil
 }
 
