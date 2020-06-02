@@ -3,21 +3,23 @@ package driver
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	sdk "github.com/edgexfoundry/device-sdk-go/pkg/service"
+	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 )
 
 // todo: most of these need to be configurable
 const (
-	probeTimeout          = 10 * time.Second
-	llrpPort              = 5084 // todo: support TLS connections?
-	probeAsyncLimit       = 100
+	probeTimeout          = 1 * time.Second
+	llrpPort              = "5084" // todo: support TLS connections?
+	probeAsyncLimit       = 254
 	scanVirtualInterfaces = false
-	ipv4Length = 4
+	profileName           = "Device.LLRP.Profile"
 )
 
 // virtualRegex is a regular expression to determine if an interface is likely to be a virtual interface
@@ -34,8 +36,8 @@ type discoverState struct {
 	readersMu sync.Mutex
 	readers   []*Reader
 
-	isClosed uint32        // used atomically to prevent duplicate closure of done
-	ipChan   chan net.IP   // channel of ips to scan
+	isClosed uint32      // used atomically to prevent duplicate closure of done
+	ipChan   chan net.IP // channel of ips to scan
 }
 
 func newDiscoverState() *discoverState {
@@ -53,7 +55,7 @@ func Discover() ([]*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("%+v", nets)
+	driver.lc.Info(fmt.Sprintf("%+v", nets))
 
 	// start this before adding any ips so they are ready to process
 	for i := 0; i < probeAsyncLimit; i++ {
@@ -66,7 +68,7 @@ func Discover() ([]*Reader, error) {
 			// todo: should this warn and continue to allow partial scans?
 			return nil, err
 		}
-		log.Infof("ips: %v", len(ips))
+		driver.lc.Info(fmt.Sprintf("ips: %d", len(ips)))
 
 		for _, ip := range ips {
 			ip := ip
@@ -75,13 +77,13 @@ func Discover() ([]*Reader, error) {
 		}
 	}
 
-	log.Debug("waiting for wait group")
+	driver.lc.Debug("waiting for wait group")
 	ds.wg.Wait()
 	err = ds.close()
 	if err != nil {
-		log.Warnf("error closing discovery: %v", err)
+		driver.lc.Warn("error closing discovery: " + err.Error())
 	}
-	log.Debug("wait group completed")
+	driver.lc.Debug("wait group completed")
 
 	return ds.readers, nil
 }
@@ -113,25 +115,28 @@ func (ds *discoverState) ipWorker() {
 
 // probe attempts to make a connection to a specific ip and port to determine
 // if an LLRP reader exists at that network address
-func (ds *discoverState) probe(ip net.IP, port int) (*Reader, error) {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ip.String(), port), probeTimeout)
+func (ds *discoverState) probe(ip net.IP, port string) (*Reader, error) {
+	addr := ip.String() + ":" + port
+	conn, err := net.DialTimeout("tcp", addr, probeTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Info("connection dialed")
+	driver.lc.Info("connection dialed")
 	r, err := NewReader(WithConn(conn))
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug("run negotiation")
+	driver.lc.Debug("run negotiation")
 	err = r.negotiate()
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Reader connection successfully negotiated @ %v:%d!", ip, port)
+	driver.lc.Info("Reader connection successfully negotiated @ " + addr)
+
+	go registerDeviceIfNeeded(ip.String(), port)
 
 	return r, nil
 }
@@ -166,7 +171,7 @@ func expandIPNet(inet *net.IPNet) ([]net.IP, error) {
 // it starts at the last byte and increments it. because a byte is unsigned, it will wrap at 255 back to 0.
 // when it overflows to 0 it will continue to the next higher level byte, otherwise it will stop incrementing
 func incrementIPv4(ip net.IP) error {
-	if len(ip) != ipv4Length {
+	if len(ip) != net.IPv4len {
 		return ErrInvalidIPv4
 	}
 
@@ -206,7 +211,7 @@ func getIPv4Nets(includeVirtual bool) ([]*net.IPNet, error) {
 		}
 
 		if !includeVirtual && virtualRegex.MatchString(iface.Name) {
-			log.Infof("Skipping virtual network interface: %v", iface.Name)
+			driver.lc.Info("Skipping virtual network interface: " + iface.Name)
 			continue
 		}
 
@@ -220,8 +225,8 @@ func getIPv4Nets(includeVirtual bool) ([]*net.IPNet, error) {
 					continue
 				}
 
-				log.Info(iface.Name)
-				log.Info(v)
+				driver.lc.Info(iface.Name)
+				driver.lc.Info(fmt.Sprintf("%v", v))
 				nets = append(nets, v)
 			}
 		}
@@ -230,6 +235,32 @@ func getIPv4Nets(includeVirtual bool) ([]*net.IPNet, error) {
 	return nets, nil
 }
 
-func RegisterReader() {
-	// todo
+// registerDeviceIfNeeded takes the host and port number of a discovered LLRP reader and registers it for
+// use with EdgeX
+func registerDeviceIfNeeded(host string, port string) {
+	if _, err := sdk.RunningService().GetDeviceByName(host); err == nil {
+		// if err is nil, device already exists
+		driver.lc.Debug("Device already exists, not registering", "deviceId", host, "profile", profileName)
+		return
+	}
+
+	driver.lc.Debug("Device not found in EdgeX database. Now Registering.", "deviceId", host, "profile", profileName)
+	_, err := sdk.RunningService().AddDevice(edgexModels.Device{
+		Name:           host + "_" + port,
+		AdminState:     edgexModels.Unlocked,
+		OperatingState: edgexModels.Enabled,
+		Protocols: map[string]edgexModels.ProtocolProperties{
+			"tcp": {
+				"host": host,
+				"port": port,
+			},
+		},
+		Profile: edgexModels.DeviceProfile{
+			Name: profileName,
+		},
+	})
+	if err != nil {
+		driver.lc.Error("Device registration failed",
+			"device", host, "profile", profileName, "cause", err)
+	}
 }

@@ -1,11 +1,17 @@
 package driver
 
 import (
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"math"
 	"net"
 	"reflect"
 	"testing"
 )
+
+func init() {
+	NewProtocolDriver()
+	driver.lc = logger.NewClient("test", false, "", "DEBUG")
+}
 
 func TestDiscover(t *testing.T) {
 	_, _ = Discover()
@@ -68,46 +74,46 @@ func TestIncrementIPv4_Negative(t *testing.T) {
 }
 
 func computeNetSz(subnetSz int) int {
-	return int(math.Max(1, math.Round(math.Pow(2, float64(32-subnetSz)) - 2)))
+	return int(math.Max(1, math.Round(math.Pow(2, float64(32-subnetSz))-2)))
 }
 
 func TestExpandIPNet(t *testing.T) {
 	tests := []struct {
-		inet string
+		inet  string
 		first string
-		last string
-		size int
-		err bool
+		last  string
+		size  int
+		err   bool
 	}{
 		{
-			inet: "192.168.1.110/24",
+			inet:  "192.168.1.110/24",
 			first: "192.168.1.1",
-			last: "192.168.1.254",
-			size: computeNetSz(24),
+			last:  "192.168.1.254",
+			size:  computeNetSz(24),
 		},
 		{
-			inet: "192.168.1.110/32",
+			inet:  "192.168.1.110/32",
 			first: "192.168.1.110",
-			last: "192.168.1.110",
-			size: computeNetSz(32),
+			last:  "192.168.1.110",
+			size:  computeNetSz(32),
 		},
 		{
-			inet: "192.168.1.20/31",
+			inet:  "192.168.1.20/31",
 			first: "192.168.1.20",
-			last: "192.168.1.20",
-			size: computeNetSz(31),
+			last:  "192.168.1.20",
+			size:  computeNetSz(31),
 		},
 		{
-			inet: "192.168.99.20/16",
+			inet:  "192.168.99.20/16",
 			first: "192.168.0.1",
-			last: "192.168.255.254",
-			size: computeNetSz(16),
+			last:  "192.168.255.254",
+			size:  computeNetSz(16),
 		},
 		{
-			inet: "10.10.10.10/8",
+			inet:  "10.10.10.10/8",
 			first: "10.0.0.1",
-			last: "10.255.255.254",
-			size: computeNetSz(8),
+			last:  "10.255.255.254",
+			size:  computeNetSz(8),
 		},
 	}
 	for _, test := range tests {
@@ -132,5 +138,3 @@ func TestExpandIPNet(t *testing.T) {
 		})
 	}
 }
-
-
