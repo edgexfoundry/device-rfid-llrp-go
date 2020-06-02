@@ -3,7 +3,7 @@ def notify = [ email: false, slack: [ success: '#ima-build-success', failure: '#
 pipeline {
     agent { label 'edgex-testing' }
     triggers {
-        cron('07 02 * * *')
+        cron('09 02 * * *')
     }
 
     options {
