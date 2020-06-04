@@ -50,7 +50,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 type protocolMap = map[string]contract.ProtocolProperties
 
-// HandleReadCommands triggers a llrpProtocol Read operation for the specified device.
+// HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
@@ -79,7 +79,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	return nil
 }
 
-// Stop the llrpProtocol-specific DS code to shutdown gracefully, or
+// Stop the protocol-specific DS code to shutdown gracefully, or
 // if the force parameter is 'true', immediately. The driver is responsible
 // for closing any in-use channels, including the channel used to send async
 // readings (if supported).
@@ -192,14 +192,14 @@ func (d *Driver) removeReader(deviceName string) {
 	return
 }
 
-// getAddr extracts an address from a llrpProtocol mapping.
+// getAddr extracts an address from a protocol mapping.
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 // todo: TLS options? retry/timeout options? LLRP version options?
 func getAddr(protocols protocolMap) (net.Addr, error) {
 	tcpInfo := protocols["tcp"]
 	if tcpInfo == nil {
-		return nil, errors.New("missing tcp llrpProtocol")
+		return nil, errors.New("missing tcp protocol")
 	}
 
 	host := tcpInfo["host"]
@@ -210,7 +210,7 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 
 	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
 	return addr, errors.Wrapf(err,
-		"unable to create addr for tcp llrpProtocol (%q, %q)", host, port)
+		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
 func (d *Driver) Discover() {
