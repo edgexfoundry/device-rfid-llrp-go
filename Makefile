@@ -7,6 +7,7 @@ MICROSERVICES=cmd/device-llrp
 .PHONY: $(MICROSERVICES)
 
 DOCKERS=docker_device_llrp_go
+COMPOSE_FILE=docker-compose-geneva-redis-no-secty.yml
 
 .PHONY: $(DOCKERS)
 
@@ -16,7 +17,6 @@ GIT_SHA=$(shell git rev-parse HEAD)
 GOFLAGS=-ldflags "-X github.impcloud.net/RSP-Inventory-Suite/device-llrp-go.Version=$(VERSION)"
 
 build: $(MICROSERVICES)
-	$(GO) build ./...
 
 cmd/device-llrp:
 	$(GO) build $(GOFLAGS) -o $@ ./cmd
@@ -39,7 +39,18 @@ docker_device_llrp_go:
 		.
 
 run:
-	docker-compose -f docker-compose-geneva-redis-no-secty.yml up -d
+	docker-compose -f $(COMPOSE_FILE) up -d
 
 stop:
-	docker-compose -f docker-compose-geneva-redis-no-secty.yml down
+	docker-compose -f $(COMPOSE_FILE) stop
+
+rm:
+	docker-compose -f $(COMPOSE_FILE) down
+
+tail:
+	docker logs -f $(shell docker ps -qf name=llrp)
+
+rm-volumes:
+	for x in $$(docker volume ls -q | grep 'device-llrp'); do \
+  		docker volume rm $$x; \
+	done

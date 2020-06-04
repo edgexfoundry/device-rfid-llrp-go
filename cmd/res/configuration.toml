@@ -16,9 +16,9 @@ EnableAsyncReadings = true
 AsyncBufferSize = 16
 
 [Registry]
-Host = "localhost"
+Host = 'localhost'
 Port = 8500
-Type = "consul"
+Type = 'consul'
 
 [Logging]
 EnableRemote = false
@@ -50,3 +50,6 @@ File = ''
   RemoveCmdArgs = ''
   ProfilesDir = './res'
   UpdateLastConnected = false
+  [Device.Discovery]
+    Enabled = true
+    Interval = '1h'

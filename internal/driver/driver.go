@@ -21,8 +21,9 @@ var once sync.Once
 var driver *Driver
 
 type Driver struct {
-	lc      logger.LoggingClient
-	asyncCh chan<- *dsModels.AsyncValues
+	lc       logger.LoggingClient
+	asyncCh  chan<- *dsModels.AsyncValues
+	deviceCh chan<- []dsModels.DiscoveredDevice
 
 	readers     map[string]*Reader
 	readerMapMu sync.RWMutex
@@ -31,7 +32,7 @@ type Driver struct {
 func NewProtocolDriver() dsModels.ProtocolDriver {
 	once.Do(func() {
 		driver = &Driver{
-		    readers: make(map[string]*Reader),
+			readers: make(map[string]*Reader),
 		}
 	})
 	return driver
@@ -39,15 +40,17 @@ func NewProtocolDriver() dsModels.ProtocolDriver {
 
 // Initialize performs protocol-specific initialization for the device
 // service.
-func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, devs chan<- []dsModels.DiscoveredDevice) error {
+func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
 	d.lc = lc
 	d.asyncCh = asyncCh
+	d.deviceCh = deviceCh
+	go d.Discover()
 	return nil
 }
 
 type protocolMap = map[string]contract.ProtocolProperties
 
-// HandleReadCommands triggers a protocol Read operation for the specified device.
+// HandleReadCommands triggers a llrpProtocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
@@ -76,7 +79,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	return nil
 }
 
-// Stop the protocol-specific DS code to shutdown gracefully, or
+// Stop the llrpProtocol-specific DS code to shutdown gracefully, or
 // if the force parameter is 'true', immediately. The driver is responsible
 // for closing any in-use channels, including the channel used to send async
 // readings (if supported).
@@ -189,14 +192,14 @@ func (d *Driver) removeReader(deviceName string) {
 	return
 }
 
-// getAddr extracts an address from a protocol mapping.
+// getAddr extracts an address from a llrpProtocol mapping.
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 // todo: TLS options? retry/timeout options? LLRP version options?
 func getAddr(protocols protocolMap) (net.Addr, error) {
 	tcpInfo := protocols["tcp"]
 	if tcpInfo == nil {
-		return nil, errors.New("missing tcp protocol")
+		return nil, errors.New("missing tcp llrpProtocol")
 	}
 
 	host := tcpInfo["host"]
@@ -207,5 +210,16 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 
 	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
 	return addr, errors.Wrapf(err,
-		"unable to create addr for tcp protocol (%q, %q)", host, port)
+		"unable to create addr for tcp llrpProtocol (%q, %q)", host, port)
+}
+
+func (d *Driver) Discover() {
+	mon, wg, err := RunScanner()
+	if err != nil {
+		d.lc.Error(err.Error())
+	} else {
+		mon.Stop()
+		wg.Wait()
+		d.lc.Info("scanning complete")
+	}
 }
