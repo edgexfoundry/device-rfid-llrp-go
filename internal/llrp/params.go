@@ -6,19 +6,10 @@
 package llrp
 
 import (
-	"bufio"
 	"encoding/binary"
-	"github.com/pkg/errors"
 	"io"
+	"time"
 )
-
-// paramParser wraps an io.Reader to iteratively extract LLRP Parameters
-type paramParser struct {
-	r       *bufio.Reader
-	n       uint32
-	cur     paramHeader
-	unknown bool
-}
 
 // paramType is an 8 or 10 bit value identifying
 // both the encoding and content of an LLRP Parameter.
@@ -45,10 +36,79 @@ type paramType uint16
 // Clients are required to accept messages with custom parameters.
 
 const (
-	PStatus         = paramType(287)
-	PFieldError     = paramType(288)
-	PParameterError = paramType(289)
+	ParamLLRPStatus                  = paramType(287)
+	ParamFieldError                  = paramType(288)
+	ParamParameterError              = paramType(289)
+	ParamReaderEventNotificationData = paramType(246)
+	ParamUTCTimestamp                = paramType(128)
+	ParamUptime                      = paramType(129)
+	ParamHoppingEvent                = paramType(247)
+	ParamGPIEvent                    = paramType(248)
+	ParamROSpecEvent                 = paramType(249)
+	ParamBufferLevelWarnEvent        = paramType(250)
+	ParamBufferOverflowEvent         = paramType(251)
+	ParamReaderExceptionEvent        = paramType(252)
+	ParamRFSurveyEvent               = paramType(253)
+	ParamAISpecEvent                 = paramType(254)
+	ParamAntennaEvent                = paramType(255)
+	ParamConnectionAttemptEvent      = paramType(256)
+	ParamConnectionCloseEvent        = paramType(257)
+	ParamSpecLoopEvent               = paramType(365)
+	ParamCustomParameter             = paramType(1023)
+
+	// TV-encoded params
+	ParamEPC96                  = paramType(13)
+	ParamROSpectID              = paramType(9)
+	ParamSpecIndex              = paramType(14)
+	ParamInventoryParamSpecID   = paramType(10)
+	ParamAntennaID              = paramType(1)
+	ParamPeakRSSI               = paramType(6)
+	ParamChannelIndex           = paramType(7)
+	ParamFirstSeenUTC           = paramType(2)
+	ParamFirstSeenUptime        = paramType(3)
+	ParamLastSeenUTC            = paramType(4)
+	ParamLastSeenUptime         = paramType(5)
+	ParamTagSeenCount           = paramType(8)
+	ParamClientReqOpSpecResult  = paramType(15)
+	ParamAccessSpecID           = paramType(16)
+	ParamOpSpecID               = paramType(17)
+	ParamC1G2PC                 = paramType(12)
+	ParamC1G2XPCW1              = paramType(19)
+	ParamC1G2XPCW2              = paramType(20)
+	ParamC1G2CRC                = paramType(11)
+	ParamC1G2SingulationDetails = paramType(18)
+
+	paramResvStart = 900
+	paramResvEnd   = 999
+
+	tlvHeaderSz = 4
+	tvHeaderSz  = 1
+	maxParamSz  = uint16(1<<16 - 1)
 )
+
+// tvLengths to byte lengths (not including the 1-byte type itself)
+var tvLengths = map[paramType]int{
+	ParamEPC96:                  12,
+	ParamROSpectID:              4,
+	ParamSpecIndex:              2,
+	ParamInventoryParamSpecID:   2,
+	ParamAntennaID:              2,
+	ParamPeakRSSI:               1,
+	ParamChannelIndex:           2,
+	ParamFirstSeenUTC:           8,
+	ParamFirstSeenUptime:        8,
+	ParamLastSeenUTC:            8,
+	ParamLastSeenUptime:         8,
+	ParamTagSeenCount:           2,
+	ParamClientReqOpSpecResult:  2,
+	ParamAccessSpecID:           4,
+	ParamOpSpecID:               4,
+	ParamC1G2PC:                 2,
+	ParamC1G2XPCW1:              2,
+	ParamC1G2XPCW2:              2,
+	ParamC1G2CRC:                2,
+	ParamC1G2SingulationDetails: 4,
+}
 
 // isTV returns true if the paramType is TV-encoded.
 // TV-encoded parameters have specific lengths which must be looked up.
@@ -67,160 +127,95 @@ func (pt paramType) isValid() bool {
 	return pt > 0 && pt <= 2047
 }
 
+// high returns the high byte of a paramType.
+func (pt paramType) high() uint8 {
+	return uint8(pt >> 8 & 0b11)
+}
+
+// low returns the low byte of a paramType.
+func (pt paramType) low() uint8 {
+	return uint8(pt)
+}
+
+// paramHeader represents the type and possibly length of a parameter.
 type paramHeader struct {
 	typ    paramType // TVs are 1-127; TLVs are 128-2047
-	length uint16    // only present for TLVs
+	length uint16    // only present for TLVs; does not include header size
 }
 
-func newParamReader(m message) *paramParser {
-	pr := paramParser{r: bufio.NewReader(m.payload), n: m.payloadLen}
-	return &pr
+func (ph paramHeader) MarshalBinary() ([]byte, error) {
+	if ph.typ.isTV() {
+		return []byte{ph.typ.low()}, nil
+	}
+
+	b := []byte{0, 0, 0, 0}
+	binary.BigEndian.PutUint16(b[0:2], uint16(ph.typ))
+	binary.BigEndian.PutUint16(b[2:4], ph.length)
+	return b, nil
 }
 
-func (pr *paramParser) next() (paramType, error) {
-	if pr.n == 0 {
-		return 0, nil
+// TLV type 246
+type readerEventNotificationData struct {
+	ts     timestamp
+	events []paramHeader
+}
+
+func newConnectionSuccessEvent() readerEventNotificationData {
+	return readerEventNotificationData{
+		ts: currentUTC(),
 	}
+}
 
-	t, err := pr.r.ReadByte()
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to parse param header")
-	}
+// TLV type 128 == UTC Timestamp
+// TLV type 129 == Uptime Timestamp
+type timestamp struct {
+	microseconds uint64
+	// utc is true if microseconds are from 00:00:00 UTC, Jan 1, 1970.
+	// otherwise, they represent the reader's uptime
+	utc bool
+}
 
-	if t == 0 {
-		return 0, errors.New("invalid parameter type 0")
-	}
+// toGoTime returns the timestamp as a Go time.Time type,
+// assuming it represents a UTC time.
+// If it doesn't, the return value is meaningless.
+func (ts timestamp) toGoTime() time.Time {
+	return time.Unix(0, (time.Duration(ts.microseconds) * time.Second).Nanoseconds())
+}
 
-	if t&0x80 == 0 {
-		// if the 1st bit is 0, it's a TLV
-		t2, err := pr.r.ReadByte()
-		if err != nil {
-			return 0, errors.Wrap(err, "failed to parse param header")
-		}
-		pr.cur.typ = paramType((uint16(t&3) << 8) | uint16(t2))
+func currentUTC() timestamp {
+	return timestamp{microseconds: uint64(time.Now().UnixNano() / 1000), utc: true}
+}
 
-		b := []byte{0, 0}
-		if _, err := io.ReadFull(pr.r, b); err != nil {
-			return 0, errors.Wrap(err, "failed to parse param header")
-		}
-		pr.cur.length = binary.BigEndian.Uint16(b) - 4 // subtract header size
-		pr.n -= 4
+func (ts timestamp) writeData(w io.Writer) error {
+	b := [12]byte{}
+	if ts.utc {
+		binary.BigEndian.PutUint16(b[0:2], uint16(ParamUTCTimestamp))
 	} else {
-		// if the 1st bit is 1, it's a TV and has no length info
-		pr.cur.typ = paramType(t & 0x7F)
-		pr.cur.length = 0 // todo
-		pr.n -= 1
+		binary.BigEndian.PutUint16(b[0:2], uint16(ParamUptime))
 	}
-
-	return pr.cur.typ, nil
+	binary.BigEndian.PutUint16(b[2:4], uint16(len(b)))
+	binary.BigEndian.PutUint64(b[4:12], ts.microseconds)
+	_, err := w.Write(b[:])
+	return err
 }
 
-// TLV, type 287
-type llrpStatus struct {
-	statusCode  uint16
-	errDescLen  uint16 // number of UTF-8 bytes
-	err         string // UTF-8
-	*fieldError        // optional
-	*paramError        // optional
-}
+// TLV type 256
+type connAttemptEventParam uint16
 
-// TLV, type 288
-type fieldError struct {
-	fieldNum uint16
-	errCode  uint16
-}
+const (
+	connectionSuccess         = connAttemptEventParam(0)
+	readerInitiatedConnExists = connAttemptEventParam(1)
+	clientInitiatedConnExists = connAttemptEventParam(2)
+	failedReasonUnknown       = connAttemptEventParam(3)
+	anotherConnAttempted      = connAttemptEventParam(4)
+)
 
-// TLV, type 289
-type paramError struct {
-	typ     paramType
-	errCode uint16
-	*fieldError
-	*paramError
-}
-
-func paramParseErr(pt paramType, msg string, args ...interface{}) error {
-	return errors.Errorf("failed to parse parameter %v: "+msg,
-		append([]interface{}{pt}, args...))
-}
-
-func paramParseWrap(err error, pt paramType, msg string, args ...interface{}) error {
-	return errors.Wrapf(err, "failed to parse parameter %v: "+msg,
-		append([]interface{}{pt}, args...))
-}
-
-func (pr *paramParser) llrpStatus(n uint16) (llrpStatus, error) {
-	var ls llrpStatus
-	if n < 4 {
-		return ls, paramParseErr(PStatus, "not enough data")
-	}
-
-	err := binary.Read(pr.r, binary.BigEndian, &ls.statusCode)
-	err = binary.Read(pr.r, binary.BigEndian, &ls.errDescLen)
-	if err != nil {
-		return ls, paramParseWrap(err, PStatus, "couldn't read initial fields")
-	}
-	n -= 4
-
-	if ls.errDescLen > 0 {
-		if n < ls.errDescLen {
-			return ls, paramParseErr(PStatus,
-				"not enough bytes to read err description: %d < %d", n, ls.errDescLen)
-		}
-
-		b := make([]byte, ls.errDescLen)
-		if _, err := io.ReadFull(pr.r, b); err != nil {
-			return ls, errors.Wrap(err, "failed to parse error message")
-		}
-		ls.err = string(b)
-
-		n -= ls.errDescLen
-	}
-
-	if n == 0 {
-		return ls, nil
-	}
-
-	// more parameters, yay...
-	b := []byte{0, 0}
-	if _, err := io.ReadFull(pr.r, b); err != nil {
-		return ls, errors.Wrap(err, "failed to parse error message")
-	}
-	n -= 2
-
-	typ := binary.BigEndian.Uint16(b)
-	switch paramType(typ) {
-	case PFieldError:
-		fe, err := pr.fieldError()
-		if err != nil {
-			return ls, errors.WithMessage(err, "failed parsing LLRPStatus")
-		}
-		n -= 4
-		ls.fieldError = &fe
-	case PParameterError:
-	default:
-		return ls, paramParseErr(PStatus, "invalid sub-parameter type: %d", typ)
-	}
-
-	return ls, nil
-}
-
-func (pr *paramParser) parameterError() (paramError, error) {
-	pe := paramError{}
-	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
-		&pe.typ, &pe.errCode})
-	if err != nil {
-		return pe, paramParseWrap(err, PFieldError, "failed filling fields")
-	}
-	// todo: read other params
-	return pe, nil
-}
-
-func (pr *paramParser) fieldError() (fieldError, error) {
-	fe := fieldError{}
-	err := binary.Read(pr.r, binary.BigEndian, []interface{}{
-		&fe.fieldNum, &fe.errCode})
-	if err != nil {
-		return fe, paramParseWrap(err, PFieldError, "failed filling fields")
-	}
-	return fe, nil
+func (caep connAttemptEventParam) writeData(w io.Writer) error {
+	_, err := w.Write([]byte{
+		ParamConnectionAttemptEvent.high(),
+		ParamConnectionAttemptEvent.low(),
+		0, uint8(tlvHeaderSz) + 2,
+		uint8(caep >> 8), uint8(caep & 0xFF),
+	})
+	return err
 }

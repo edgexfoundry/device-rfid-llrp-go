@@ -142,7 +142,7 @@ type ReaderLogger interface {
 }
 
 // stdGoLogger uses a standard Go logger to satisfy the ReaderLogger interface.
-var stdGoLogger = log.New(os.Stderr, "LLRP", log.LstdFlags)
+var stdGoLogger = log.New(os.Stderr, "LLRP-", log.LstdFlags)
 
 var (
 	// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
@@ -169,12 +169,18 @@ func (r *Reader) Connect() error {
 
 	errs := make(chan error, 2)
 	go func() { errs <- r.handleOutgoing() }()
-	go func() { errs <- r.handleIncoming() }()
 
-	err := r.negotiate()
+	// TODO: there's a race to fix between handleIncoming and negotiation
+	m, err := r.nextMessage()
 	if err != nil {
 		return err
 	}
+	if err := m.Close(); err != nil {
+		return errors.Wrap(err, "negotiate failed")
+	}
+	close(r.ready)
+
+	go func() { errs <- r.handleIncoming() }()
 
 	select {
 	case err = <-errs:
@@ -204,7 +210,7 @@ func (r *Reader) Connect() error {
 //         }
 //     }
 func (r *Reader) Shutdown(ctx context.Context) error {
-	_, err := r.SendMessage(ctx, nil, CloseConnection)
+	_, err := r.SendMessage(ctx, CloseConnection, nil)
 	if err != nil {
 		return err
 	}
@@ -230,10 +236,17 @@ const maxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
-func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) ([]byte, error) {
+func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) ([]byte, error) {
+	select {
+	case <-r.ready: // ensure the connection is negotiated
+	case <-r.done:
+		return nil, ErrReaderClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
 	select {
 	default:
-	case <-r.ready: // ensure the connection is negotiated
 	case <-r.done:
 		return nil, ErrReaderClosed
 	}
@@ -243,7 +256,7 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 		mOut = newHdrOnlyMsg(typ)
 	} else {
 		var err error
-		mOut, err = newByteMessage(data, typ)
+		mOut, err = newByteMessage(typ, data)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +266,7 @@ func (r *Reader) SendMessage(ctx context.Context, data []byte, typ messageType) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.payload.Close()
+	defer resp.Close()
 
 	if resp.typ == ErrorMessage {
 		/* todo
@@ -305,7 +318,7 @@ func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ messageType) 
 //
 // todo: call SetReadDeadline
 func (r *Reader) readHeader() (mh header, err error) {
-	buf := make([]byte, headerSz) // could this be a field of the Reader?
+	buf := make([]byte, headerSz)
 	if _, err = io.ReadFull(r.conn, buf); err == nil {
 		err = mh.UnmarshalBinary(buf)
 	}
@@ -313,11 +326,28 @@ func (r *Reader) readHeader() (mh header, err error) {
 	return
 }
 
+// nextMessage is a convenience method to get a message
+// with the payload pointing to the reader's connection.
+// It should only be used by internal clients.
+func (r *Reader) nextMessage() (message, error) {
+	hdr, err := r.readHeader()
+	if err != nil {
+		return message{}, err
+	}
+	p := io.LimitReader(r.conn, int64(hdr.payloadLen))
+	return message{header: hdr, payload: p}, nil
+}
+
 // handleIncoming handles the read side of the connection.
 //
 // If it encounters an error, it stops and returns it.
 // Otherwise, it serves messages until the Reader is closed,
 // at which point it and all future calls return ErrReaderClosed.
+//
+// If this function sees a CloseConnectionResponse,
+// it will attempt to continue reading from the connection,
+// but if reading a header results in EOF and no data,
+// it will return ErrReaderClosed.
 //
 // Responses to requests are streamed to their sender.
 // See send for information about sending messages/receiving responses.
@@ -327,6 +357,7 @@ func (r *Reader) readHeader() (mh header, err error) {
 // todo: handle asynchronous reports
 // todo: SetReadDeadline
 func (r *Reader) handleIncoming() error {
+	receivedClosed := false
 	for {
 		select {
 		case <-r.done:
@@ -334,16 +365,26 @@ func (r *Reader) handleIncoming() error {
 		default:
 		}
 
-		// Wait for the next message.
-		m, err := r.readHeader()
+		m, err := r.nextMessage()
+
 		if err != nil {
+			if errors.Is(err, io.EOF) && receivedClosed {
+				return ErrReaderClosed
+			}
 			return err
 		}
 
+		if m.typ == CloseConnectionResponse {
+			receivedClosed = true
+		}
+
+		if m.version != r.version {
+			r.logger.Printf("warning: version mismatch (reader %v): %v", r.version, m)
+		}
+
 		// Handle the payload.
-		incoming := io.LimitReader(r.conn, int64(m.payloadLen))
-		handler := r.getResponseHandler(m)
-		_, err = io.Copy(handler, incoming)
+		handler := r.getResponseHandler(m.header)
+		_, err = io.Copy(handler, m.payload)
 		if pw, ok := handler.(*io.PipeWriter); ok {
 			pw.Close()
 		}
@@ -351,16 +392,17 @@ func (r *Reader) handleIncoming() error {
 		switch err {
 		case nil:
 		case io.ErrClosedPipe:
-			// The message handler stopped listening; that's OK,
-			// but we still need to read the rest of the payload.
-			if _, err := io.Copy(ioutil.Discard, incoming); err != nil {
-				return errors.Wrap(err, "failed to discard payload")
-			}
+			// The message handler stopped listening; that's OK.
 		case io.EOF:
 			// The connection may have closed.
 			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
 		default:
 			return errors.Wrap(err, "failed to process response")
+		}
+
+		// Make sure we read the rest of the payload.
+		if err := m.Close(); err != nil {
+			return err
 		}
 	}
 }
@@ -489,8 +531,8 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 // When the write coordinator processes the request,
 // it'll use the channel to send back response/cancellation data.
 type request struct {
-	msg       message          // the message to send
 	tokenChan chan<- sendToken // closed by the write coordinator
+	msg       message          // the message to send
 }
 
 // sendToken is sent back to the sender in response to a send request.
@@ -523,20 +565,20 @@ type sendToken struct {
 //
 // If err is non-nil, the response payload is non-nil;
 // however, if payloadLen is zero, it will return EOF immediately.
-func (r *Reader) send(ctx context.Context, mOut message) (*message, error) {
+func (r *Reader) send(ctx context.Context, m message) (message, error) {
 	// The write coordinator sends us a token to read or cancel the reply.
 	// We shouldn't close this channel once the request is accepted.
 	tokenChan := make(chan sendToken, 1)
-	req := request{msg: mOut, tokenChan: tokenChan}
+	req := request{msg: m, tokenChan: tokenChan}
 
 	// Wait until the message is sent, unless the Reader is closed.
 	select {
 	case <-r.done:
 		close(tokenChan)
-		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
+		return message{}, errors.Wrap(ErrReaderClosed, "message not sent")
 	case <-ctx.Done():
 		close(tokenChan)
-		return nil, ctx.Err()
+		return message{}, ctx.Err()
 	case r.sendQueue <- req:
 		// The message was accepted; we can no longer cancel sending.
 	}
@@ -547,12 +589,12 @@ func (r *Reader) send(ctx context.Context, mOut message) (*message, error) {
 	select {
 	case <-r.done:
 		token.cancel()
-		return nil, errors.Wrap(ErrReaderClosed, "message sent, but not awaited")
+		return message{}, errors.Wrap(ErrReaderClosed, "message sent, but not awaited")
 	case <-ctx.Done():
 		token.cancel()
-		return nil, ctx.Err()
+		return message{}, ctx.Err()
 	case resp := <-token.replyChan:
-		return &resp, nil
+		return resp, nil
 	}
 }
 
@@ -562,36 +604,25 @@ func (r *Reader) send(ctx context.Context, mOut message) (*message, error) {
 //
 // If called on a Reader that previously opened and negotiated a connection,
 // this returns errAlreadyNegotiated.
-func (r *Reader) negotiate() error {
+func (r *Reader) negotiate(m *message) (err error) {
 	select {
+	default:
 	case <-r.ready:
 		return errAlreadyNegotiated
+	}
+
+	select {
+	default:
 	case <-r.done:
 		return ErrReaderClosed
-	default:
-	}
-
-	connStatus, err := r.readHeader()
-	if err != nil {
-		return err
-	}
-
-	if connStatus.typ != ReaderEventNotification {
-		return errors.WithMessagef(err, "message type %d != ReaderEventNotification",
-			connStatus.typ)
-	}
-
-	if connStatus.payloadLen == 0 {
-		return errors.WithMessagef(err,
-			"ReaderEventNotification payload is empty")
 	}
 
 	// todo: unmarshal message; check for ConnectionSuccessful
 
-	buf := make([]byte, connStatus.payloadLen)
-	if _, err := io.ReadFull(r.conn, buf); err != nil {
-		return errors.Wrap(err, "unable to read connection status")
+	if err := m.Close(); err != nil {
+		return errors.Wrap(err, "negotiate failed")
 	}
+	defer close(r.ready)
 
 	// In version 1, there is no version negotiation.
 	if r.version == Version1_0_1 {
@@ -602,21 +633,25 @@ func (r *Reader) negotiate() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to Get Supported Versions")
 	}
-	defer resp.payload.Close()
+
 	// todo: unmarshal message; check version
 	if err := resp.isResponseTo(GetSupportedVersion); err != nil {
 		return errors.WithMessage(err, "failed to Get Supported Versions")
+	}
+
+	if err = resp.Close(); err != nil {
+		return err
 	}
 
 	resp, err = r.send(context.TODO(), newHdrOnlyMsg(SetProtocolVersion))
 	if err != nil {
 		return errors.WithMessage(err, "failed to Set Protocol Version")
 	}
-	defer resp.payload.Close()
+
 	// todo: unmarshal message; confirm version match or downgrade
 	if err := resp.isResponseTo(SetProtocolVersion); err != nil {
 		return errors.WithMessage(err, "failed to Set Protocol Version")
 	}
 
-	return nil
+	return resp.Close()
 }

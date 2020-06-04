@@ -7,6 +7,7 @@ package llrp
 
 import (
 	"context"
+	"encoding/hex"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
@@ -107,7 +108,7 @@ func TestReader_readHeader(t *testing.T) {
 
 func TestReader_newMessage(t *testing.T) {
 	ack := newHdrOnlyMsg(KeepAliveAck)
-	expMsg := message{header: header{typ: KeepAliveAck}}
+	expMsg := message{header: header{version: versionMin, typ: KeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -153,39 +154,44 @@ func TestReader_newMessage(t *testing.T) {
 	}
 }
 
+// dummyRead reads a header into h and discards the payload, if present.
 func dummyRead(h *header, rfid net.Conn) error {
 	buf := make([]byte, headerSz)
 	if n, err := io.ReadFull(rfid, buf); err != nil {
-		return errors.Wrapf(err, "read failed after %d bytes", n)
+		return errors.Wrapf(err, "header read failed after %d bytes", n)
 	}
 	if err := h.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 	n, err := io.CopyN(ioutil.Discard, rfid, int64(h.payloadLen))
 	if err != nil {
-		return errors.Wrapf(err, "read failed after %d bytes", n)
+		return errors.Wrapf(err, "payload read failed after %d bytes", n)
 	}
 	return nil
 }
 
-func init() {
-	// this is only useful during testing; lets dummyReply send initial message on connect
-	responseType[0] = ReaderEventNotification
+// connectSuccess writes a ReaderEventNotification indicating successful connection.
+func connectSuccess(h *header, rfid net.Conn) error {
+	d, _ := hex.DecodeString("043f000000200000000000f600160080000c0005a738133c2c9e010000060000")
+	_, err := rfid.Write(d)
+	return err
 }
 
+// dummyReply sends empty replies with the header's response type.
 func dummyReply(h *header, rfid net.Conn) error {
 	reply := header{id: h.id, version: h.version, typ: responseType[h.typ]}
-	data, err := reply.MarshalBinary()
+	hdr, err := reply.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	if n, err := rfid.Write(data); err != nil {
+	if n, err := rfid.Write(hdr); err != nil {
 		return errors.Wrapf(err, "write failed after %d bytes", n)
 	}
 	return nil
 }
 
-// randomReply returns a function that sends replies with random data.
+// randomReply returns a function that sends replies with a random payload
+// such that minSz <= len(payload) <= maxSz.
 func randomReply(minSz, maxSz uint32) func(h *header, rfid net.Conn) error {
 	rnd := rand.New(rand.NewSource(1))
 	if minSz > maxSz {
@@ -208,13 +214,41 @@ func randomReply(minSz, maxSz uint32) func(h *header, rfid net.Conn) error {
 		if err != nil {
 			return err
 		}
+
 		if n, err := rfid.Write(data); err != nil {
 			return errors.Wrapf(err, "write header failed after %d bytes", n)
 		}
+
+		if sz == 0 {
+			return nil
+		}
+
 		if n, err := io.CopyN(rfid, rnd, sz); err != nil {
 			return errors.Wrapf(err, "write data failed after %d bytes", n)
 		}
 		return nil
+	}
+}
+
+func TestReader_SendNotConnected(t *testing.T) {
+	client, rfid := net.Pipe()
+	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+		return
+	}
+	if err := rfid.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := NewReader(WithConn(client))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := r.SendMessage(ctx, messageType(0), nil); context.DeadlineExceeded != err {
+		t.Errorf("expected DeadlineExceeded; got: %v", err)
 	}
 }
 
@@ -234,49 +268,46 @@ func TestReader_Connection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	if _, err := r.SendMessage(ctx, nil, messageType(0)); context.DeadlineExceeded != err {
-		t.Errorf("expected DeadlineExceeded; got: %v", err)
-	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	errs := make(chan error, 2)
+	// start a connection attempt
+	connErrs := make(chan error, 1)
 	go func() {
-		defer wg.Done()
-		errs <- r.Connect()
+		defer close(connErrs)
+		connErrs <- errors.Wrap(r.Connect(), "connect failed")
 	}()
 
 	// lazy RFID device: discard incoming messages & send empty replies
+	rfidErrs := make(chan error, 1)
 	go func() {
-		defer wg.Done()
-		var h header
-		for _, proc := range []func(*header, net.Conn) error{
-			dummyReply, // connection attempt
-			dummyRead,  // incoming message
-			dummyReply, // response
-		} {
-			if err := proc(&h, rfid); err != nil {
-				errs <- err
-				return
-			}
+		defer close(rfidErrs)
+		h := header{version: Version1_0_1}
+		err := connectSuccess(&h, rfid)
+		op, nextOp := dummyRead, dummyReply
+		for err == nil {
+			err = op(&h, rfid)
+			op, nextOp = nextOp, op
 		}
+		rfidErrs <- errors.Wrap(err, "mock failed")
 	}()
 
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	resp, err := r.SendMessage(context.Background(), data, messageType(0))
+	resp, err := r.SendMessage(context.Background(), CustomMessage, data)
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
 		t.Error("expected non-nil response")
 	}
 
-	// The first time we Close should be fine.
-	if err := r.Close(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := r.Shutdown(ctx); err != nil {
 		t.Error(err)
 	}
-	wg.Wait()
+
+	for err := range connErrs {
+		if !errors.Is(err, ErrReaderClosed) {
+			t.Errorf("connection error: %+v", err)
+		}
+	}
 
 	if _, err := rfid.Write([]byte{1}); err == nil {
 		t.Error("expected connection to be closed, but write succeeded")
@@ -286,15 +317,14 @@ func TestReader_Connection(t *testing.T) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
 
-	_, err = r.SendMessage(context.Background(), data, messageType(0))
+	_, err = r.SendMessage(context.Background(), CustomMessage, data)
 	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
 
-	close(errs)
-	for err := range errs {
-		if !errors.Is(err, ErrReaderClosed) {
-			t.Error(err)
+	for err := range rfidErrs {
+		if !errors.Is(err, io.EOF) {
+			t.Errorf("RFID reader error: %+v", err)
 		}
 	}
 }
@@ -314,71 +344,72 @@ func TestReader_ManySenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	connGrp := sync.WaitGroup{}
-	connGrp.Add(2)
-	errs := make(chan error, 2)
+	// start a connection
+	connErrs := make(chan error, 1)
 	go func() {
-		defer connGrp.Done()
-		errs <- r.Connect()
+		defer close(connErrs)
+		connErrs <- r.Connect()
 	}()
 
 	// RFID device: discard incoming messages; send random replies
-	done := make(chan struct{})
+	rfidErrs := make(chan error, 1)
 	go func() {
-		defer connGrp.Done()
+		defer close(rfidErrs)
 		var h header
-		err := dummyReply(&h, rfid) // initial connection message
+		err := connectSuccess(&h, rfid)
 		op, nextOp := dummyRead, randomReply(0, 1024)
+		s1, s2 := "read", "reply"
 		for err == nil {
-			select {
-			case <-done:
-				return
-			default:
-				err = op(&h, rfid)
-				op, nextOp = nextOp, op
-			}
+			err = op(&h, rfid)
+			op, nextOp = nextOp, op
+			s1, s2 = s2, s1
 		}
-		errs <- err
+		rfidErrs <- errors.Wrap(err, "mock failed")
 	}()
 
+	// send a bunch of messages all at once
+	senders := 300
 	msgGrp := sync.WaitGroup{}
-	senders := 100
 	msgGrp.Add(senders)
 	sendErrs := make(chan error, senders)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 	for i := 0; i < senders; i++ {
-		go func() {
+		go func(i int) {
 			defer msgGrp.Done()
+
 			sz := rand.Int31n(1024)
 			data := make([]byte, sz)
-			_, err := r.SendMessage(ctx, data, messageType(0))
+			rand.Read(data)
+
+			_, err := r.SendMessage(ctx, CustomMessage, data)
 			if err != nil {
 				sendErrs <- err
-				return
 			}
-		}()
+		}(i)
 	}
 
 	msgGrp.Wait()
-	cancel()
-	close(sendErrs)
-	for err := range sendErrs {
-		if err != nil {
-			t.Error(err)
-		}
-	}
-
-	close(done)
-	if err := r.Close(); err != nil {
+	t.Log("closing")
+	if err := r.Shutdown(context.Background()); err != nil {
 		t.Error(err)
 	}
-	connGrp.Wait()
 
-	close(errs)
-	for err := range errs {
+	close(sendErrs)
+	for err := range sendErrs {
+		t.Errorf("send error: %+v", err)
+	}
+
+	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
-			t.Errorf("%+v", err)
+			t.Errorf("connect error: %+v", err)
 		}
 	}
+
+	for err := range rfidErrs {
+		if !errors.Is(err, io.EOF) {
+			t.Errorf("mock error: %+v", err)
+		}
+	}
+
 }

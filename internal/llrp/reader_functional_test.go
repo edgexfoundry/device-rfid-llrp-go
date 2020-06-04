@@ -10,7 +10,6 @@ import (
 	"flag"
 	"github.com/pkg/errors"
 	"net"
-	"sync"
 	"testing"
 	"time"
 )
@@ -22,7 +21,7 @@ var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables f
 func TestReader_withGolemu(t *testing.T) {
 	addr := *readerAddr
 	if addr == "" {
-		t.Skip("functional tests disabled")
+		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
 	}
 
 	conn, err := net.Dial("tcp", addr)
@@ -40,19 +39,17 @@ func TestReader_withGolemu(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	errs := make(chan error, 1)
+	connErrs := make(chan error, 1)
 	go func() {
-		defer wg.Done()
-		errs <- r.Connect()
+		defer close(connErrs)
+		connErrs <- r.Connect()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var empty []byte
 
-	resp, err := r.SendMessage(ctx, empty, SetReaderConfig)
+	resp, err := r.SendMessage(ctx, SetReaderConfig, empty)
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
@@ -69,12 +66,10 @@ func TestReader_withGolemu(t *testing.T) {
 				t.Error(err)
 			}
 		}
-		t.Error(err)
+		t.Errorf("%+v", err)
 	}
-	wg.Wait()
 
-	close(errs)
-	for err := range errs {
+	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
 			t.Errorf("%+v", err)
 		}
