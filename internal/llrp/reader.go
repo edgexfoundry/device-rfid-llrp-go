@@ -17,6 +17,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Reader represents a connection to an LLRP-compatible RFID reader.
@@ -30,6 +31,7 @@ type Reader struct {
 	awaitMu   sync.Mutex     // synchronize awaiting map access
 	awaiting  awaitMap       // message IDs -> awaiting reply
 	logger    ReaderLogger   // reports pressure on the ACK queue
+	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
 	handlerMu sync.RWMutex
 	handlers  map[messageType]responseHandler
@@ -127,6 +129,19 @@ func WithVersion(v VersionNum) ReaderOpt {
 	})
 }
 
+// WithTimeout sets a timeout for reads/writes.
+// If non-zero, the reader will call SetReadDeadline and SetWriteDeadline
+// before reading or writing respectively.
+func WithTimeout(d time.Duration) ReaderOpt {
+	return readerOpt(func(r *Reader) error {
+		if d < 0 {
+			return errors.Errorf("timeout should be at least 0, but is %v", d)
+		}
+		r.timeout = d
+		return nil
+	})
+}
+
 // WithLogger sets a logger for the Reader.
 func WithLogger(l ReaderLogger) ReaderOpt {
 	return readerOpt(func(r *Reader) error {
@@ -167,19 +182,87 @@ func (r *Reader) Connect() error {
 	defer r.conn.Close()
 	defer r.Close()
 
-	errs := make(chan error, 2)
-	go func() { errs <- r.handleOutgoing() }()
-
-	// TODO: there's a race to fix between handleIncoming and negotiation
+	// process the initial connection message
 	m, err := r.nextMessage()
 	if err != nil {
 		return err
 	}
-	if err := m.Close(); err != nil {
-		return errors.Wrap(err, "negotiate failed")
+
+	if m.typ != ReaderEventNotification {
+		return errors.Errorf("expected %v, but got %v",
+			ReaderEventNotification, m.typ)
 	}
+
+	mr := newMsgReader(m)
+	ph, err := mr.currentParam()
+	if err != nil {
+		return err
+	}
+	if ph.typ != ParamReaderEventNotificationData {
+		return errors.Errorf("expected %v, but got %v",
+			ParamReaderEventNotificationData, ph.typ)
+	}
+
+	if err := mr.stepInto(); err != nil {
+		return err
+	}
+
+	ph, err = mr.currentParam()
+	if err != nil {
+		return err
+	}
+	if !(ph.typ == ParamUTCTimestamp || ph.typ == ParamUptime) {
+		return errors.Errorf("expected %v or %v, but got %v",
+			ParamUTCTimestamp, ParamUptime, ph.typ)
+	}
+
+	for {
+		err = mr.discard()
+		if err == nil {
+			ph, err = mr.currentParam()
+		}
+		if err != nil {
+			break
+		}
+
+		switch ph.typ {
+		case ParamConnectionAttemptEvent:
+			if err = mr.stepInto(); err != nil {
+				break
+			}
+
+			b := []byte{0, 0}
+			if _, err = io.ReadFull(mr.r, b); err != nil {
+				break
+			}
+
+			status := connAttemptEventParam(binary.BigEndian.Uint16(b))
+			if status != connectionSuccess {
+				err = errors.Errorf("connection status: %v", status)
+				break
+			}
+			r.logger.Printf("connection status: %v", status)
+		default:
+			err = errors.Errorf("unexpected parameter %v", ph)
+			break
+		}
+	}
+	if !errors.Is(err, io.EOF) {
+		return err
+	}
+
+	if err := m.Close(); err != nil {
+		return errors.Wrap(err, "failed to completely read initial connection message")
+	}
+
+	// In versions later than 1, we should negotiate
+	if r.version > Version1_0_1 {
+	}
+
 	close(r.ready)
 
+	errs := make(chan error, 2)
+	go func() { errs <- r.handleOutgoing() }()
 	go func() { errs <- r.handleIncoming() }()
 
 	select {
@@ -228,7 +311,7 @@ func (r *Reader) Close() error {
 		close(r.done)
 		return nil
 	} else {
-		return ErrReaderClosed
+		return errors.Wrap(ErrReaderClosed, "close")
 	}
 }
 
@@ -240,7 +323,7 @@ func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) 
 	select {
 	case <-r.ready: // ensure the connection is negotiated
 	case <-r.done:
-		return nil, ErrReaderClosed
+		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -248,7 +331,7 @@ func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) 
 	select {
 	default:
 	case <-r.done:
-		return nil, ErrReaderClosed
+		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
 	}
 
 	var mOut message
@@ -314,10 +397,15 @@ func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ messageType) 
 //
 // This method blocks until reading the bytes,
 // unless the underlying connection is closed,
-// use net.Conn's SetReadDeadline to arrange for such.
-//
-// todo: call SetReadDeadline
+// as will happen if its deadline is exceeded.
 func (r *Reader) readHeader() (mh header, err error) {
+	if r.timeout > 0 {
+		if err = r.conn.SetReadDeadline(time.Now().Add(r.timeout)); err != nil {
+			err = errors.Wrap(err, "failed to set read deadline")
+			return
+		}
+	}
+
 	buf := make([]byte, headerSz)
 	if _, err = io.ReadFull(r.conn, buf); err == nil {
 		err = mh.UnmarshalBinary(buf)
@@ -328,7 +416,8 @@ func (r *Reader) readHeader() (mh header, err error) {
 
 // nextMessage is a convenience method to get a message
 // with the payload pointing to the reader's connection.
-// It should only be used by internal clients.
+// It should only be used by internal clients,
+// as the current message must be read before continuing.
 func (r *Reader) nextMessage() (message, error) {
 	hdr, err := r.readHeader()
 	if err != nil {
@@ -355,21 +444,25 @@ func (r *Reader) nextMessage() (message, error) {
 // KeepAlive messages are acknowledged automatically as soon as possible.
 //
 // todo: handle asynchronous reports
-// todo: SetReadDeadline
 func (r *Reader) handleIncoming() error {
 	receivedClosed := false
 	for {
 		select {
 		case <-r.done:
-			return ErrReaderClosed
+			return errors.Wrap(ErrReaderClosed, "stopping incoming")
 		default:
 		}
 
 		m, err := r.nextMessage()
+		r.logger.Printf(">>> %v", m)
 
 		if err != nil {
 			if errors.Is(err, io.EOF) && receivedClosed {
-				return ErrReaderClosed
+				// wait for the reader to close
+				select {
+				case <-r.done:
+				}
+				return errors.Wrap(ErrReaderClosed, "client connection closed")
 			}
 			return err
 		}
@@ -413,8 +506,10 @@ func (r *Reader) handleIncoming() error {
 // If it encounters an error, it stops and returns it.
 // Otherwise, it serves messages until the Reader is closed,
 // at which point it and all future calls return ErrReaderClosed.
+// If this see CloseConnection, it stops processing messages.
 //
-// todo: conn.SetWriteDeadline
+// While the connection is open,
+// KeepAliveAck messages are prioritized.
 func (r *Reader) handleOutgoing() error {
 	var nextMsgID messageID
 
@@ -425,13 +520,13 @@ func (r *Reader) handleOutgoing() error {
 
 		select {
 		case <-r.done:
-			return ErrReaderClosed
+			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 		case mid = <-r.ackQueue:
 			msg = message{header: header{typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
-				return ErrReaderClosed
+				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 			case mid = <-r.ackQueue:
 				msg = message{header: header{typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
@@ -468,8 +563,24 @@ func (r *Reader) handleOutgoing() error {
 			}
 		}
 
+		if r.timeout > 0 {
+			if err := r.conn.SetWriteDeadline(time.Now().Add(r.timeout)); err != nil {
+				return errors.Wrap(err, "failed to set write deadline")
+			}
+		}
+
+		r.logger.Printf("<<< %v", msg)
 		if err := r.writeHeader(mid, msg.payloadLen, msg.typ); err != nil {
 			return err
+		}
+
+		// stop processing messages
+		if msg.typ == CloseConnection {
+			r.logger.Println("CloseConnection sent; waiting for reader to close.")
+			select {
+			case <-r.done:
+			}
+			return errors.Wrap(ErrReaderClosed, "client closed connection")
 		}
 
 		if msg.payloadLen == 0 {
@@ -494,7 +605,7 @@ func (r *Reader) handleOutgoing() error {
 func (r *Reader) sendAck(mid messageID) {
 	select {
 	case r.ackQueue <- mid:
-		r.logger.Println("Sending ACK")
+		r.logger.Println("KeepAlive received.")
 	default:
 		r.logger.Println("Discarding KeepAliveAck as queue is full. " +
 			"This may indicate the Reader's write side is broken " +
@@ -519,6 +630,7 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 		return ioutil.Discard
 	}
 
+	// the pipe lets us know when the other side finishes
 	pr, pw := io.Pipe()
 	resp := message{header: hdr, payload: pr}
 	replyChan <- resp
@@ -604,29 +716,24 @@ func (r *Reader) send(ctx context.Context, m message) (message, error) {
 //
 // If called on a Reader that previously opened and negotiated a connection,
 // this returns errAlreadyNegotiated.
-func (r *Reader) negotiate(m *message) (err error) {
+//
+// todo: there still seems to be a race between negotiation
+//   and reading/sending other messages;
+//   initial reading as well as external send requests
+//   must be blocked until the connection is negotiated.
+//   this was originally written so that negotiate could use the same send/receive queues,
+//   but that's becoming problematic.
+func (r *Reader) negotiate(m message) error {
+	select {
+	default:
+	case <-r.done:
+		return errors.Wrap(ErrReaderClosed, "we don't negotiate with closed connections")
+	}
+
 	select {
 	default:
 	case <-r.ready:
 		return errAlreadyNegotiated
-	}
-
-	select {
-	default:
-	case <-r.done:
-		return ErrReaderClosed
-	}
-
-	// todo: unmarshal message; check for ConnectionSuccessful
-
-	if err := m.Close(); err != nil {
-		return errors.Wrap(err, "negotiate failed")
-	}
-	defer close(r.ready)
-
-	// In version 1, there is no version negotiation.
-	if r.version == Version1_0_1 {
-		return nil
 	}
 
 	resp, err := r.send(context.TODO(), newHdrOnlyMsg(GetSupportedVersion))

@@ -6,7 +6,9 @@
 package llrp
 
 import (
+	"bufio"
 	"encoding/binary"
+	"github.com/pkg/errors"
 	"io"
 	"time"
 )
@@ -218,4 +220,92 @@ func (caep connAttemptEventParam) writeData(w io.Writer) error {
 		uint8(caep >> 8), uint8(caep & 0xFF),
 	})
 	return err
+}
+
+type msgReader struct {
+	r *bufio.Reader
+}
+
+func newMsgReader(m message) msgReader {
+	return msgReader{
+		r: bufio.NewReader(m.payload),
+	}
+}
+
+// discard the current parameter, advancing the reader beyond its payload.
+// Note that if the parameter contains sub-parameters, they are also discarded.
+//
+// This only returns an error if it is unable to discard a parameter's bytes;
+// if the reader is exhausted, it returns nil.
+func (mr msgReader) discard() error {
+	ph, err := mr.currentParam()
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+
+	_, err = mr.r.Discard(int(ph.length))
+	return errors.Wrap(err, "failed to discard parameter body")
+}
+
+type paramInfo struct {
+	nFixedFields uint
+	fixedDataSz  uint
+}
+
+// stepInto the current parameter by discarding the header,
+// aligning the reader at the first field.
+func (mr msgReader) stepInto() error {
+	ph, err := mr.currentParam()
+	if err != nil {
+		return err
+	}
+
+	if ph.typ.isTLV() {
+		_, err = mr.r.Discard(tlvHeaderSz)
+	} else {
+		_, err = mr.r.Discard(tvHeaderSz)
+	}
+	return errors.Wrap(err, "failed to discard parameter header")
+}
+
+// currentParam returns the next header for the next parameter
+// without advancing the reader position.
+//
+// Multiple calls to currentParam should return the same header.
+// If the reader is exhausted, this returns an io.EOF.
+func (mr msgReader) currentParam() (paramHeader, error) {
+	t, err := mr.r.ReadByte()
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			err = errors.Wrap(err, "failed to read parameter")
+		}
+		return paramHeader{}, err
+	}
+
+	_ = mr.r.UnreadByte()
+
+	if t&0x80 == 1 { // TV parameter
+		p := paramHeader{typ: paramType(t & 0x7F)}
+
+		l, ok := tvLengths[p.typ]
+		if !ok {
+			return p, errors.New("unknown TV type")
+		}
+
+		p.length = uint16(l)
+		return p, nil
+	}
+
+	b, err := mr.r.Peek(4)
+	if err != nil {
+		return paramHeader{}, errors.Wrap(err, "failed to read parameter")
+	}
+
+	return paramHeader{
+		typ:    paramType(binary.BigEndian.Uint16(b[0:2])),
+		length: binary.BigEndian.Uint16(b[2:4]),
+	}, nil
 }

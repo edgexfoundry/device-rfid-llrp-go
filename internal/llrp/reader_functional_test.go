@@ -10,6 +10,7 @@ import (
 	"flag"
 	"github.com/pkg/errors"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -24,7 +25,13 @@ func TestReader_withGolemu(t *testing.T) {
 		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
 	}
 
-	conn, err := net.Dial("tcp", addr)
+	for i := 0; i < 10; i++ {
+		t.Run("attempt "+strconv.Itoa(i), test_once)
+	}
+}
+
+func test_once(t *testing.T) {
+	conn, err := net.Dial("tcp", *readerAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +62,9 @@ func TestReader_withGolemu(t *testing.T) {
 	} else if resp == nil {
 		t.Error("expected non-nil response")
 	}
-
 	cancel()
 
+	<-time.After(20 * time.Second)
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
@@ -65,8 +72,9 @@ func TestReader_withGolemu(t *testing.T) {
 			if err := r.Close(); err != nil {
 				t.Error(err)
 			}
+		} else {
+			t.Errorf("%+v", err)
 		}
-		t.Errorf("%+v", err)
 	}
 
 	for err := range connErrs {
