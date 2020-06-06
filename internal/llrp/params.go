@@ -8,8 +8,11 @@ package llrp
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"github.com/pkg/errors"
 	"io"
+	"reflect"
+	"strings"
 	"time"
 )
 
@@ -145,6 +148,16 @@ type paramHeader struct {
 	length uint16    // only present for TLVs; does not include header size
 }
 
+func (ph paramHeader) String() string {
+	if ph.typ.isTLV() {
+		return fmt.Sprintf("TLV %v (%[1]d, %#02x), %d bytes",
+			ph.typ, uint16(ph.typ), ph.length)
+	} else {
+		return fmt.Sprintf("TV %v (%[1]d, %#02x), %d bytes",
+			ph.typ, uint16(ph.typ), ph.length)
+	}
+}
+
 func (ph paramHeader) MarshalBinary() ([]byte, error) {
 	if ph.typ.isTV() {
 		return []byte{ph.typ.low()}, nil
@@ -154,51 +167,6 @@ func (ph paramHeader) MarshalBinary() ([]byte, error) {
 	binary.BigEndian.PutUint16(b[0:2], uint16(ph.typ))
 	binary.BigEndian.PutUint16(b[2:4], ph.length)
 	return b, nil
-}
-
-// TLV type 246
-type readerEventNotificationData struct {
-	ts     timestamp
-	events []paramHeader
-}
-
-func newConnectionSuccessEvent() readerEventNotificationData {
-	return readerEventNotificationData{
-		ts: currentUTC(),
-	}
-}
-
-// TLV type 128 == UTC Timestamp
-// TLV type 129 == Uptime Timestamp
-type timestamp struct {
-	microseconds uint64
-	// utc is true if microseconds are from 00:00:00 UTC, Jan 1, 1970.
-	// otherwise, they represent the reader's uptime
-	utc bool
-}
-
-// toGoTime returns the timestamp as a Go time.Time type,
-// assuming it represents a UTC time.
-// If it doesn't, the return value is meaningless.
-func (ts timestamp) toGoTime() time.Time {
-	return time.Unix(0, (time.Duration(ts.microseconds) * time.Second).Nanoseconds())
-}
-
-func currentUTC() timestamp {
-	return timestamp{microseconds: uint64(time.Now().UnixNano() / 1000), utc: true}
-}
-
-func (ts timestamp) writeData(w io.Writer) error {
-	b := [12]byte{}
-	if ts.utc {
-		binary.BigEndian.PutUint16(b[0:2], uint16(ParamUTCTimestamp))
-	} else {
-		binary.BigEndian.PutUint16(b[0:2], uint16(ParamUptime))
-	}
-	binary.BigEndian.PutUint16(b[2:4], uint16(len(b)))
-	binary.BigEndian.PutUint64(b[4:12], ts.microseconds)
-	_, err := w.Write(b[:])
-	return err
 }
 
 // TLV type 256
@@ -250,11 +218,6 @@ func (mr msgReader) discard() error {
 	return errors.Wrap(err, "failed to discard parameter body")
 }
 
-type paramInfo struct {
-	nFixedFields uint
-	fixedDataSz  uint
-}
-
 // stepInto the current parameter by discarding the header,
 // aligning the reader at the first field.
 func (mr msgReader) stepInto() error {
@@ -271,7 +234,7 @@ func (mr msgReader) stepInto() error {
 	return errors.Wrap(err, "failed to discard parameter header")
 }
 
-// currentParam returns the next header for the next parameter
+// currentParam returns the header of the parameter currently pointed to
 // without advancing the reader position.
 //
 // Multiple calls to currentParam should return the same header.
@@ -308,4 +271,197 @@ func (mr msgReader) currentParam() (paramHeader, error) {
 		typ:    paramType(binary.BigEndian.Uint16(b[0:2])),
 		length: binary.BigEndian.Uint16(b[2:4]),
 	}, nil
+}
+
+// TLV type 246
+type readerEventNotificationData struct {
+	TS                timestamp
+	ConnectionAttempt *connAttemptEventParam
+}
+
+type parameter interface {
+	getType() paramType
+}
+
+func (readerEventNotificationData) getType() paramType {
+	return ParamReaderEventNotificationData
+}
+
+func (connAttemptEventParam) getType() paramType {
+	return ParamConnectionAttemptEvent
+}
+
+type utcTimestamp uint64
+type uptime uint64
+
+func (utcTimestamp) getType() paramType {
+	return ParamUTCTimestamp
+}
+
+func (uptime) getType() paramType {
+	return ParamUptime
+}
+
+// TLV type 128 == UTC Timestamp, microseconds are from 00:00:00 UTC, Jan 1, 1970.
+// TLV type 129 == Uptime Timestamp, microseconds since reader started.
+type timestamp struct {
+	UTC    *utcTimestamp
+	Uptime *uptime
+}
+
+// toGoTime returns the timestamp as a Go time.Time type.
+func (ut utcTimestamp) toGoTime() time.Time {
+	return time.Unix(0, (time.Duration(ut) * time.Second).Nanoseconds())
+}
+
+func (ut utcTimestamp) String() string {
+	return ut.toGoTime().String()
+}
+
+func utcCurrent() utcTimestamp {
+	return utcTimestamp(time.Now().UnixNano() / 1000)
+}
+
+func (ts *timestamp) decode(mr msgReader) error {
+	ph, err := mr.currentParam()
+	if err != nil {
+		return err
+	}
+	if err := mr.stepInto(); err != nil {
+		return err
+	}
+
+	switch ph.typ {
+	case ParamUTCTimestamp:
+		return mr.setUint64((*uint64)(ts.UTC))
+	case ParamUptime:
+		return mr.setUint64((*uint64)(ts.Uptime))
+	default:
+		return errors.Errorf("expected %v or %v, but got %v",
+			ParamUptime, ParamUTCTimestamp, ph.typ)
+	}
+}
+
+func (mr msgReader) decode(v ...parameter) error {
+	for i := range v {
+		if err := mr.decodeExactly(v[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mr msgReader) decodeExactly(v parameter) error {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() || rv.Kind() != reflect.Ptr {
+		return errors.New("can only decode into non-nil parameter pointers")
+	}
+	if rv.IsNil() {
+		rv.Set(reflect.New(rv.Type().Elem()))
+	}
+	return errors.WithMessagef(mr.set(rv.Elem()), "failed to read %T from %v", v, v.getType())
+}
+
+func (mr msgReader) set(rv reflect.Value) error {
+	if asParam, ok := rv.Interface().(parameter); ok {
+		var err error
+		var ph paramHeader
+		if ph, err = mr.currentParam(); err != nil {
+			return err
+		}
+
+		if rv.Kind() == reflect.Ptr && rv.IsNil() {
+			return nil
+		}
+
+		t := asParam.getType()
+		if ph.typ != t {
+			return errors.Errorf("unexpected %v; expected %v", ph, t)
+		}
+
+		if err = mr.stepInto(); err != nil {
+			return err
+		}
+	}
+
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			rv.Set(reflect.New(rv.Type().Elem()))
+		}
+		rv = rv.Elem()
+	}
+
+	switch rv.Kind() {
+	case reflect.String:
+		sLen, err := mr.getUint(2)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to read string length")
+		}
+
+		sBuild := strings.Builder{}
+		if _, err = io.CopyN(&sBuild, mr.r, int64(sLen)); err != nil {
+			return errors.Wrapf(err, "expected length %d", sLen)
+		}
+
+		rv.SetString(sBuild.String())
+
+	case reflect.Struct:
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			ft := rt.Field(i)
+			if ft.PkgPath != "" || ft.Name == "_" {
+				continue // skip unexported field
+			}
+
+			if err := mr.set(rv.Field(i)); err != nil {
+				return errors.Wrapf(err, "unable to set %s", ft.Name)
+			}
+		}
+
+	case reflect.Uint8:
+		return mr.setUintV(rv, 1)
+	case reflect.Uint16:
+		return mr.setUintV(rv, 2)
+	case reflect.Uint32:
+		return mr.setUintV(rv, 4)
+	case reflect.Uint64:
+		return mr.setUintV(rv, 8)
+	default:
+		return errors.Errorf("unhandled type: %v", rv.Type().String())
+	}
+	return nil
+}
+
+var refParameterType = reflect.TypeOf((*parameter)(nil)).Elem()
+
+// setUint reads nBytes and assigns them to reflect uint pointer v.
+// This method panics if v is not settable or if nBytes is outside of [1,8].
+func (mr msgReader) setUintV(v reflect.Value, nBytes int) error {
+	if u, err := mr.getUint(nBytes); err != nil {
+		return err
+	} else {
+		v.SetUint(u)
+	}
+	return nil
+}
+
+func (mr msgReader) setUint64(v *uint64) error {
+	if u, err := mr.getUint(8); err != nil {
+		return err
+	} else {
+		*v = u
+	}
+	return nil
+}
+
+// getUint of size 0 < nBytes <= 8, but presumably 1, 2, 4, 8.
+// Values outside that range will panic.
+// This advances the reader by nBytes.
+// As always, it assumes BigEndian.
+func (mr msgReader) getUint(nBytes int) (uint64, error) {
+	b := make([]byte, 8)
+	if _, err := io.ReadFull(mr.r, b[8-nBytes:]); err != nil {
+		return 0, errors.Wrapf(err, "failed to read uint%d", nBytes*8)
+	}
+	return binary.BigEndian.Uint64(b), nil
 }

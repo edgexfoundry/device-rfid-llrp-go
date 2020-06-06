@@ -193,60 +193,33 @@ func (r *Reader) Connect() error {
 			ReaderEventNotification, m.typ)
 	}
 
-	mr := newMsgReader(m)
-	ph, err := mr.currentParam()
-	if err != nil {
-		return err
-	}
-	if ph.typ != ParamReaderEventNotificationData {
-		return errors.Errorf("expected %v, but got %v",
-			ParamReaderEventNotificationData, ph.typ)
-	}
-
-	if err := mr.stepInto(); err != nil {
-		return err
-	}
-
-	ph, err = mr.currentParam()
-	if err != nil {
-		return err
-	}
-	if !(ph.typ == ParamUTCTimestamp || ph.typ == ParamUptime) {
-		return errors.Errorf("expected %v or %v, but got %v",
-			ParamUTCTimestamp, ParamUptime, ph.typ)
-	}
-
-	for {
-		err = mr.discard()
-		if err == nil {
-			ph, err = mr.currentParam()
+	/*
+		mr := newMsgReader(m)
+		mp := map[paramType]interface{}{
+			ParamReaderEventNotificationData: map[paramType]interface{}{
+				ParamUTCTimestamp: new(timestamp),
+				ParamConnectionAttemptEvent: new(connAttemptEventParam),
+			},
 		}
+		if err := mr.decodeExactly(mp); err != nil {
+			return err
+		}
+		var status connAttemptEventParam
+		paramSpec(mp).get()
+
+		rer, err := mr.readerEventDataReader()
 		if err != nil {
-			break
+			return err
 		}
-
-		switch ph.typ {
-		case ParamConnectionAttemptEvent:
-			if err = mr.stepInto(); err != nil {
-				break
-			}
-
-			b := []byte{0, 0}
-			if _, err = io.ReadFull(mr.r, b); err != nil {
-				break
-			}
-
-			status := connAttemptEventParam(binary.BigEndian.Uint16(b))
-			if status != connectionSuccess {
-				err = errors.Errorf("connection status: %v", status)
-				break
-			}
-			r.logger.Printf("connection status: %v", status)
-		default:
-			err = errors.Errorf("unexpected parameter %v", ph)
-			break
+		status, err := rer.checkConnStatus()
+		if err != nil {
+			return err
 		}
-	}
+		if status != connectionSuccess {
+			return errors.Errorf("connection status: %v", status)
+		}
+	*/
+
 	if !errors.Is(err, io.EOF) {
 		return err
 	}

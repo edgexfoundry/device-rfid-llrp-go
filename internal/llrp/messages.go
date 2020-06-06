@@ -3,6 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//go:generate stringer -type=VersionNum,messageType,paramType,connAttemptEventParam
+
 package llrp
 
 import (
