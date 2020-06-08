@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"io"
-	"reflect"
 	"strings"
 	"time"
 )
@@ -83,6 +82,7 @@ const (
 	ParamC1G2CRC                = paramType(11)
 	ParamC1G2SingulationDetails = paramType(18)
 
+	paramInvalid   = paramType(0)
 	paramResvStart = 900
 	paramResvEnd   = 999
 
@@ -142,31 +142,23 @@ func (pt paramType) low() uint8 {
 	return uint8(pt)
 }
 
-// paramHeader represents the type and possibly length of a parameter.
-type paramHeader struct {
+// parameters are fields which "declare" themselves within an LLRP message,
+// in the sense that they start with some type information
+// rather than just existing at a certain offset with a certain size.
+// They typically include their length, but sometimes length must be known apriori.
+type parameter struct {
 	typ    paramType // TVs are 1-127; TLVs are 128-2047
-	length uint16    // only present for TLVs; does not include header size
+	length uint16
 }
 
-func (ph paramHeader) String() string {
+func (ph parameter) String() string {
 	if ph.typ.isTLV() {
-		return fmt.Sprintf("TLV %v (%[1]d, %#02x), %d bytes",
+		return fmt.Sprintf("%v (TLV %[1]d/%#02x, %d bytes)",
 			ph.typ, uint16(ph.typ), ph.length)
 	} else {
-		return fmt.Sprintf("TV %v (%[1]d, %#02x), %d bytes",
+		return fmt.Sprintf("%v (TV %[1]d/%#02x, %d bytes)",
 			ph.typ, uint16(ph.typ), ph.length)
 	}
-}
-
-func (ph paramHeader) MarshalBinary() ([]byte, error) {
-	if ph.typ.isTV() {
-		return []byte{ph.typ.low()}, nil
-	}
-
-	b := []byte{0, 0, 0, 0}
-	binary.BigEndian.PutUint16(b[0:2], uint16(ph.typ))
-	binary.BigEndian.PutUint16(b[2:4], ph.length)
-	return b, nil
 }
 
 // TLV type 256
@@ -180,97 +172,158 @@ const (
 	anotherConnAttempted      = connAttemptEventParam(4)
 )
 
-func (caep connAttemptEventParam) writeData(w io.Writer) error {
+func (caep connAttemptEventParam) encode(w io.Writer) error {
 	_, err := w.Write([]byte{
-		ParamConnectionAttemptEvent.high(),
-		ParamConnectionAttemptEvent.low(),
-		0, uint8(tlvHeaderSz) + 2,
 		uint8(caep >> 8), uint8(caep & 0xFF),
 	})
 	return err
 }
 
-type msgReader struct {
-	r *bufio.Reader
-}
-
-func newMsgReader(m message) msgReader {
-	return msgReader{
-		r: bufio.NewReader(m.payload),
+func (caep *connAttemptEventParam) decode(r io.Reader) error {
+	b := []byte{0, 0}
+	if _, err := io.ReadFull(r, b); err != nil {
+		return errors.Wrap(err, "read failed")
 	}
+	*caep = connAttemptEventParam(binary.BigEndian.Uint16(b))
+	return nil
 }
 
-// discard the current parameter, advancing the reader beyond its payload.
-// Note that if the parameter contains sub-parameters, they are also discarded.
-//
-// This only returns an error if it is unable to discard a parameter's bytes;
-// if the reader is exhausted, it returns nil.
-func (mr msgReader) discard() error {
-	ph, err := mr.currentParam()
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
+type LLRPStatus struct {
+	StatusCode     uint16
+	ErrDescription string
+	FieldErrors    []FieldError
+	ParamErrors    []ParamError
+}
+
+type FieldError struct {
+	FieldNum  uint16
+	ErrorCode uint16
+}
+
+func (fe *FieldError) decode(mr *msgReader) error {
+	if fe == nil {
+		*fe = FieldError{}
+	}
+
+	if err := mr.setFields(&(fe.FieldNum), &(fe.ErrorCode)); err != nil {
 		return err
 	}
 
-	_, err = mr.r.Discard(int(ph.length))
-	return errors.Wrap(err, "failed to discard parameter body")
+	return nil
 }
 
-// stepInto the current parameter by discarding the header,
-// aligning the reader at the first field.
-func (mr msgReader) stepInto() error {
-	ph, err := mr.currentParam()
-	if err != nil {
+type ParamError struct {
+	ParamType paramType
+	ErrorCode uint16
+	*FieldError
+	*ParamError
+}
+
+func (pe *ParamError) decode(mr *msgReader) error {
+	if pe == nil {
+		*pe = ParamError{}
+	}
+
+	if err := mr.setFields(&(pe.ParamType), &(pe.ErrorCode)); err != nil {
 		return err
 	}
 
-	if ph.typ.isTLV() {
-		_, err = mr.r.Discard(tlvHeaderSz)
-	} else {
-		_, err = mr.r.Discard(tvHeaderSz)
+	for mr.currentParam().length != 0 {
+		if err := mr.readParam(); err != nil {
+			return err
+		}
+
+		switch mr.currentParam().typ {
+		case ParamFieldError:
+			if err := mr.set(&pe.FieldError); err != nil {
+				return err
+			}
+		case ParamParameterError:
+			if err := mr.set(&pe.ParamError); err != nil {
+				return err
+			}
+		default:
+			return errors.Errorf("expected either %v or %v, but found %v",
+				ParamFieldError, ParamParameterError, mr.currentParam())
+		}
+
+		if err := mr.doneWithParam(); err != nil {
+			return err
+		}
 	}
-	return errors.Wrap(err, "failed to discard parameter header")
+
+	return nil
 }
 
-// currentParam returns the header of the parameter currently pointed to
-// without advancing the reader position.
-//
-// Multiple calls to currentParam should return the same header.
-// If the reader is exhausted, this returns an io.EOF.
-func (mr msgReader) currentParam() (paramHeader, error) {
-	t, err := mr.r.ReadByte()
-	if err != nil {
-		if !errors.Is(err, io.EOF) {
-			err = errors.Wrap(err, "failed to read parameter")
-		}
-		return paramHeader{}, err
+func (s *LLRPStatus) decode(mr *msgReader) error {
+	if s == nil {
+		*s = LLRPStatus{}
 	}
 
-	_ = mr.r.UnreadByte()
+	if err := mr.setFields(&(s.StatusCode), &(s.ErrDescription)); err != nil {
+		return err
+	}
 
-	if t&0x80 == 1 { // TV parameter
-		p := paramHeader{typ: paramType(t & 0x7F)}
-
-		l, ok := tvLengths[p.typ]
-		if !ok {
-			return p, errors.New("unknown TV type")
+	for mr.currentParam().length != 0 {
+		if err := mr.readParam(); err != nil {
+			return err
 		}
 
-		p.length = uint16(l)
-		return p, nil
+		switch mr.currentParam().typ {
+		case ParamFieldError:
+			f := FieldError{}
+			if err := mr.set(&f); err != nil {
+				return err
+			}
+			s.FieldErrors = append(s.FieldErrors, f)
+		case ParamParameterError:
+			p := ParamError{}
+			if err := mr.set(&p); err != nil {
+				return err
+			}
+			s.ParamErrors = append(s.ParamErrors, p)
+		default:
+			return errors.Errorf("expected either %v or %v, but found %v",
+				ParamFieldError, ParamParameterError, mr.currentParam())
+		}
+
+		if err := mr.doneWithParam(); err != nil {
+			return err
+		}
 	}
 
-	b, err := mr.r.Peek(4)
-	if err != nil {
-		return paramHeader{}, errors.Wrap(err, "failed to read parameter")
+	return nil
+}
+
+// Message type
+type getSupportedVersionResponse struct {
+	Current   VersionNum
+	Supported VersionNum
+	Status    LLRPStatus
+}
+
+func (sv *getSupportedVersionResponse) decode(mr *msgReader) error {
+	if sv == nil {
+		*sv = getSupportedVersionResponse{}
 	}
 
-	return paramHeader{
-		typ:    paramType(binary.BigEndian.Uint16(b[0:2])),
-		length: binary.BigEndian.Uint16(b[2:4]),
-	}, nil
+	return mr.setFields(&(sv.Current), &(sv.Supported), &(sv.Status))
+}
+
+// message type 63
+type readerEventNotification struct {
+	NotificationData readerEventNotificationData
+}
+
+func (ren *readerEventNotification) decode(mr *msgReader) error {
+	*ren = readerEventNotification{}
+
+	if err := mr.readParam(); err != nil {
+		return err
+	}
+
+	// todo: confirm message type?
+	return mr.setFields(&ren.NotificationData)
 }
 
 // TLV type 246
@@ -279,189 +332,404 @@ type readerEventNotificationData struct {
 	ConnectionAttempt *connAttemptEventParam
 }
 
-type parameter interface {
-	getType() paramType
+func (mr msgReader) verify(pt ...paramType) error {
+	if len(pt) == 0 {
+		return nil
+	}
+
+	ph := mr.currentParam()
+	for _, t := range pt {
+		if ph.typ == t {
+			return nil
+		}
+	}
+
+	if len(pt) == 1 {
+		return errors.Errorf("unexpected param %v when looking for %v", ph.typ, pt[0])
+	}
+	return errors.Errorf("unexpected param %v when looking for one of %v", ph.typ, pt)
 }
 
-func (readerEventNotificationData) getType() paramType {
+func (*readerEventNotificationData) getType() paramType {
 	return ParamReaderEventNotificationData
 }
 
-func (connAttemptEventParam) getType() paramType {
-	return ParamConnectionAttemptEvent
+func (ren *readerEventNotificationData) decode(mr *msgReader) error {
+	if ren == nil {
+		*ren = readerEventNotificationData{}
+	}
+
+	if err := mr.readParam(); err != nil {
+		return err
+	}
+
+	if err := mr.set(&ren.TS); err != nil {
+		return err
+	}
+
+	if err := mr.doneWithParam(); err != nil {
+		return err
+	}
+
+	if mr.currentParam().length == 0 {
+		return nil
+	}
+
+	ren.ConnectionAttempt = new(connAttemptEventParam)
+	if err := mr.set((*uint16)(ren.ConnectionAttempt)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-type utcTimestamp uint64
-type uptime uint64
-
-func (utcTimestamp) getType() paramType {
-	return ParamUTCTimestamp
-}
-
-func (uptime) getType() paramType {
-	return ParamUptime
-}
-
-// TLV type 128 == UTC Timestamp, microseconds are from 00:00:00 UTC, Jan 1, 1970.
+// TLV type 128 == UTC Timestamp, microseconds since 00:00:00 UTC, Jan 1, 1970.
 // TLV type 129 == Uptime Timestamp, microseconds since reader started.
 type timestamp struct {
-	UTC    *utcTimestamp
-	Uptime *uptime
+	microseconds uint64
+	isUTC        bool // true if microseconds offset since unix epoch; otherwise, it's uptime
 }
 
-// toGoTime returns the timestamp as a Go time.Time type.
-func (ut utcTimestamp) toGoTime() time.Time {
-	return time.Unix(0, (time.Duration(ut) * time.Second).Nanoseconds())
+// toGoTime returns the timestamp as a Go time.Time type,
+// assuming that it's a UTC timestamp.
+// If it isn't, then the caller should add the reader's start time.
+func (ts timestamp) toGoTime() time.Time {
+	// todo: extends this sometime in the next few hundred years
+	return time.Unix(
+		0,
+		int64(ts.microseconds*1000))
 }
 
-func (ut utcTimestamp) String() string {
-	return ut.toGoTime().String()
-}
-
-func utcCurrent() utcTimestamp {
-	return utcTimestamp(time.Now().UnixNano() / 1000)
-}
-
-func (ts *timestamp) decode(mr msgReader) error {
-	ph, err := mr.currentParam()
-	if err != nil {
-		return err
+func (ts timestamp) String() string {
+	if ts.isUTC {
+		return ts.toGoTime().String()
 	}
-	if err := mr.stepInto(); err != nil {
-		return err
-	}
+	return time.Duration(ts.microseconds).String() + " since start"
+}
 
-	switch ph.typ {
+func utcCurrent() timestamp {
+	return timestamp{
+		microseconds: uint64(time.Duration(time.Now().UnixNano()).Microseconds()),
+		isUTC:        true,
+	}
+}
+
+func (ts *timestamp) decode(mr *msgReader) error {
+	if ts == nil {
+		*ts = timestamp{}
+	}
+	switch mr.currentParam().typ {
 	case ParamUTCTimestamp:
-		return mr.setUint64((*uint64)(ts.UTC))
+		ts.isUTC = true
+		return mr.set(&ts.microseconds)
 	case ParamUptime:
-		return mr.setUint64((*uint64)(ts.Uptime))
+		ts.isUTC = false
+		return mr.set(&ts.microseconds)
 	default:
 		return errors.Errorf("expected %v or %v, but got %v",
-			ParamUptime, ParamUTCTimestamp, ph.typ)
+			ParamUptime, ParamUTCTimestamp, mr.currentParam().typ)
 	}
 }
 
-func (mr msgReader) decode(v ...parameter) error {
-	for i := range v {
-		if err := mr.decodeExactly(v[i]); err != nil {
-			return err
-		}
-	}
-	return nil
+// msgReader provides a structured way of streaming an LLRP message.
+//
+// This reader provides a simplified model to access message data fields and parameters,
+// but relies on exclusive control of the underlying data source,
+// so if you use it, you must not use the underlying reader at the same time;
+// only access fields and parameters via the msgReader's methods.
+//
+// An LLRP message consists of a header identifying its type and size,
+// followed by 0 or more data fields and parameters.
+// Parameters are similar to messages:
+// they begin with a header identifying their type and, in most cases, size,
+// and they are followed by 0 or more data fields and sub-parameters.
+// In some cases, a parameter's header only identifies its type,
+// in which case its size is determine by a lookup table.
+// Fields are always a fixed length and offset relative their container,
+// and thus never include a header.
+//
+// Use newMsgReader to wrap a message, then use set to extract payload data
+// into fields and parameters.
+type msgReader struct {
+	r      *bufio.Reader
+	pStack field
 }
 
-func (mr msgReader) decodeExactly(v parameter) error {
-	rv := reflect.ValueOf(v)
-	if !rv.IsValid() || rv.Kind() != reflect.Ptr {
-		return errors.New("can only decode into non-nil parameter pointers")
-	}
-	if rv.IsNil() {
-		rv.Set(reflect.New(rv.Type().Elem()))
-	}
-	return errors.WithMessagef(mr.set(rv.Elem()), "failed to read %T from %v", v, v.getType())
+type field struct {
+	parameter
+	prev parameter
 }
 
-func (mr msgReader) set(rv reflect.Value) error {
-	if asParam, ok := rv.Interface().(parameter); ok {
-		var err error
-		var ph paramHeader
-		if ph, err = mr.currentParam(); err != nil {
-			return err
-		}
+func newMsgReader(m message) msgReader {
+	mr := msgReader{
+		r: bufio.NewReader(m.payload),
+	}
+	return mr
+}
 
-		if rv.Kind() == reflect.Ptr && rv.IsNil() {
-			return nil
-		}
+type pT interface {
+	getType() paramType
+}
 
-		t := asParam.getType()
-		if ph.typ != t {
-			return errors.Errorf("unexpected %v; expected %v", ph, t)
-		}
+type paramDecoder interface {
+	decode(*msgReader) error
+}
 
-		if err = mr.stepInto(); err != nil {
-			return err
+// currentParam returns the header of the current parameter.
+func (mr msgReader) currentParam() parameter {
+	return mr.pStack.parameter
+}
+
+// readParam reads the next parameter header onto the stack.
+// During decoding, it should be called after reading a fixed fields.
+func (mr *msgReader) readParam() error {
+	t, err := mr.r.ReadByte()
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			err = errors.Wrap(err, "failed to read parameter")
 		}
+		return errors.Wrap(err, "no more data")
 	}
 
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			rv.Set(reflect.New(rv.Type().Elem()))
+	var p parameter
+	if t&0x80 == 1 { // TV parameter
+		p.typ = paramType(t & 0x7F)
+		l, ok := tvLengths[p.typ]
+		if !ok {
+			return errors.Errorf("unknown TV type %v", p)
 		}
-		rv = rv.Elem()
-	}
-
-	switch rv.Kind() {
-	case reflect.String:
-		sLen, err := mr.getUint(2)
+		p.length = uint16(l)
+	} else {
+		t2, err := mr.r.ReadByte()
 		if err != nil {
-			return errors.WithMessagef(err, "failed to read string length")
+			return errors.Wrap(err, "failed to read parameter")
 		}
-
-		sBuild := strings.Builder{}
-		if _, err = io.CopyN(&sBuild, mr.r, int64(sLen)); err != nil {
-			return errors.Wrapf(err, "expected length %d", sLen)
+		t3, err := mr.r.ReadByte()
+		if err != nil {
+			return errors.Wrap(err, "failed to read parameter")
 		}
-
-		rv.SetString(sBuild.String())
-
-	case reflect.Struct:
-		rt := rv.Type()
-		for i := 0; i < rt.NumField(); i++ {
-			ft := rt.Field(i)
-			if ft.PkgPath != "" || ft.Name == "_" {
-				continue // skip unexported field
+		t4, err := mr.r.ReadByte()
+		if err != nil {
+			return errors.Wrap(err, "failed to read parameter")
+		}
+		/*
+			b := []byte{t, 0, 0, 0}
+			if _, err := io.ReadFull(mr.r, b[1:]); err != nil {
+				return errors.Wrap(err, "failed to read parameter")
 			}
 
-			if err := mr.set(rv.Field(i)); err != nil {
-				return errors.Wrapf(err, "unable to set %s", ft.Name)
+			p = parameter{
+				typ:    paramType(binary.BigEndian.Uint16(b[0:2])),
+				length: binary.BigEndian.Uint16(b[2:4]),
 			}
+		*/
+
+		p = parameter{
+			typ:    paramType(uint16(t)<<8 | uint16(t2)),
+			length: uint16(t3)<<8 | uint16(t4),
+		}
+	}
+
+	return mr.add(p)
+}
+
+// add a parameter to the current parameter stack.
+// this typically should only be called by readParam.
+func (mr *msgReader) add(p parameter) error {
+	if mr.pStack.length > 0 {
+		cp := mr.currentParam()
+		if p.length > cp.length {
+			return errors.Errorf("sub-parameter %v is larger than its container %v", p, cp)
 		}
 
-	case reflect.Uint8:
-		return mr.setUintV(rv, 1)
-	case reflect.Uint16:
-		return mr.setUintV(rv, 2)
-	case reflect.Uint32:
-		return mr.setUintV(rv, 4)
-	case reflect.Uint64:
-		return mr.setUintV(rv, 8)
+		// Remove the sub-param from the current top-of-stack parameter.
+		mr.pStack.length -= p.length
+	}
+
+	// Exclude the parameter's header size from its payload;
+	// this doesn't apply to TV params, as their length is known apriori.
+	if p.typ.isTLV() {
+		if p.length < tlvHeaderSz {
+			return errors.Errorf("invalid TLV header length: %v", p)
+		}
+		p.length -= tlvHeaderSz
+	}
+
+	mr.pStack = field{parameter: p, prev: mr.pStack.parameter}
+	return nil
+}
+
+// discard the current parameter by popping it off the stack
+// and advancing the reader past any of its unread data.
+func (mr *msgReader) discard() error {
+	if mr.pStack.typ == 0 {
+		return errors.New("no current parameter")
+	}
+
+	ph := mr.currentParam()
+	mr.pStack = field{parameter: mr.pStack.prev}
+
+	if ph.length != 0 {
+		_, err := mr.r.Discard(int(ph.length))
+		if err != nil {
+			return errors.Wrap(err, "failed to discard parameter body")
+		}
+	}
+
+	return nil
+}
+
+// doneWithParam checks that the current parameter's data is fully read,
+// then discards it.
+func (mr *msgReader) doneWithParam() error {
+	if mr.currentParam().length != 0 {
+		return errors.Errorf("parameter has unexpected data: %v", mr.currentParam())
+	}
+
+	if err := mr.discard(); err != nil {
+		return err
+	}
+	return mr.readParam()
+}
+
+// decode the current parameter by matching its type against the permitted inputs.
+// If none match, return an error; otherwise, set the matching parameter.
+func (mr *msgReader) decodeOne(first pT, more ...pT) error {
+	ph := mr.currentParam()
+
+	if ph.typ == first.getType() {
+		if err := mr.set(first); err != nil {
+			return err
+		}
+
+		return mr.doneWithParam()
+	}
+
+	for i := range more {
+		if ph.typ != more[i].getType() {
+			continue
+		}
+
+		if err := mr.set(more[i]); err != nil {
+			return err
+		}
+
+		return mr.doneWithParam()
+	}
+
+	if len(more) == 0 {
+		return errors.Errorf("unexpected parameter %v when looking for %v", ph, first.getType())
+	}
+
+	pts := make([]string, len(more))
+	pts[0] = first.getType().String()
+
+	for i := range more[:len(more)-1] {
+		pts[i+1] = more[i].getType().String()
+	}
+
+	return errors.Errorf("unexpected parameter %v when looking for %v or %v",
+		ph, strings.Join(pts, ", "), more[len(more)-1].getType())
+}
+
+// setFields sets a series of required fields in a known order.
+func (mr *msgReader) setFields(v ...interface{}) error {
+	for i := range v {
+		if err := mr.set(v[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// set a single field v.
+//
+// If v implements paramDecoder, it calls that.
+// Otherwise, v must one of the following types:
+// -- *string: data is 2 byte length, followed by UTF-8 string data.
+// -- *uint64: data is 8 byte unsigned int.
+// -- *uint32: data is 4 byte unsigned int.
+// -- *uint16: data is 2 byte unsigned int.
+// --  *uint8: data is 1 byte unsigned int.
+func (mr *msgReader) set(v interface{}) error {
+	if v == nil {
+		return nil
+	}
+
+	var err error
+	switch v := v.(type) {
+	case paramDecoder:
+		return v.decode(mr)
+	case *string:
+		*v, err = mr.getString()
+	case *uint64:
+		*v, err = mr.getUint(8)
+	case *uint32:
+		var u uint64
+		u, err = mr.getUint(4)
+		*v = uint32(u)
+	case *uint16:
+		var u uint64
+		u, err = mr.getUint(2)
+		*v = uint16(u)
+	case *uint8:
+		var u uint64
+		u, err = mr.getUint(1)
+		*v = uint8(u)
 	default:
-		return errors.Errorf("unhandled type: %v", rv.Type().String())
+		if p, ok := v.(pT); ok {
+			err = errors.Errorf("unhandled type: %T for %v", v, p.getType())
+		} else {
+			err = errors.Errorf("unhandled type: %T", v)
+		}
 	}
-	return nil
+	return err
 }
 
-var refParameterType = reflect.TypeOf((*parameter)(nil)).Elem()
-
-// setUint reads nBytes and assigns them to reflect uint pointer v.
-// This method panics if v is not settable or if nBytes is outside of [1,8].
-func (mr msgReader) setUintV(v reflect.Value, nBytes int) error {
-	if u, err := mr.getUint(nBytes); err != nil {
-		return err
-	} else {
-		v.SetUint(u)
+// getString reads a UTF-8 encoded string from the current parameter,
+// assuming its prepended by a uint16 indicating its length in bytes.
+func (mr *msgReader) getString() (string, error) {
+	sLen, err := mr.getUint(2)
+	if err != nil {
+		return "", errors.WithMessagef(err, "failed to read string length")
 	}
-	return nil
+
+	if sLen == 0 {
+		return "", nil
+	}
+
+	cp := mr.currentParam()
+	if cp.length < uint16(sLen) {
+		return "", errors.Errorf("not enough data to read string of length %d from %v", sLen, cp)
+	}
+
+	mr.pStack.length -= uint16(sLen)
+	sBuild := strings.Builder{}
+	if _, err = io.CopyN(&sBuild, mr.r, int64(sLen)); err != nil {
+		return "", errors.Wrapf(err, "failed to read string of length %d from %v", sLen, cp)
+	}
+
+	return sBuild.String(), nil
 }
 
-func (mr msgReader) setUint64(v *uint64) error {
-	if u, err := mr.getUint(8); err != nil {
-		return err
-	} else {
-		*v = u
-	}
-	return nil
-}
-
-// getUint of size 0 < nBytes <= 8, but presumably 1, 2, 4, 8.
-// Values outside that range will panic.
+// getUint of size 0 < nBytes <= 8, (presumably 1, 2, 4, 8), assumed BigEndian.
+// If nBytes is outside of that range, this will panic.
 // This advances the reader by nBytes.
-// As always, it assumes BigEndian.
-func (mr msgReader) getUint(nBytes int) (uint64, error) {
-	b := make([]byte, 8)
-	if _, err := io.ReadFull(mr.r, b[8-nBytes:]); err != nil {
-		return 0, errors.Wrapf(err, "failed to read uint%d", nBytes*8)
+func (mr *msgReader) getUint(nBytes int) (uint64, error) {
+	cp := mr.currentParam()
+	if int(cp.length) < nBytes {
+		return 0, errors.Errorf("not enough data to read uint%d from %v", nBytes*8, cp)
 	}
-	return binary.BigEndian.Uint64(b), nil
+	mr.pStack.length -= uint16(nBytes)
+
+	var u uint64
+	for i := 0; i < nBytes; i++ {
+		b, err := mr.r.ReadByte()
+		if err != nil {
+			return 0, errors.Wrapf(err, "failed to read uint%d", nBytes*8)
+		}
+		u = (u << 8) | uint64(b)
+	}
+
+	return u, nil
 }

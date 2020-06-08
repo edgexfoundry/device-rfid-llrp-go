@@ -193,6 +193,16 @@ func (r *Reader) Connect() error {
 			ReaderEventNotification, m.typ)
 	}
 
+	mr := newMsgReader(m)
+
+	ren := readerEventNotification{}
+	if err := mr.set(&ren); err != nil {
+		return errors.Wrap(err, "connection failed")
+	}
+	if ren.NotificationData.ConnectionAttempt == nil ||
+		*ren.NotificationData.ConnectionAttempt != connectionSuccess {
+		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
+	}
 	/*
 		mr := newMsgReader(m)
 		mp := map[paramType]interface{}{
@@ -219,10 +229,6 @@ func (r *Reader) Connect() error {
 			return errors.Errorf("connection status: %v", status)
 		}
 	*/
-
-	if !errors.Is(err, io.EOF) {
-		return err
-	}
 
 	if err := m.Close(); err != nil {
 		return errors.Wrap(err, "failed to completely read initial connection message")

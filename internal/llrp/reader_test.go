@@ -368,7 +368,7 @@ func TestReader_ManySenders(t *testing.T) {
 	}()
 
 	// send a bunch of messages all at once
-	senders := 300
+	senders := 3
 	msgGrp := sync.WaitGroup{}
 	msgGrp.Add(senders)
 	sendErrs := make(chan error, senders)
