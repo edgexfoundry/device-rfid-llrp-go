@@ -214,12 +214,15 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 }
 
 func (d *Driver) Discover() {
+	d.lc.Info("*** Discover was called ***")
 	mon, wg, err := RunScanner()
 	if err != nil {
 		d.lc.Error(err.Error())
 	} else {
 		mon.Stop()
 		wg.Wait()
+		// need to do this to tell edgex that discovery is complete
+		d.deviceCh <- nil
 		d.lc.Info("scanning complete")
 	}
 }

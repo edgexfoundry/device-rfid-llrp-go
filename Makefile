@@ -9,7 +9,7 @@ MICROSERVICES=cmd/device-llrp
 DOCKERS=docker_device_llrp_go
 COMPOSE_FILE=docker-compose-geneva-redis-no-secty.yml
 
-.PHONY: $(DOCKERS)
+.PHONY: $(DOCKERS) iterate test clean rm rm-volumes stop tail run fmt
 
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 GIT_SHA=$(shell git rev-parse HEAD)
@@ -41,6 +41,8 @@ docker_device_llrp_go:
 run:
 	docker-compose -f $(COMPOSE_FILE) up -d
 
+iterate: docker run tail
+
 stop:
 	docker-compose -f $(COMPOSE_FILE) stop
 
@@ -54,3 +56,6 @@ rm-volumes:
 	for x in $$(docker volume ls -q | grep 'device-llrp'); do \
   		docker volume rm $$x; \
 	done
+
+fmt:
+	go fmt ./...

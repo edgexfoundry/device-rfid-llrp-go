@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+
 	//dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	sdk "github.com/edgexfoundry/device-sdk-go/pkg/service"
 	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
@@ -148,21 +150,23 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	return zgrab2.SCAN_SUCCESS, &llrpConn.results, nil
 }
 
-func scanOutputHandler(results <-chan []byte) error {
-	var err error
-	for result := range results {
-		grab := new(zgrab2.Grab)
-		err = json.Unmarshal(result, grab)
-		if err != nil {
-			log.Error(err)
-		} else {
-			if grab.Data[llrpProtocol].Status == zgrab2.SCAN_SUCCESS {
-				log.Infof("%+v", grab.Data[llrpProtocol])
-				registerDeviceIfNeeded(grab.IP, llrpPortStr)
+func scanOutputHandler(scanName string) zgrab2.OutputResultsFunc {
+	return func(results <-chan []byte) error {
+		var err error
+		for result := range results {
+			grab := new(zgrab2.Grab)
+			err = json.Unmarshal(result, grab)
+			if err != nil {
+				log.Error(err)
+			} else {
+				if grab.Data[scanName].Status == zgrab2.SCAN_SUCCESS {
+					log.Infof("%+v", grab.Data[scanName])
+					registerDeviceIfNeeded(grab.IP, llrpPortStr)
+				}
 			}
 		}
+		return nil
 	}
-	return nil
 }
 
 func scanTargetGenerator(flags Flags) zgrab2.InputTargetsFunc {
@@ -172,12 +176,20 @@ func scanTargetGenerator(flags Flags) zgrab2.InputTargetsFunc {
 			return err
 		}
 
+		// create a device name lookup table. this is to avoid making calls to the sdk directly
+		// because the sdk logs every missed device lookup
+		devices := sdk.RunningService().Devices()
+		deviceMap := make(map[string]bool, len(devices))
+		for _, d := range devices {
+			deviceMap[d.Name] = true
+		}
+
 		var ip net.IP
 		for _, ipnet := range nets {
 			if ipnet.Mask != nil {
 				// add a target for every IP in the CIDR block
 				for ip = ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
-					if _, err := sdk.RunningService().GetDeviceByName(makeDeviceName(ip.String(), llrpPortStr)); err == nil {
+					if _, found := deviceMap[makeDeviceName(ip.String(), llrpPortStr)]; found {
 						log.Infof("Skip scan of %s, device already registered", ip.String())
 						continue
 					}
@@ -215,15 +227,17 @@ func RunScanner() (*zgrab2.Monitor, *sync.WaitGroup, error) {
 		return nil, nil, err
 	}
 
+	scanName := llrpProtocol + strconv.FormatInt(time.Now().UnixNano(), 10)
 	zgrab2.SetInputFunc(scanTargetGenerator(flags))
-	zgrab2.SetOutputFunc(scanOutputHandler)
+	zgrab2.SetOutputFunc(scanOutputHandler(scanName))
 
 	err = scanner.Init(&flags)
 	if err != nil {
 		driver.lc.Error(fmt.Sprintf("error initializing scanner: %v", err))
 		return nil, nil, err
 	}
-	zgrab2.RegisterScan(llrpProtocol, scanner)
+
+	zgrab2.RegisterScan(scanName, scanner)
 
 	wg := sync.WaitGroup{}
 	monitor := zgrab2.MakeMonitor(1, &wg)
@@ -315,6 +329,9 @@ func makeDeviceName(ip string, port string) string {
 func registerDeviceIfNeeded(ip string, port string) {
 	deviceName := makeDeviceName(ip, port)
 
+	// TODO: This is potentially how we can register devices using built-in Edgex discovery
+	// TODO: 	process. There are some questions around it, especially concerning which device
+	// TODO: 	profile will be used.
 	//driver.deviceCh <- []dsModels.DiscoveredDevice{{
 	//	Name:        deviceName,
 	//	Protocols:   map[string]edgexModels.ProtocolProperties{
