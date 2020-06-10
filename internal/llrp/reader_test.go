@@ -413,3 +413,97 @@ func TestReader_ManySenders(t *testing.T) {
 	}
 
 }
+
+type devNullLog struct{}
+
+func (devNullLog) Println(v ...interface{})            {}
+func (devNullLog) Printf(fmt string, v ...interface{}) {}
+
+func BenchmarkReader_ManySenders(b *testing.B) {
+	client, rfid := net.Pipe()
+	if err := client.SetDeadline(time.Now().Add(300 * time.Second)); err != nil {
+		b.Fatal(err)
+		return
+	}
+	if err := rfid.SetDeadline(time.Now().Add(300 * time.Second)); err != nil {
+		b.Fatal(err)
+	}
+
+	r, err := NewReader(WithConn(client), WithLogger(devNullLog{}))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// start a connection
+	connErrs := make(chan error, 1)
+	go func() {
+		defer close(connErrs)
+		connErrs <- r.Connect()
+	}()
+
+	// RFID device: discard incoming messages; send random replies
+	rfidErrs := make(chan error, 1)
+	go func() {
+		defer close(rfidErrs)
+		var h header
+		err := connectSuccess(&h, rfid)
+		op, nextOp := dummyRead, randomReply(0, 1024)
+		s1, s2 := "read", "reply"
+		for err == nil {
+			err = op(&h, rfid)
+			op, nextOp = nextOp, op
+			s1, s2 = s2, s1
+		}
+		rfidErrs <- errors.Wrap(err, "mock failed")
+	}()
+
+	// send a bunch of messages all at once
+	senders := b.N
+	msgGrp := sync.WaitGroup{}
+	msgGrp.Add(senders)
+	sendErrs := make(chan error, senders)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*300)
+	defer cancel()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		go func(i int) {
+			defer msgGrp.Done()
+
+			sz := rand.Int31n(1024)
+			data := make([]byte, sz)
+			rand.Read(data)
+
+			_, err := r.SendMessage(ctx, CustomMessage, data)
+			if err != nil {
+				sendErrs <- err
+			}
+		}(i)
+	}
+	msgGrp.Wait()
+	b.Log("closing")
+
+	if err := r.Shutdown(context.Background()); err != nil {
+		b.Error(err)
+	}
+	b.StopTimer()
+
+	close(sendErrs)
+	for err := range sendErrs {
+		b.Errorf("send error: %+v", err)
+	}
+
+	for err := range connErrs {
+		if !errors.Is(err, ErrReaderClosed) {
+			b.Errorf("connect error: %+v", err)
+		}
+	}
+
+	for err := range rfidErrs {
+		if !errors.Is(err, io.EOF) {
+			b.Errorf("mock error: %+v", err)
+		}
+	}
+
+}

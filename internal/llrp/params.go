@@ -7,7 +7,7 @@ package llrp
 
 import (
 	"bufio"
-	"encoding/binary"
+	"bytes"
 	"fmt"
 	"github.com/pkg/errors"
 	"io"
@@ -118,7 +118,7 @@ var tvLengths = map[paramType]int{
 // isTV returns true if the paramType is TV-encoded.
 // TV-encoded parameters have specific lengths which must be looked up.
 func (pt paramType) isTV() bool {
-	return pt <= 127
+	return pt != 0 && pt <= 127
 }
 
 // isTLV returns true if the paramType is TLV-encoded.
@@ -130,16 +130,6 @@ func (pt paramType) isTLV() bool {
 // isValid returns true if the paramType is within the valid LLRP Parameter range.
 func (pt paramType) isValid() bool {
 	return pt > 0 && pt <= 2047
-}
-
-// high returns the high byte of a paramType.
-func (pt paramType) high() uint8 {
-	return uint8(pt >> 8 & 0b11)
-}
-
-// low returns the low byte of a paramType.
-func (pt paramType) low() uint8 {
-	return uint8(pt)
 }
 
 // parameters are fields which "declare" themselves within an LLRP message,
@@ -172,20 +162,8 @@ const (
 	anotherConnAttempted      = connAttemptEventParam(4)
 )
 
-func (caep connAttemptEventParam) encode(w io.Writer) error {
-	_, err := w.Write([]byte{
-		uint8(caep >> 8), uint8(caep & 0xFF),
-	})
-	return err
-}
-
-func (caep *connAttemptEventParam) decode(r io.Reader) error {
-	b := []byte{0, 0}
-	if _, err := io.ReadFull(r, b); err != nil {
-		return errors.Wrap(err, "read failed")
-	}
-	*caep = connAttemptEventParam(binary.BigEndian.Uint16(b))
-	return nil
+func (caep connAttemptEventParam) encode(mb *msgBuilder) error {
+	return mb.writeUint(uint64(caep), 2)
 }
 
 type LLRPStatus struct {
@@ -195,17 +173,25 @@ type LLRPStatus struct {
 	ParamErrors    []ParamError
 }
 
+func (*LLRPStatus) getType() paramType {
+	return ParamLLRPStatus
+}
+
+func (ls *LLRPStatus) encode(mb *msgBuilder) error {
+	if err := mb.writeFields(ls.StatusCode, ls.ErrDescription); err != nil {
+		return err
+	}
+	// todo: field errors, param errors
+	return nil
+}
+
 type FieldError struct {
 	FieldNum  uint16
 	ErrorCode uint16
 }
 
 func (fe *FieldError) decode(mr *msgReader) error {
-	if fe == nil {
-		*fe = FieldError{}
-	}
-
-	if err := mr.setFields(&(fe.FieldNum), &(fe.ErrorCode)); err != nil {
+	if err := mr.readFields(&(fe.FieldNum), &(fe.ErrorCode)); err != nil {
 		return err
 	}
 
@@ -220,34 +206,31 @@ type ParamError struct {
 }
 
 func (pe *ParamError) decode(mr *msgReader) error {
-	if pe == nil {
-		*pe = ParamError{}
-	}
-
-	if err := mr.setFields(&(pe.ParamType), &(pe.ErrorCode)); err != nil {
+	if err := mr.readFields(&(pe.ParamType), &(pe.ErrorCode)); err != nil {
 		return err
 	}
 
-	for mr.currentParam().length != 0 {
-		if err := mr.readParam(); err != nil {
+	for mr.hasData() {
+		prev, err := mr.readParam()
+		if err != nil {
 			return err
 		}
 
-		switch mr.currentParam().typ {
+		switch mr.cur.typ {
 		case ParamFieldError:
-			if err := mr.set(&pe.FieldError); err != nil {
+			if err := mr.read(&pe.FieldError); err != nil {
 				return err
 			}
 		case ParamParameterError:
-			if err := mr.set(&pe.ParamError); err != nil {
+			if err := mr.read(&pe.ParamError); err != nil {
 				return err
 			}
 		default:
 			return errors.Errorf("expected either %v or %v, but found %v",
-				ParamFieldError, ParamParameterError, mr.currentParam())
+				ParamFieldError, ParamParameterError, mr.cur)
 		}
 
-		if err := mr.doneWithParam(); err != nil {
+		if err := mr.endParam(prev); err != nil {
 			return err
 		}
 	}
@@ -256,38 +239,35 @@ func (pe *ParamError) decode(mr *msgReader) error {
 }
 
 func (s *LLRPStatus) decode(mr *msgReader) error {
-	if s == nil {
-		*s = LLRPStatus{}
-	}
-
-	if err := mr.setFields(&(s.StatusCode), &(s.ErrDescription)); err != nil {
+	if err := mr.readFields(&(s.StatusCode), &(s.ErrDescription)); err != nil {
 		return err
 	}
 
-	for mr.currentParam().length != 0 {
-		if err := mr.readParam(); err != nil {
+	for mr.hasData() {
+		prev, err := mr.readParam()
+		if err != nil {
 			return err
 		}
 
-		switch mr.currentParam().typ {
+		switch mr.cur.typ {
 		case ParamFieldError:
 			f := FieldError{}
-			if err := mr.set(&f); err != nil {
+			if err := mr.read(&f); err != nil {
 				return err
 			}
 			s.FieldErrors = append(s.FieldErrors, f)
 		case ParamParameterError:
 			p := ParamError{}
-			if err := mr.set(&p); err != nil {
+			if err := mr.read(&p); err != nil {
 				return err
 			}
 			s.ParamErrors = append(s.ParamErrors, p)
 		default:
 			return errors.Errorf("expected either %v or %v, but found %v",
-				ParamFieldError, ParamParameterError, mr.currentParam())
+				ParamFieldError, ParamParameterError, mr.cur)
 		}
 
-		if err := mr.doneWithParam(); err != nil {
+		if err := mr.endParam(prev); err != nil {
 			return err
 		}
 	}
@@ -303,11 +283,10 @@ type getSupportedVersionResponse struct {
 }
 
 func (sv *getSupportedVersionResponse) decode(mr *msgReader) error {
-	if sv == nil {
-		*sv = getSupportedVersionResponse{}
+	if err := mr.readFields((*uint8)(&(sv.Current)), (*uint8)(&(sv.Supported))); err != nil {
+		return err
 	}
-
-	return mr.setFields(&(sv.Current), &(sv.Supported), &(sv.Status))
+	return mr.readParameter(&sv.Status)
 }
 
 // message type 63
@@ -316,68 +295,59 @@ type readerEventNotification struct {
 }
 
 func (ren *readerEventNotification) decode(mr *msgReader) error {
-	*ren = readerEventNotification{}
+	return mr.readParameters(&ren.NotificationData)
+}
 
-	if err := mr.readParam(); err != nil {
-		return err
-	}
-
-	// todo: confirm message type?
-	return mr.setFields(&ren.NotificationData)
+func (ren *readerEventNotification) encode(mb *msgBuilder) error {
+	return mb.writeParam(&ren.NotificationData)
 }
 
 // TLV type 246
 type readerEventNotificationData struct {
 	TS                timestamp
-	ConnectionAttempt *connAttemptEventParam
+	ConnectionAttempt connAttemptEventParam
 }
 
-func (mr msgReader) verify(pt ...paramType) error {
-	if len(pt) == 0 {
-		return nil
-	}
-
-	ph := mr.currentParam()
-	for _, t := range pt {
-		if ph.typ == t {
-			return nil
-		}
-	}
-
-	if len(pt) == 1 {
-		return errors.Errorf("unexpected param %v when looking for %v", ph.typ, pt[0])
-	}
-	return errors.Errorf("unexpected param %v when looking for one of %v", ph.typ, pt)
+func (rend *readerEventNotificationData) encode(mb *msgBuilder) error {
+	return mb.writeParams(&rend.TS, &rend.ConnectionAttempt)
 }
 
 func (*readerEventNotificationData) getType() paramType {
 	return ParamReaderEventNotificationData
 }
 
+func (*connAttemptEventParam) getType() paramType {
+	return ParamConnectionAttemptEvent
+}
+
 func (ren *readerEventNotificationData) decode(mr *msgReader) error {
-	if ren == nil {
-		*ren = readerEventNotificationData{}
+	prev, err := mr.readParam()
+	if err != nil {
+		return err
 	}
-
-	if err := mr.readParam(); err != nil {
+	if err := mr.read(&ren.TS); err != nil {
+		return err
+	}
+	if err := mr.endParam(prev); err != nil {
 		return err
 	}
 
-	if err := mr.set(&ren.TS); err != nil {
-		return err
-	}
+	for mr.hasData() {
+		prev, err := mr.readParam()
+		if err != nil {
+			return err
+		}
 
-	if err := mr.doneWithParam(); err != nil {
-		return err
-	}
+		switch mr.cur.typ {
+		case ParamConnectionAttemptEvent:
+			if err := mr.read((*uint16)(&ren.ConnectionAttempt)); err != nil {
+				return err
+			}
+		}
 
-	if mr.currentParam().length == 0 {
-		return nil
-	}
-
-	ren.ConnectionAttempt = new(connAttemptEventParam)
-	if err := mr.set((*uint16)(ren.ConnectionAttempt)); err != nil {
-		return err
+		if err := mr.endParam(prev); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -387,7 +357,7 @@ func (ren *readerEventNotificationData) decode(mr *msgReader) error {
 // TLV type 129 == Uptime Timestamp, microseconds since reader started.
 type timestamp struct {
 	microseconds uint64
-	isUTC        bool // true if microseconds offset since unix epoch; otherwise, it's uptime
+	isUptime     bool // true if microseconds is uptime instead of offset since unix epoch
 }
 
 // toGoTime returns the timestamp as a Go time.Time type,
@@ -395,40 +365,242 @@ type timestamp struct {
 // If it isn't, then the caller should add the reader's start time.
 func (ts timestamp) toGoTime() time.Time {
 	// todo: extends this sometime in the next few hundred years
-	return time.Unix(
-		0,
-		int64(ts.microseconds*1000))
+	return time.Unix(0, int64(ts.microseconds*1000))
+}
+
+func (*timestamp) fromGoTime(t time.Time) timestamp {
+	return timestamp{
+		microseconds: uint64(time.Duration(t.UnixNano()).Microseconds()),
+	}
 }
 
 func (ts timestamp) String() string {
-	if ts.isUTC {
-		return ts.toGoTime().String()
+	if ts.isUptime {
+		return time.Duration(ts.microseconds).String() + " since reader start"
 	}
-	return time.Duration(ts.microseconds).String() + " since start"
+	return ts.toGoTime().String()
 }
 
 func utcCurrent() timestamp {
 	return timestamp{
 		microseconds: uint64(time.Duration(time.Now().UnixNano()).Microseconds()),
-		isUTC:        true,
 	}
 }
 
-func (ts *timestamp) decode(mr *msgReader) error {
-	if ts == nil {
-		*ts = timestamp{}
+func (ts *timestamp) getType() paramType {
+	if ts.isUptime {
+		return ParamUptime
 	}
-	switch mr.currentParam().typ {
+	return ParamUTCTimestamp
+}
+
+func (ts *timestamp) decode(mr *msgReader) error {
+	switch mr.cur.typ {
 	case ParamUTCTimestamp:
-		ts.isUTC = true
-		return mr.set(&ts.microseconds)
+		ts.isUptime = false
+		return mr.read(&ts.microseconds)
 	case ParamUptime:
-		ts.isUTC = false
-		return mr.set(&ts.microseconds)
+		ts.isUptime = true
+		return mr.read(&ts.microseconds)
 	default:
 		return errors.Errorf("expected %v or %v, but got %v",
-			ParamUptime, ParamUTCTimestamp, mr.currentParam().typ)
+			ParamUptime, ParamUTCTimestamp, mr.cur.typ)
 	}
+}
+
+func (ts *timestamp) encode(mb *msgBuilder) error {
+	return mb.writeUint(ts.microseconds, 8)
+}
+
+type msgBuilder struct {
+	w *bytes.Buffer
+}
+
+func newMsgBuilder() *msgBuilder {
+	w := bytes.Buffer{}
+	return &msgBuilder{w: &w}
+}
+
+func (mb *msgBuilder) reset() {
+	mb.w.Reset()
+}
+
+func (mb *msgBuilder) finish(mt messageType) (message, error) {
+	if mb.w.Len() > int(maxPayloadSz) {
+		return message{}, errors.Errorf("payload size exceeds max: %d", mb.w.Len())
+	}
+
+	return message{
+		payload: mb.w,
+		header: header{
+			payloadLen: uint32(mb.w.Len()),
+			typ:        mt,
+		},
+	}, nil
+}
+
+func (vn VersionNum) encode(mb *msgBuilder) error {
+	return mb.write(uint8(vn))
+}
+
+func (mb *msgBuilder) writeFields(fields ...interface{}) error {
+	for i := range fields {
+		if err := mb.write(fields[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mb *msgBuilder) writeParams(params ...pT) error {
+	for i := range params {
+		if err := mb.writeParam(params[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mb *msgBuilder) writeParam(p pT) error {
+	pc, err := mb.startParam(p.getType())
+	if err != nil {
+		return err
+	}
+	if err := mb.write(p); err != nil {
+		return err
+	}
+	return mb.finishParam(pc)
+}
+
+type paramEncoder interface {
+	encode(mb *msgBuilder) error
+}
+
+// write a single field f.
+//
+// If f implements paramEncoder, it calls that.
+// Otherwise, f must be one of the following types:
+// -- string: written as a 2 byte length, followed its bytes (presumed to be UTF-8).
+// -- uint64: written as 8 bytes
+// -- uint32: written as 4 bytes
+// -- uint16: written as 2 bytes
+// --  uint8: written as 1 byte
+func (mb *msgBuilder) write(f interface{}) error {
+	switch v := f.(type) {
+	case paramEncoder:
+		return v.encode(mb)
+	case uint64:
+		return mb.writeUint(v, 8)
+	case uint32:
+		return mb.writeUint(uint64(v), 4)
+	case uint16:
+		return mb.writeUint(uint64(v), 2)
+	case uint8:
+		return mb.writeUint(uint64(v), 1)
+	case string:
+		return mb.writeString(v)
+	default:
+		if p, ok := v.(pT); ok {
+			return errors.Errorf("unhandled type: %T for %v -- should it implement paramEncoder?",
+				v, p.getType())
+		}
+		return errors.Errorf("unhandled type: %T -- should it implement paramEncoder?", v)
+	}
+}
+
+// writeUint u using nBytes, which should be 1, 2, 4, or 8,
+// but that isn't validated by this method.
+func (mb *msgBuilder) writeUint(v uint64, nBytes int) error {
+	switch nBytes {
+	case 8:
+		mb.w.WriteByte(uint8(v >> 56))
+		mb.w.WriteByte(uint8(v >> 48))
+		mb.w.WriteByte(uint8(v >> 40))
+		mb.w.WriteByte(uint8(v >> 32))
+		fallthrough
+	case 4:
+		mb.w.WriteByte(uint8(v >> 24))
+		mb.w.WriteByte(uint8(v >> 16))
+		fallthrough
+	case 2:
+		mb.w.WriteByte(uint8(v >> 8))
+		fallthrough
+	case 1:
+		mb.w.WriteByte(uint8(v))
+	default:
+		return errors.Errorf("not a valid uint size: %d", nBytes)
+	}
+
+	return nil
+}
+
+// writeString s to the stream by prepending its length as a uint16,
+// followed by its data.
+// LLRP string should be UTF-8 encoded, but this doesn't validate that.
+func (mb *msgBuilder) writeString(s string) error {
+	ls := len(s)
+
+	// make sure we're not dealing with a string with more than 2^16-2 bytes
+	if ls > int(maxParamSz)-2 {
+		return errors.Errorf("string has %d bytes and is larger than an LLRP parameter", len(s))
+	}
+
+	mb.w.WriteByte(byte(ls >> 8))
+	mb.w.WriteByte(byte(ls & 0xFF))
+	mb.w.WriteString(s)
+	return nil
+}
+
+type paramCtx struct {
+	start int
+	parameter
+}
+
+// startParam starts a parameter context which must be finished with finishParam.
+//
+// The writes the parameter type to the stream (1 byte for TVs, 2 for TLVs),
+// and for TLVs, reserves 2 bytes for the length,
+// which must be set later via finishParam.
+func (mb *msgBuilder) startParam(pt paramType) (paramCtx, error) {
+	// log.Printf("starting %v", pt)
+	pc := paramCtx{
+		parameter: parameter{typ: pt},
+		start:     mb.w.Len(),
+	}
+
+	if pt.isTV() {
+		if _, ok := tvLengths[pt]; !ok {
+			return pc, errors.Errorf("unknown TV %v", pt)
+		}
+
+		mb.w.WriteByte(byte(pt) | 0x80)
+	} else {
+		mb.w.WriteByte(uint8(pt >> 8 & 0b11))
+		mb.w.WriteByte(uint8(pt))
+		// length, to be set later
+		mb.w.WriteByte(0x0)
+		mb.w.WriteByte(0x0)
+	}
+
+	return pc, nil
+}
+
+// finishParam validates a parameter's length and pops it off the stack.
+//
+// For TLVs, it writes the the parameter's length into the header.
+// For TVs, it validates that the written data matches the expected length.
+// If this is a sub-parameter, it adds its length to its parent
+// and validates that it fits within that parameter.
+func (mb *msgBuilder) finishParam(pc paramCtx) error {
+	end := mb.w.Len()
+	length := end - pc.start
+	// log.Printf("finishing %v [%d to %d] (%d bytes)", pc.typ, pc.start, end, length)
+
+	b := mb.w.Bytes()
+	b[pc.start+3] = uint8(length & 0xFF)
+	b[pc.start+2] = uint8(length >> 8)
+
+	return nil
 }
 
 // msgReader provides a structured way of streaming an LLRP message.
@@ -451,20 +623,20 @@ func (ts *timestamp) decode(mr *msgReader) error {
 // Use newMsgReader to wrap a message, then use set to extract payload data
 // into fields and parameters.
 type msgReader struct {
-	r      *bufio.Reader
-	pStack field
+	r   *bufio.Reader
+	cur parameter
 }
 
-type field struct {
-	parameter
-	prev parameter
-}
-
-func newMsgReader(m message) msgReader {
-	mr := msgReader{
+func newMsgReader(m message) *msgReader {
+	mr := &msgReader{
 		r: bufio.NewReader(m.payload),
 	}
 	return mr
+}
+
+func (mr *msgReader) reset(m message) {
+	mr.r.Reset(m.payload)
+	mr.cur = parameter{}
 }
 
 type pT interface {
@@ -475,221 +647,175 @@ type paramDecoder interface {
 	decode(*msgReader) error
 }
 
-// currentParam returns the header of the current parameter.
-func (mr msgReader) currentParam() parameter {
-	return mr.pStack.parameter
+// hasData returns true if the reader current parameter has data.
+func (mr msgReader) hasData() bool {
+	return mr.cur.typ != paramInvalid && mr.cur.length > 0
 }
 
-// readParam reads the next parameter header onto the stack.
-// During decoding, it should be called after reading a fixed fields.
-func (mr *msgReader) readParam() error {
-	t, err := mr.r.ReadByte()
+// readParam reads the next parameter header, returning was the current one.
+// Callers should use finishParam when done to replace the parameter context.
+func (mr *msgReader) readParam() (prev parameter, err error) {
+	t, err := mr.readUint8()
 	if err != nil {
 		if !errors.Is(err, io.EOF) {
 			err = errors.Wrap(err, "failed to read parameter")
 		}
-		return errors.Wrap(err, "no more data")
+		return prev, errors.Wrap(err, "no more data")
 	}
 
 	var p parameter
-	if t&0x80 == 1 { // TV parameter
+	if t&0x80 != 0 { // TV parameter
 		p.typ = paramType(t & 0x7F)
 		l, ok := tvLengths[p.typ]
 		if !ok {
-			return errors.Errorf("unknown TV type %v", p)
+			return prev, errors.Errorf("unknown TV type %v", p)
 		}
 		p.length = uint16(l)
 	} else {
-		t2, err := mr.r.ReadByte()
+		p.typ = paramType(uint16(t) << 8)
+		t, err = mr.readUint8()
 		if err != nil {
-			return errors.Wrap(err, "failed to read parameter")
+			return prev, errors.Wrap(err, "failed to read parameter")
 		}
-		t3, err := mr.r.ReadByte()
+		p.typ |= paramType(t)
+
+		p.length, err = mr.readUint16()
 		if err != nil {
-			return errors.Wrap(err, "failed to read parameter")
-		}
-		t4, err := mr.r.ReadByte()
-		if err != nil {
-			return errors.Wrap(err, "failed to read parameter")
-		}
-		/*
-			b := []byte{t, 0, 0, 0}
-			if _, err := io.ReadFull(mr.r, b[1:]); err != nil {
-				return errors.Wrap(err, "failed to read parameter")
-			}
-
-			p = parameter{
-				typ:    paramType(binary.BigEndian.Uint16(b[0:2])),
-				length: binary.BigEndian.Uint16(b[2:4]),
-			}
-		*/
-
-		p = parameter{
-			typ:    paramType(uint16(t)<<8 | uint16(t2)),
-			length: uint16(t3)<<8 | uint16(t4),
-		}
-	}
-
-	return mr.add(p)
-}
-
-// add a parameter to the current parameter stack.
-// this typically should only be called by readParam.
-func (mr *msgReader) add(p parameter) error {
-	if mr.pStack.length > 0 {
-		cp := mr.currentParam()
-		if p.length > cp.length {
-			return errors.Errorf("sub-parameter %v is larger than its container %v", p, cp)
+			return prev, errors.Wrap(err, "failed to read parameter")
 		}
 
-		// Remove the sub-param from the current top-of-stack parameter.
-		mr.pStack.length -= p.length
-	}
-
-	// Exclude the parameter's header size from its payload;
-	// this doesn't apply to TV params, as their length is known apriori.
-	if p.typ.isTLV() {
 		if p.length < tlvHeaderSz {
-			return errors.Errorf("invalid TLV header length: %v", p)
+			return prev, errors.Errorf("invalid TLV header length: %v", p)
 		}
 		p.length -= tlvHeaderSz
 	}
 
-	mr.pStack = field{parameter: p, prev: mr.pStack.parameter}
-	return nil
+	if mr.cur.typ != paramInvalid {
+		if p.length > mr.cur.length {
+			return prev, errors.Errorf(
+				"sub-parameter %v needs more bytes than those remaining in %v",
+				p, mr.cur)
+		}
+
+		// "Remove" the sub-param from the current parameter.
+		mr.cur.length -= p.length
+	}
+
+	prev = mr.cur
+	mr.cur = p
+	return prev, nil
 }
 
 // discard the current parameter by popping it off the stack
 // and advancing the reader past any of its unread data.
 func (mr *msgReader) discard() error {
-	if mr.pStack.typ == 0 {
+	if mr.cur.typ == 0 {
 		return errors.New("no current parameter")
 	}
 
-	ph := mr.currentParam()
-	mr.pStack = field{parameter: mr.pStack.prev}
-
-	if ph.length != 0 {
-		_, err := mr.r.Discard(int(ph.length))
+	if mr.hasData() {
+		_, err := mr.r.Discard(int(mr.cur.length))
 		if err != nil {
-			return errors.Wrap(err, "failed to discard parameter body")
+			return errors.Wrapf(err, "failed to discard parameter %v", mr.cur)
 		}
 	}
 
 	return nil
 }
 
-// doneWithParam checks that the current parameter's data is fully read,
-// then discards it.
-func (mr *msgReader) doneWithParam() error {
-	if mr.currentParam().length != 0 {
-		return errors.Errorf("parameter has unexpected data: %v", mr.currentParam())
+// readFields reads a series of required fields in a known order.
+func (mr *msgReader) readFields(fields ...interface{}) error {
+	for i := range fields {
+		if err := mr.read(fields[i]); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	if err := mr.discard(); err != nil {
+// readParameters reads a series of required parameters in a known order.
+func (mr *msgReader) readParameters(params ...pT) error {
+	for i := range params {
+		if err := mr.readParameter(params[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readParameter reads a single, required parameter,
+// reading its header, decoding its data,
+// and popping it off the stack once done.
+func (mr *msgReader) readParameter(p pT) error {
+	prev, err := mr.readParam()
+	if err != nil {
 		return err
 	}
-	return mr.readParam()
+
+	if mr.cur.typ != p.getType() {
+		return errors.Errorf("unexpected parameter %v when looking for %v",
+			mr.cur.typ, p.getType())
+	}
+
+	if err := mr.read(p); err != nil {
+		return err
+	}
+
+	return mr.endParam(prev)
 }
 
-// decode the current parameter by matching its type against the permitted inputs.
-// If none match, return an error; otherwise, set the matching parameter.
-func (mr *msgReader) decodeOne(first pT, more ...pT) error {
-	ph := mr.currentParam()
-
-	if ph.typ == first.getType() {
-		if err := mr.set(first); err != nil {
-			return err
-		}
-
-		return mr.doneWithParam()
+func (mr *msgReader) endParam(prev parameter) error {
+	if mr.hasData() {
+		return errors.Errorf("parameter has unexpected data: %v", mr.cur)
 	}
 
-	for i := range more {
-		if ph.typ != more[i].getType() {
-			continue
-		}
-
-		if err := mr.set(more[i]); err != nil {
-			return err
-		}
-
-		return mr.doneWithParam()
-	}
-
-	if len(more) == 0 {
-		return errors.Errorf("unexpected parameter %v when looking for %v", ph, first.getType())
-	}
-
-	pts := make([]string, len(more))
-	pts[0] = first.getType().String()
-
-	for i := range more[:len(more)-1] {
-		pts[i+1] = more[i].getType().String()
-	}
-
-	return errors.Errorf("unexpected parameter %v when looking for %v or %v",
-		ph, strings.Join(pts, ", "), more[len(more)-1].getType())
-}
-
-// setFields sets a series of required fields in a known order.
-func (mr *msgReader) setFields(v ...interface{}) error {
-	for i := range v {
-		if err := mr.set(v[i]); err != nil {
-			return err
-		}
-	}
+	mr.cur = prev
 	return nil
 }
 
-// set a single field v.
+// read a single field f.
 //
-// If v implements paramDecoder, it calls that.
-// Otherwise, v must one of the following types:
+// If f implements paramDecoder, it calls that.
+// Otherwise, f must one of the following types:
 // -- *string: data is 2 byte length, followed by UTF-8 string data.
 // -- *uint64: data is 8 byte unsigned int.
 // -- *uint32: data is 4 byte unsigned int.
 // -- *uint16: data is 2 byte unsigned int.
 // --  *uint8: data is 1 byte unsigned int.
-func (mr *msgReader) set(v interface{}) error {
-	if v == nil {
+func (mr *msgReader) read(f interface{}) error {
+	if f == nil {
 		return nil
 	}
 
 	var err error
-	switch v := v.(type) {
+	switch v := f.(type) {
 	case paramDecoder:
 		return v.decode(mr)
 	case *string:
-		*v, err = mr.getString()
+		*v, err = mr.readString()
 	case *uint64:
-		*v, err = mr.getUint(8)
+		*v, err = mr.readUint64()
 	case *uint32:
-		var u uint64
-		u, err = mr.getUint(4)
-		*v = uint32(u)
+		*v, err = mr.readUint32()
 	case *uint16:
-		var u uint64
-		u, err = mr.getUint(2)
-		*v = uint16(u)
+		*v, err = mr.readUint16()
 	case *uint8:
-		var u uint64
-		u, err = mr.getUint(1)
-		*v = uint8(u)
+		*v, err = mr.readUint8()
 	default:
 		if p, ok := v.(pT); ok {
-			err = errors.Errorf("unhandled type: %T for %v", v, p.getType())
+			err = errors.Errorf("unhandled type: %T for %v -- should it implement paramDecoder?",
+				v, p.getType())
 		} else {
-			err = errors.Errorf("unhandled type: %T", v)
+			err = errors.Errorf("unhandled type: %T -- should it implement paramDecoder?", v)
 		}
 	}
 	return err
 }
 
-// getString reads a UTF-8 encoded string from the current parameter,
+// readString reads a UTF-8 encoded string from the current parameter,
 // assuming its prepended by a uint16 indicating its length in bytes.
-func (mr *msgReader) getString() (string, error) {
-	sLen, err := mr.getUint(2)
+func (mr *msgReader) readString() (string, error) {
+	sLen, err := mr.readUint16()
 	if err != nil {
 		return "", errors.WithMessagef(err, "failed to read string length")
 	}
@@ -698,29 +824,53 @@ func (mr *msgReader) getString() (string, error) {
 		return "", nil
 	}
 
-	cp := mr.currentParam()
-	if cp.length < uint16(sLen) {
-		return "", errors.Errorf("not enough data to read string of length %d from %v", sLen, cp)
+	if mr.cur.length < sLen {
+		return "", errors.Errorf("not enough data to read string of length %d from %v",
+			sLen, mr.cur)
 	}
+	mr.cur.length -= sLen
 
-	mr.pStack.length -= uint16(sLen)
 	sBuild := strings.Builder{}
 	if _, err = io.CopyN(&sBuild, mr.r, int64(sLen)); err != nil {
-		return "", errors.Wrapf(err, "failed to read string of length %d from %v", sLen, cp)
+		return "", errors.Wrapf(err, "failed to read string of length %d from %v",
+			sLen, mr.cur)
 	}
 
 	return sBuild.String(), nil
 }
 
-// getUint of size 0 < nBytes <= 8, (presumably 1, 2, 4, 8), assumed BigEndian.
+// readUint64 reads an 8-bit uint from the payload.
+func (mr *msgReader) readUint8() (uint8, error) {
+	u, err := mr.readUint(1)
+	return uint8(u), err
+}
+
+// readUint64 reads a 16-bit uint from the payload.
+func (mr *msgReader) readUint16() (uint16, error) {
+	u, err := mr.readUint(2)
+	return uint16(u), err
+}
+
+// readUint64 reads a 32-bit uint from the payload.
+func (mr *msgReader) readUint32() (uint32, error) {
+	u, err := mr.readUint(4)
+	return uint32(u), err
+}
+
+// readUint64 reads a 64-bit uint from the payload.
+func (mr *msgReader) readUint64() (uint64, error) {
+	return mr.readUint(8)
+}
+
+// readUint of size 0 < nBytes <= 8, (presumably 1, 2, 4, 8), assumed BigEndian.
 // If nBytes is outside of that range, this will panic.
-// This advances the reader by nBytes.
-func (mr *msgReader) getUint(nBytes int) (uint64, error) {
-	cp := mr.currentParam()
-	if int(cp.length) < nBytes {
-		return 0, errors.Errorf("not enough data to read uint%d from %v", nBytes*8, cp)
+// This advances the reader by nBytes
+// and subtracts them from the current parameter's length.
+func (mr *msgReader) readUint(nBytes int) (uint64, error) {
+	if mr.cur.typ != paramInvalid && int(mr.cur.length) < nBytes {
+		return 0, errors.Errorf("not enough data to read uint%d from %v", nBytes*8, mr.cur)
 	}
-	mr.pStack.length -= uint16(nBytes)
+	mr.cur.length -= uint16(nBytes)
 
 	var u uint64
 	for i := 0; i < nBytes; i++ {

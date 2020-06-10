@@ -50,7 +50,7 @@ type VersionNum uint8 // only 3 bits legal
 const (
 	versionInvalid = VersionNum(0)
 	Version1_0_1   = VersionNum(1)
-	// Version1_1     = VersionNum(2)
+	Version1_1     = VersionNum(2)
 
 	versionMin = Version1_0_1 // min version we support
 	versionMax = Version1_0_1 // max version we support
@@ -196,11 +196,10 @@ func (r *Reader) Connect() error {
 	mr := newMsgReader(m)
 
 	ren := readerEventNotification{}
-	if err := mr.set(&ren); err != nil {
+	if err := mr.read(&ren); err != nil {
 		return errors.Wrap(err, "connection failed")
 	}
-	if ren.NotificationData.ConnectionAttempt == nil ||
-		*ren.NotificationData.ConnectionAttempt != connectionSuccess {
+	if ren.NotificationData.ConnectionAttempt != connectionSuccess {
 		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
 	}
 	/*

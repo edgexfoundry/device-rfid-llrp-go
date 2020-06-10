@@ -9,6 +9,7 @@ import (
 	"context"
 	"flag"
 	"github.com/pkg/errors"
+	"io"
 	"net"
 	"strconv"
 	"testing"
@@ -25,12 +26,26 @@ func TestReader_withGolemu(t *testing.T) {
 		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
 	}
 
+	t.Run("hangup", testHangUp)
+
 	for i := 0; i < 10; i++ {
-		t.Run("attempt "+strconv.Itoa(i), test_once)
+		t.Run("connect "+strconv.Itoa(i), testOnce)
 	}
 }
 
-func test_once(t *testing.T) {
+func testHangUp(t *testing.T) {
+	conn, err := net.Dial("tcp", *readerAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := [headerSz]byte{}
+	if _, err := io.ReadFull(conn, b[:]); err != nil {
+		t.Error(err)
+	}
+	conn.Close()
+}
+
+func testOnce(t *testing.T) {
 	conn, err := net.Dial("tcp", *readerAddr)
 	if err != nil {
 		t.Fatal(err)
