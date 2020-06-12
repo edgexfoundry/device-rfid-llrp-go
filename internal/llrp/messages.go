@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate stringer -type=VersionNum,messageType,paramType,connAttemptEventParam
+//go:generate stringer -type=VersionNum,MessageType
 
 package llrp
 
@@ -16,37 +16,39 @@ import (
 	"io/ioutil"
 )
 
+// MessageType corresponds to the LLRP binary encoding for message headers.
+type MessageType uint16
+
 const (
-	// Known Message Types
-	GetReaderCapabilities         = messageType(1)
-	GetReaderConfig               = messageType(2)
-	GetReaderConfigResponse       = messageType(12)
-	SetReaderConfig               = messageType(3)
-	CloseConnectionResponse       = messageType(4)
-	GetReaderCapabilitiesResponse = messageType(11)
-	SetReaderConfigResponse       = messageType(13)
-	CloseConnection               = messageType(14)
-	GetSupportedVersion           = messageType(46)
-	SetProtocolVersion            = messageType(47)
-	GetSupportedVersionResponse   = messageType(56)
-	SetProtocolVersionResponse    = messageType(57)
-	KeepAlive                     = messageType(62)
-	ReaderEventNotification       = messageType(63)
-	KeepAliveAck                  = messageType(72)
-	ErrorMessage                  = messageType(100)
-	CustomMessage                 = messageType(1023)
+	GetReaderCapabilities         = MessageType(1)
+	GetReaderConfig               = MessageType(2)
+	GetReaderConfigResponse       = MessageType(12)
+	SetReaderConfig               = MessageType(3)
+	CloseConnectionResponse       = MessageType(4)
+	GetReaderCapabilitiesResponse = MessageType(11)
+	SetReaderConfigResponse       = MessageType(13)
+	CloseConnection               = MessageType(14)
+	GetSupportedVersion           = MessageType(46)
+	SetProtocolVersion            = MessageType(47)
+	GetSupportedVersionResponse   = MessageType(56)
+	SetProtocolVersionResponse    = MessageType(57)
+	KeepAlive                     = MessageType(62)
+	ReaderEventNotification       = MessageType(63)
+	KeepAliveAck                  = MessageType(72)
+	ErrorMessage                  = MessageType(100)
+	CustomMessage                 = MessageType(1023)
 
 	minMsgType   = GetReaderCapabilities
 	maxMsgType   = CustomMessage    // highest legal message type
-	msgResvStart = messageType(900) // 900-999 are reserved for ISO/IEC 24971-5
-	msgResvEnd   = messageType(999)
+	msgResvStart = MessageType(900) // 900-999 are reserved for ISO/IEC 24971-5
+	msgResvEnd   = MessageType(999)
 
 	headerSz     = 10                           // LLRP message headers are 10 bytes
 	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
 )
 
 // responseType maps certain message types to their response type.
-var responseType = map[messageType]messageType{
+var responseType = map[MessageType]MessageType{
 	GetSupportedVersion:   GetSupportedVersionResponse,
 	SetProtocolVersion:    SetProtocolVersionResponse,
 	GetReaderCapabilities: GetReaderCapabilitiesResponse,
@@ -56,15 +58,22 @@ var responseType = map[messageType]messageType{
 }
 
 // isValid returns true if the messageType is within the permitted messageType space.
-func (mt messageType) isValid() bool {
-	return mt >= minMsgType && mt <= maxMsgType
+func (mt MessageType) isValid() bool {
+	return minMsgType <= mt && mt <= maxMsgType && !(msgResvStart <= mt && mt <= msgResvEnd)
 }
 
 // responseType returns the messageType of a response to a request of this type,
 // or the zero value and false if there is not a known response type.
-func (mt messageType) responseType() (messageType, bool) {
+func (mt MessageType) responseType() (MessageType, bool) {
 	t, ok := responseType[mt]
 	return t, ok
+}
+
+type messageID uint32
+
+type awaitMap = map[messageID]chan<- Message
+type responseHandler interface {
+	handle(r *Message)
 }
 
 // header holds information about an LLRP message header.
@@ -76,7 +85,7 @@ func (mt messageType) responseType() (messageType, bool) {
 type header struct {
 	payloadLen uint32      // length of payload; 0 if message is header-only
 	id         messageID   // for correlating request/response (uint32)
-	typ        messageType // message type: 10 bits (uint16)
+	typ        MessageType // message type: 10 bits (uint16)
 	version    VersionNum  // version: 3 bits (uint8)
 }
 
@@ -85,7 +94,7 @@ func (h header) String() string {
 		h.version, h.id, h.payloadLen, h.typ, uint16(h.typ))
 }
 
-func (m message) String() string {
+func (m Message) String() string {
 	return fmt.Sprintf("message{%v}", m.header)
 }
 
@@ -102,7 +111,7 @@ func (h *header) UnmarshalBinary(buf []byte) error {
 	_ = buf[9] // prevent extraneous bounds checks: golang.org/issue/14808
 	*h = header{
 		version:    VersionNum((buf[0] >> 2) & 0b111),
-		typ:        messageType(binary.BigEndian.Uint16(buf[0:2]) & (0b0011_1111_1111)),
+		typ:        MessageType(binary.BigEndian.Uint16(buf[0:2]) & (0b0011_1111_1111)),
 		payloadLen: binary.BigEndian.Uint32(buf[2:6]),
 		id:         messageID(binary.BigEndian.Uint32(buf[6:10])),
 	}
@@ -130,7 +139,7 @@ func (h *header) MarshalBinary() ([]byte, error) {
 }
 
 // validateHeader returns an error if the parameters aren't valid for an LLRP header.
-func validateHeader(payloadLen uint32, typ messageType) error {
+func validateHeader(payloadLen uint32, typ MessageType) error {
 	if typ > maxMsgType {
 		return msgErr("typ exceeds max message type: %d > %d", typ, maxMsgType)
 	}
@@ -147,21 +156,23 @@ func validateHeader(payloadLen uint32, typ messageType) error {
 	return nil
 }
 
-// message represents an LLRP message.
+// Message represents an LLRP message.
 //
 // For incoming messages,
 // payload is guaranteed not to be nil,
 // though if the payload length is zero,
 // it will immediately return EOF.
+// Incoming messages can be closed to discard its payload.
 //
 // For outgoing messages,
 // payload may be nil to signal no data.
-type message struct {
+type Message struct {
 	payload io.Reader
 	header
 }
 
-func (m message) Close() error {
+// Close the message by discarding any remaining payload.
+func (m Message) Close() error {
 	if m.payload == nil {
 		return nil
 	}
@@ -171,7 +182,7 @@ func (m message) Close() error {
 
 // isResponseTo returns nil if reqType's expected response type matches m's type.
 // If it doesn't it returns an error with information about the mismatch.
-func (m message) isResponseTo(reqType messageType) error {
+func (m Message) isResponseTo(reqType MessageType) error {
 	expectedRespType, ok := reqType.responseType()
 	if !ok {
 		return errors.Errorf("unknown request type %d", reqType)
@@ -186,16 +197,16 @@ func (m message) isResponseTo(reqType messageType) error {
 }
 
 type msgValidator interface {
-	validate(m message) error
+	validate(m Message) error
 }
 
-type msgValidatorFunc func(m message) error
+type msgValidatorFunc func(m Message) error
 
-func (f msgValidatorFunc) validate(m message) error {
+func (f msgValidatorFunc) validate(m Message) error {
 	return f(m)
 }
 
-func (m message) match(v ...msgValidator) error {
+func (m Message) match(v ...msgValidator) error {
 	for _, vv := range v {
 		if err := vv.validate(m); err != nil {
 			return err
@@ -204,7 +215,7 @@ func (m message) match(v ...msgValidator) error {
 	return nil
 }
 
-func (mt messageType) validate(m message) error {
+func (mt MessageType) validate(m Message) error {
 	if m.typ != mt {
 		return errors.Errorf("%v has wrong type; expected: %v", m.typ, mt)
 	}
@@ -214,7 +225,7 @@ func (mt messageType) validate(m message) error {
 type msgPayloadLen uint32
 
 func (mpl msgPayloadLen) min() msgValidator {
-	return msgValidatorFunc(func(m message) error {
+	return msgValidatorFunc(func(m Message) error {
 		if m.payloadLen < uint32(mpl) {
 			if mpl == 1 {
 				return errors.Errorf("empty payload: %v", m)
@@ -229,6 +240,8 @@ func (mpl msgPayloadLen) min() msgValidator {
 var hasPayload = msgPayloadLen(1).min()
 
 // newMessage prepares a message for sending.
+//
+// For now, this is intentionally not exported.
 //
 // payloadLen should NOT include the header size,
 // as it'll be added for you.
@@ -246,7 +259,7 @@ var hasPayload = msgPayloadLen(1).min()
 // the write must complete, otherwise the connection must be reset.
 // If writing the data may fail or take a long time,
 // the caller should buffer the message.
-func newMessage(data io.Reader, payloadLen uint32, typ messageType) message {
+func newMessage(data io.Reader, payloadLen uint32, typ MessageType) Message {
 	if err := validateHeader(payloadLen, typ); err != nil {
 		panic(err)
 	}
@@ -265,7 +278,7 @@ func newMessage(data io.Reader, payloadLen uint32, typ messageType) message {
 		panic("length >0, but data is nil")
 	}
 
-	return message{
+	return Message{
 		payload: payload,
 		header: header{
 			payloadLen: payloadLen,
@@ -275,17 +288,17 @@ func newMessage(data io.Reader, payloadLen uint32, typ messageType) message {
 	}
 }
 
-// newHdrOnlyMsg prepares a message that has no payload.
-func newHdrOnlyMsg(typ messageType) message {
+// NewHdrOnlyMsg prepares a message that has no payload.
+func NewHdrOnlyMsg(typ MessageType) Message {
 	return newMessage(nil, 0, typ)
 }
 
-// newByteMessage uses a payload to create a message.
+// NewByteMessage uses a []byte payload to create a message.
 // The caller should not modify the slice until the message is sent.
-func newByteMessage(typ messageType, payload []byte) (m message, err error) {
+func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 	// check this here, since len(data) could overflow a uint32
 	if int64(len(payload)) > int64(maxPayloadSz) {
-		return message{}, errors.New("LLRP messages are limited to 4GiB (minus a 10 byte header)")
+		return Message{}, errors.New("LLRP messages are limited to 4GiB (minus a 10 byte header)")
 	}
 	n := uint32(len(payload))
 	return newMessage(ioutil.NopCloser(bytes.NewReader(payload)), n, typ), nil

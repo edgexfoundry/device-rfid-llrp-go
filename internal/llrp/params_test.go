@@ -22,7 +22,7 @@ func TestMsgReader_readUints(t *testing.T) {
 		0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0x12, 0x34,
 	}
 	reader := bytes.NewReader(data)
-	mr := newMsgReader(message{payload: reader})
+	mr := NewMsgReader(Message{payload: reader})
 	mr.cur = parameter{length: uint16(len(data))}
 
 	type T struct {
@@ -35,7 +35,7 @@ func TestMsgReader_readUints(t *testing.T) {
 	exp := T{0x12, 0x3456, 0x789abcde, 0xf0123456789a1234}
 
 	v := T{}
-	if err := mr.readFields(&v.U8, &v.U16, &v.U32, &v.U64); err != nil {
+	if err := mr.ReadFields(&v.U8, &v.U16, &v.U32, &v.U64); err != nil {
 		t.Error(err)
 	}
 
@@ -64,7 +64,7 @@ func TestMsgReader_readerEventNotification(t *testing.T) {
 	}, eventData...)
 	binary.BigEndian.PutUint16(pReaderEvent[2:4], uint16(len(pReaderEvent)))
 
-	mr := newMsgReader(message{payload: bytes.NewReader(pReaderEvent)})
+	mr := NewMsgReader(Message{payload: bytes.NewReader(pReaderEvent)})
 
 	ren := readerEventNotification{}
 	if err := mr.readParameter(&ren.NotificationData); err != nil {
@@ -77,13 +77,13 @@ func TestMsgReader_readerEventNotification(t *testing.T) {
 	if nd.TS != expTs {
 		t.Errorf("utc timestamp mismatch: %+v != %+v", nd.TS, expTs)
 	}
-	if nd.ConnectionAttempt != anotherConnAttempted {
+	if nd.ConnectionAttempt != ConnAttemptedAgain {
 		t.Errorf("expected ConnectionAttempt to be %v, but it's %v",
-			anotherConnAttempted, nd.ConnectionAttempt)
+			ConnAttemptedAgain, nd.ConnectionAttempt)
 	}
 }
 
-func newReaderEventNotification(ts time.Time, ca connAttemptEventParam) readerEventNotification {
+func newReaderEventNotification(ts time.Time, ca ConnectionStatus) readerEventNotification {
 	return readerEventNotification{
 		NotificationData: readerEventNotificationData{
 			TS:                (*timestamp)(nil).fromGoTime(ts),
@@ -94,14 +94,14 @@ func newReaderEventNotification(ts time.Time, ca connAttemptEventParam) readerEv
 
 func TestMsgReader_buildNotification(t *testing.T) {
 	ts := time.Unix(646327080, 0)
-	ren := newReaderEventNotification(ts, failedReasonUnknown)
+	ren := newReaderEventNotification(ts, ConnFailedReasonUnknown)
 
-	mb := newMsgBuilder()
+	mb := NewMsgBuilder()
 	if err := mb.write(&ren); err != nil {
 		t.Fatal(err)
 	}
 
-	m, err := mb.finish(ReaderEventNotification)
+	m, err := mb.Finish(ReaderEventNotification)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,19 +135,19 @@ func TestMsgReader_buildNotification(t *testing.T) {
 
 func TestMsgReader_roundTrip(t *testing.T) {
 	ts := time.Unix(646327080, 0)
-	out := newReaderEventNotification(ts, failedReasonUnknown)
+	out := newReaderEventNotification(ts, ConnFailedReasonUnknown)
 
-	mb := newMsgBuilder()
+	mb := NewMsgBuilder()
 	if err := mb.write(&out); err != nil {
 		t.Fatal(err)
 	}
 
-	m, err := mb.finish(ReaderEventNotification)
+	m, err := mb.Finish(ReaderEventNotification)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	mr := newMsgReader(m)
+	mr := NewMsgReader(m)
 	in := readerEventNotification{}
 	if err := mr.readParameter(&in.NotificationData); err != nil {
 		t.Errorf("%+v", err)
@@ -158,70 +158,80 @@ func TestMsgReader_roundTrip(t *testing.T) {
 	}
 }
 
-func TestMsgReader_supportedVersions(t *testing.T) {
-	mb := newMsgBuilder()
-	// current version, supported version
-	if err := mb.writeFields(Version1_1, Version1_1); err != nil {
+func TestMsgReader_llrpStatus(t *testing.T) {
+	exp := LLRPStatus{
+		Code:           StatusMsgParamError,
+		ErrDescription: "your parameter offends my sensibilities",
+		ParamError: &ParamError{
+			ParamType: ParamCustomParameter,
+			ErrorCode: StatusParamParamError,
+			ParamError: &ParamError{
+				ParamType: ParamAntennaEvent,
+				ErrorCode: StatusParamFieldError,
+				FieldError: &FieldError{
+					FieldNum:  0,
+					ErrorCode: StatusFieldInvalid,
+				},
+				ParamError: &ParamError{
+					ParamType: 951,
+					ErrorCode: StatusParamParamUnknown,
+				},
+			},
+		},
+	}
+
+	mb := NewMsgBuilder()
+	if err := mb.writeParam(&exp); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := mb.writeParam(&LLRPStatus{
-		StatusCode:     0,
-		ErrDescription: "some error description",
-		FieldErrors:    nil,
-		ParamErrors:    nil,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	m, err := mb.finish(GetSupportedVersionResponse)
+	m, err := mb.Finish(ErrorMessage)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	mr := newMsgReader(m)
+	mr := NewMsgReader(m)
 
-	gsvr := getSupportedVersionResponse{}
-	if err := mr.readFields(&gsvr); err != nil {
+	ls := LLRPStatus{}
+	if err := mr.readParameter(&ls); err != nil {
 		t.Errorf("%+v", err)
 	}
 
-	exp := getSupportedVersionResponse{
-		Current:   Version1_1,
-		Supported: Version1_1,
-		Status: LLRPStatus{
-			ErrDescription: "some error description",
-		},
+	if !reflect.DeepEqual(exp, ls) {
+		t.Errorf("expected %v; got %v", exp, ls)
 	}
 
-	if !reflect.DeepEqual(exp, gsvr) {
-		t.Errorf("expected %v; got %v", exp, gsvr)
+	e := ls.Err()
+	if e == nil {
+		t.Fatal("unable to get error from LLRPStatus")
 	}
+
+	t.Log(e)
 }
 
 func BenchmarkMsgReader_readerEventNotification(b *testing.B) {
 	ts := time.Unix(646327080, 0)
-	out := newReaderEventNotification(ts, failedReasonUnknown)
+	out := newReaderEventNotification(ts, ConnFailedReasonUnknown)
 	in := readerEventNotification{}
 
-	mb := newMsgBuilder()
-	mr := newMsgReader(message{})
+	mb := NewMsgBuilder()
+	mr := NewMsgReader(Message{})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		mb.reset()
+		mb.Reset()
 		if err := mb.write(&out); err != nil {
 			b.Fatal(err)
 		}
 
-		m, err := mb.finish(ReaderEventNotification)
+		m, err := mb.Finish(ReaderEventNotification)
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		mr.reset(m)
-		if err := mr.readFields(&in); err != nil {
+		mr.Reset(m)
+		if err := mr.ReadFields(&in); err != nil {
 			b.Errorf("%+v", err)
 		}
 

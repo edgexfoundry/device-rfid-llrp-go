@@ -107,8 +107,8 @@ func TestReader_readHeader(t *testing.T) {
 }
 
 func TestReader_newMessage(t *testing.T) {
-	ack := newHdrOnlyMsg(KeepAliveAck)
-	expMsg := message{header: header{version: versionMin, typ: KeepAliveAck}}
+	ack := NewHdrOnlyMsg(KeepAliveAck)
+	expMsg := Message{header: header{version: versionMin, typ: KeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -247,7 +247,7 @@ func TestReader_SendNotConnected(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if _, err := r.SendMessage(ctx, messageType(0), nil); context.DeadlineExceeded != err {
+	if _, err := r.SendMessage(ctx, MessageType(0), nil); context.DeadlineExceeded != err {
 		t.Errorf("expected DeadlineExceeded; got: %v", err)
 	}
 }

@@ -3,6 +3,33 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+// Package llrp implements the Low Level Reader Protocol (LLRP)
+// to communicate with compliant RFID Readers.
+//
+// This package focuses on Client-side communication,
+// and handles the protocol minutia like Keep-Alive acknowledgements
+// while providing types to facilitate handling messages you care about.
+//
+// A typical use of this package focuses on the Reader connection:
+// - Create a new Reader with connection details and message handlers.
+// - Establish and maintain an LLRP connection with an RFID device.
+// - Send and receive LLRP messages.
+// - At some point, gracefully close the connection.
+//
+// Some users may find value in the MsgReader and MsgBuilder types,
+// which provide efficient LLRP message translation among binary, Go types, and JSON.
+//
+// Note that names in LLRP are often verbose and sometimes overloaded.
+// These names have been judiciously translated when appropriate
+// to better match Go idioms and standards,
+// and follow the following conventions for ease of use:
+// - Messages' numeric type values are typed as MessageType
+//   and match their LLRP name, converted from UPPER_SNAKE to PascalCase.
+// - Parameters' numeric type values are typed as ParamType and prefixed with "Param";
+//   they typically match the LLRP name with the "Parameter" suffix omitted.
+// - LLRP Status Codes are typed as StatusCode and prefixed with "Status".
+// - ConnectionAttemptEventParameter's status field is typed as ConnectionStatus
+//   and prefixed with "Conn".
 package llrp
 
 import (
@@ -34,23 +61,31 @@ type Reader struct {
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
 	handlerMu sync.RWMutex
-	handlers  map[messageType]responseHandler
+	handlers  map[MessageType]responseHandler
 
 	version VersionNum // sent in headers; established during negotiation
 }
 
-type messageID uint32
-type messageType uint16
-type awaitMap = map[messageID]chan<- message
-type responseHandler interface {
-	handle(r *message)
-}
+// VersionNum corresponds to an LLRP version number.
+//
+// The version number is 3 bits
+// and embedded in each message sent between a Reader and Client.
+//
+// By default, this package will attempt to establish connection with Readers
+// using the higher version it knows,
+// but you can explicitly override it when creating a connection.
+// In either case, for versions greater than 1.0.1,
+// the Client will negotiate versions with the Reader and downgrade if necessary.
+type VersionNum uint8
 
-type VersionNum uint8 // only 3 bits legal
+//noinspection GoSnakeCaseUsage: it seems like the best way to handle version strings as a variable name.
 const (
 	versionInvalid = VersionNum(0)
-	Version1_0_1   = VersionNum(1)
-	Version1_1     = VersionNum(2)
+
+	// Version1_0_1 corresponds to LLRP v1.0.1.
+	Version1_0_1 = VersionNum(1)
+	// Version1_1 corresponds to LLRP v1.1.
+	Version1_1 = VersionNum(2)
 
 	versionMin = Version1_0_1 // min version we support
 	versionMax = Version1_0_1 // max version we support
@@ -58,9 +93,6 @@ const (
 
 // NewReader returns a Reader configured by the given options.
 func NewReader(opts ...ReaderOpt) (*Reader, error) {
-	// todo: allow connection timeout parameters;
-	//   call SetReadDeadline/SetWriteDeadline as needed
-
 	// ackQueueSz is arbitrary, but if it fills,
 	// warnings are logged, as it likely indicates a Write problem.
 	// At some point, we might consider resetting the connection.
@@ -73,7 +105,7 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		sendQueue: make(chan request),
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
-		handlers:  make(map[messageType]responseHandler),
+		handlers:  make(map[MessageType]responseHandler),
 	}
 
 	for _, opt := range opts {
@@ -193,41 +225,14 @@ func (r *Reader) Connect() error {
 			ReaderEventNotification, m.typ)
 	}
 
-	mr := newMsgReader(m)
-
+	mr := NewMsgReader(m)
 	ren := readerEventNotification{}
 	if err := mr.read(&ren); err != nil {
 		return errors.Wrap(err, "connection failed")
 	}
-	if ren.NotificationData.ConnectionAttempt != connectionSuccess {
+	if ren.NotificationData.ConnectionAttempt != ConnectedSuccessfully {
 		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
 	}
-	/*
-		mr := newMsgReader(m)
-		mp := map[paramType]interface{}{
-			ParamReaderEventNotificationData: map[paramType]interface{}{
-				ParamUTCTimestamp: new(timestamp),
-				ParamConnectionAttemptEvent: new(connAttemptEventParam),
-			},
-		}
-		if err := mr.decodeExactly(mp); err != nil {
-			return err
-		}
-		var status connAttemptEventParam
-		paramSpec(mp).get()
-
-		rer, err := mr.readerEventDataReader()
-		if err != nil {
-			return err
-		}
-		status, err := rer.checkConnStatus()
-		if err != nil {
-			return err
-		}
-		if status != connectionSuccess {
-			return errors.Errorf("connection status: %v", status)
-		}
-	*/
 
 	if err := m.Close(); err != nil {
 		return errors.Wrap(err, "failed to completely read initial connection message")
@@ -297,7 +302,7 @@ const maxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
-func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) ([]byte, error) {
+func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) ([]byte, error) {
 	select {
 	case <-r.ready: // ensure the connection is negotiated
 	case <-r.done:
@@ -312,12 +317,12 @@ func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) 
 		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
 	}
 
-	var mOut message
+	var mOut Message
 	if len(data) == 0 {
-		mOut = newHdrOnlyMsg(typ)
+		mOut = NewHdrOnlyMsg(typ)
 	} else {
 		var err error
-		mOut, err = newByteMessage(typ, data)
+		mOut, err = NewByteMessage(typ, data)
 		if err != nil {
 			return nil, err
 		}
@@ -359,7 +364,7 @@ func (r *Reader) SendMessage(ctx context.Context, typ messageType, data []byte) 
 // Once a message header is written,
 // length bytes must also be written to the stream,
 // or the connection will be in an invalid state and should be closed.
-func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ messageType) error {
+func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ MessageType) error {
 	header := make([]byte, headerSz)
 	binary.BigEndian.PutUint32(header[6:10], uint32(mid))
 	binary.BigEndian.PutUint32(header[2:6], payloadLen+headerSz)
@@ -396,13 +401,13 @@ func (r *Reader) readHeader() (mh header, err error) {
 // with the payload pointing to the reader's connection.
 // It should only be used by internal clients,
 // as the current message must be read before continuing.
-func (r *Reader) nextMessage() (message, error) {
+func (r *Reader) nextMessage() (Message, error) {
 	hdr, err := r.readHeader()
 	if err != nil {
-		return message{}, err
+		return Message{}, err
 	}
 	p := io.LimitReader(r.conn, int64(hdr.payloadLen))
-	return message{header: hdr, payload: p}, nil
+	return Message{header: hdr, payload: p}, nil
 }
 
 // handleIncoming handles the read side of the connection.
@@ -494,19 +499,19 @@ func (r *Reader) handleOutgoing() error {
 	for {
 		// Get the next message to send, giving priority to ACKs.
 		var mid messageID
-		var msg message
+		var msg Message
 
 		select {
 		case <-r.done:
 			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 		case mid = <-r.ackQueue:
-			msg = message{header: header{typ: KeepAliveAck}}
+			msg = Message{header: header{typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 			case mid = <-r.ackQueue:
-				msg = message{header: header{typ: KeepAliveAck}}
+				msg = Message{header: header{typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -516,7 +521,7 @@ func (r *Reader) handleOutgoing() error {
 
 				// Give the read-side a way to correlate the response
 				// with something the sender can listen to.
-				replyChan := make(chan message, 1)
+				replyChan := make(chan Message, 1)
 				r.awaitMu.Lock()
 				r.awaiting[mid] = replyChan
 				r.awaitMu.Unlock()
@@ -610,7 +615,7 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 
 	// the pipe lets us know when the other side finishes
 	pr, pw := io.Pipe()
-	resp := message{header: hdr, payload: pr}
+	resp := Message{header: hdr, payload: pr}
 	replyChan <- resp
 	close(replyChan)
 	return pw
@@ -622,12 +627,12 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 // it'll use the channel to send back response/cancellation data.
 type request struct {
 	tokenChan chan<- sendToken // closed by the write coordinator
-	msg       message          // the message to send
+	msg       Message          // the message to send
 }
 
 // sendToken is sent back to the sender in response to a send request.
 type sendToken struct {
-	replyChan <-chan message // closed by the read coordinator
+	replyChan <-chan Message // closed by the read coordinator
 	cancel    func()         // The sender should call this if it stops waiting for the reply.
 }
 
@@ -655,7 +660,7 @@ type sendToken struct {
 //
 // If err is non-nil, the response payload is non-nil;
 // however, if payloadLen is zero, it will return EOF immediately.
-func (r *Reader) send(ctx context.Context, m message) (message, error) {
+func (r *Reader) send(ctx context.Context, m Message) (Message, error) {
 	// The write coordinator sends us a token to read or cancel the reply.
 	// We shouldn't close this channel once the request is accepted.
 	tokenChan := make(chan sendToken, 1)
@@ -665,10 +670,10 @@ func (r *Reader) send(ctx context.Context, m message) (message, error) {
 	select {
 	case <-r.done:
 		close(tokenChan)
-		return message{}, errors.Wrap(ErrReaderClosed, "message not sent")
+		return Message{}, errors.Wrap(ErrReaderClosed, "message not sent")
 	case <-ctx.Done():
 		close(tokenChan)
-		return message{}, ctx.Err()
+		return Message{}, ctx.Err()
 	case r.sendQueue <- req:
 		// The message was accepted; we can no longer cancel sending.
 	}
@@ -679,10 +684,10 @@ func (r *Reader) send(ctx context.Context, m message) (message, error) {
 	select {
 	case <-r.done:
 		token.cancel()
-		return message{}, errors.Wrap(ErrReaderClosed, "message sent, but not awaited")
+		return Message{}, errors.Wrap(ErrReaderClosed, "message sent, but not awaited")
 	case <-ctx.Done():
 		token.cancel()
-		return message{}, ctx.Err()
+		return Message{}, ctx.Err()
 	case resp := <-token.replyChan:
 		return resp, nil
 	}
@@ -694,14 +699,7 @@ func (r *Reader) send(ctx context.Context, m message) (message, error) {
 //
 // If called on a Reader that previously opened and negotiated a connection,
 // this returns errAlreadyNegotiated.
-//
-// todo: there still seems to be a race between negotiation
-//   and reading/sending other messages;
-//   initial reading as well as external send requests
-//   must be blocked until the connection is negotiated.
-//   this was originally written so that negotiate could use the same send/receive queues,
-//   but that's becoming problematic.
-func (r *Reader) negotiate(m message) error {
+func (r *Reader) negotiate(m Message) error {
 	select {
 	default:
 	case <-r.done:
@@ -714,7 +712,7 @@ func (r *Reader) negotiate(m message) error {
 		return errAlreadyNegotiated
 	}
 
-	resp, err := r.send(context.TODO(), newHdrOnlyMsg(GetSupportedVersion))
+	resp, err := r.send(context.TODO(), NewHdrOnlyMsg(GetSupportedVersion))
 	if err != nil {
 		return errors.WithMessage(err, "failed to Get Supported Versions")
 	}
@@ -728,7 +726,7 @@ func (r *Reader) negotiate(m message) error {
 		return err
 	}
 
-	resp, err = r.send(context.TODO(), newHdrOnlyMsg(SetProtocolVersion))
+	resp, err = r.send(context.TODO(), NewHdrOnlyMsg(SetProtocolVersion))
 	if err != nil {
 		return errors.WithMessage(err, "failed to Set Protocol Version")
 	}
