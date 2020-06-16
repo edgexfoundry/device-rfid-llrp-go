@@ -22,18 +22,47 @@ type MessageType uint16
 const (
 	GetReaderCapabilities         = MessageType(1)
 	GetReaderConfig               = MessageType(2)
-	GetReaderConfigResponse       = MessageType(12)
 	SetReaderConfig               = MessageType(3)
 	CloseConnectionResponse       = MessageType(4)
 	GetReaderCapabilitiesResponse = MessageType(11)
+	GetReaderConfigResponse       = MessageType(12)
 	SetReaderConfigResponse       = MessageType(13)
 	CloseConnection               = MessageType(14)
+	AddROSpec                     = MessageType(20)
+	DeleteROSpec                  = MessageType(21)
+	StartROSpec                   = MessageType(22)
+	StopROSpec                    = MessageType(23)
+	EnableROSpec                  = MessageType(24)
+	DisableROSpec                 = MessageType(25)
+	GetROSpecs                    = MessageType(26)
+	AddROSpecResponse             = MessageType(30)
+	DeleteROSpecResponse          = MessageType(31)
+	StartROSpecResponse           = MessageType(32)
+	StopROSpecResponse            = MessageType(33)
+	EnableROSpecResponse          = MessageType(34)
+	DisableROSpecResponse         = MessageType(35)
+	GetROSpecsResponse            = MessageType(36)
+	AddAccessSpec                 = MessageType(40)
+	DeleteAccessSpec              = MessageType(41)
+	EnableAccessSpec              = MessageType(42)
+	DisableAccessSpec             = MessageType(43)
+	GetAccessSpecs                = MessageType(44)
+	ClientRequestOp               = MessageType(45)
 	GetSupportedVersion           = MessageType(46)
 	SetProtocolVersion            = MessageType(47)
+	AddAccessSpecResponse         = MessageType(50)
+	DeleteAccessSpecResponse      = MessageType(51)
+	EnableAccessSpecResponse      = MessageType(52)
+	DisableAccessSpecResponse     = MessageType(53)
+	GetAccessSpecsResponse        = MessageType(54)
+	ClientRequestOpResponse       = MessageType(55)
 	GetSupportedVersionResponse   = MessageType(56)
 	SetProtocolVersionResponse    = MessageType(57)
+	GetReport                     = MessageType(60)
+	ROAccessReport                = MessageType(61)
 	KeepAlive                     = MessageType(62)
 	ReaderEventNotification       = MessageType(63)
+	EnableEventsAndReports        = MessageType(64)
 	KeepAliveAck                  = MessageType(72)
 	ErrorMessage                  = MessageType(100)
 	CustomMessage                 = MessageType(1023)
@@ -172,12 +201,23 @@ type Message struct {
 }
 
 // Close the message by discarding any remaining payload.
+// This returns an error if discarding fails.
+// It's safe to call this multiple times.
 func (m Message) Close() error {
 	if m.payload == nil {
 		return nil
 	}
+
 	_, err := io.Copy(ioutil.Discard, m.payload)
-	return errors.Wrap(err, "failed to discard payload")
+	if err != nil {
+		return errors.Wrap(err, "failed to discard payload")
+	}
+
+	if c, ok := m.payload.(io.Closer); ok && c != nil {
+		return errors.Wrap(c.Close(), "message discarded, but close failed")
+	}
+
+	return nil
 }
 
 // isResponseTo returns nil if reqType's expected response type matches m's type.
@@ -259,6 +299,9 @@ var hasPayload = msgPayloadLen(1).min()
 // the write must complete, otherwise the connection must be reset.
 // If writing the data may fail or take a long time,
 // the caller should buffer the message.
+//
+// Messages generated here need their version and mid set
+// to match those relevant to the Reader connection before sending.
 func newMessage(data io.Reader, payloadLen uint32, typ MessageType) Message {
 	if err := validateHeader(payloadLen, typ); err != nil {
 		panic(err)

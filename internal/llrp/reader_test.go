@@ -7,6 +7,7 @@ package llrp
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"github.com/pkg/errors"
 	"io"
@@ -117,7 +118,6 @@ func TestReader_newMessage(t *testing.T) {
 
 	errs := make(chan error, 1)
 	v := Version1_0_1
-	mid := messageID(1)
 	go func() {
 		defer close(errs)
 		lr, err := NewReader(WithConn(client), WithVersion(v))
@@ -125,7 +125,7 @@ func TestReader_newMessage(t *testing.T) {
 			errs <- err
 			return
 		}
-		if err := lr.writeHeader(mid, ack.payloadLen, ack.typ); err != nil {
+		if err := lr.writeHeader(ack.header); err != nil {
 			errs <- err
 		}
 	}()
@@ -143,7 +143,7 @@ func TestReader_newMessage(t *testing.T) {
 	expHdr := header{
 		typ:     KeepAliveAck,
 		version: v,
-		id:      mid,
+		id:      messageID(0),
 	}
 	if expHdr != hdr {
 		t.Errorf("expected %+v; got %+v", expHdr, hdr)
@@ -173,6 +173,13 @@ func dummyRead(h *header, rfid net.Conn) error {
 // connectSuccess writes a ReaderEventNotification indicating successful connection.
 func connectSuccess(h *header, rfid net.Conn) error {
 	d, _ := hex.DecodeString("043f000000200000000000f600160080000c0005a738133c2c9e010000060000")
+	_, err := rfid.Write(d)
+	return err
+}
+
+func closeSuccess(h *header, rfid net.Conn) error {
+	d, _ := hex.DecodeString("0404000000200000000000f600160080000c0005a738133c2c9e010000060000")
+	binary.BigEndian.PutUint32(d[6:10], uint32(h.id))
 	_, err := rfid.Write(d)
 	return err
 }
@@ -263,7 +270,7 @@ func TestReader_Connection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client))
+	r, err := NewReader(WithConn(client), WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,10 +288,16 @@ func TestReader_Connection(t *testing.T) {
 		defer close(rfidErrs)
 		h := header{version: Version1_0_1}
 		err := connectSuccess(&h, rfid)
-		op, nextOp := dummyRead, dummyReply
-		for err == nil {
+		for _, op := range []func(*header, net.Conn) error{
+			dummyRead,  // CustomMessage
+			dummyReply, // response
+			dummyRead,  // CloseConnection
+			closeSuccess,
+		} {
 			err = op(&h, rfid)
-			op, nextOp = nextOp, op
+			if err != nil {
+				break
+			}
 		}
 		rfidErrs <- errors.Wrap(err, "mock failed")
 	}()
@@ -299,9 +312,10 @@ func TestReader_Connection(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := r.Shutdown(ctx); err != nil {
-		t.Error(err)
+	if err := r.Shutdown(ctx); err == nil {
+		t.Error("Shutdown should fail because CloseConnection isn't mocked")
 	}
+	_ = r.Close()
 
 	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
@@ -323,7 +337,7 @@ func TestReader_Connection(t *testing.T) {
 	}
 
 	for err := range rfidErrs {
-		if !errors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			t.Errorf("RFID reader error: %+v", err)
 		}
 	}
@@ -339,7 +353,7 @@ func TestReader_ManySenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client))
+	r, err := NewReader(WithConn(client), WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,9 +405,10 @@ func TestReader_ManySenders(t *testing.T) {
 
 	msgGrp.Wait()
 	t.Log("closing")
-	if err := r.Shutdown(context.Background()); err != nil {
-		t.Error(err)
+	if err := r.Shutdown(context.Background()); err == nil {
+		t.Error("dummy reader doesn't handle CloseConnection, but Shutdown didn't return an error")
 	}
+	_ = r.Close()
 
 	close(sendErrs)
 	for err := range sendErrs {
@@ -429,7 +444,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client), WithLogger(devNullLog{}))
+	r, err := NewReader(WithConn(client), WithLogger(devNullLog{}), WithVersion(Version1_0_1))
 	if err != nil {
 		b.Fatal(err)
 	}

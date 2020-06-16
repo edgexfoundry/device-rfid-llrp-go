@@ -22,11 +22,13 @@ import (
 // into fields and parameters.
 type MsgReader struct {
 	r   *bufio.Reader
+	m   Message
 	cur parameter
 }
 
 func NewMsgReader(m Message) *MsgReader {
 	mr := &MsgReader{
+		m: m,
 		r: bufio.NewReader(m.payload),
 	}
 	return mr
@@ -34,6 +36,7 @@ func NewMsgReader(m Message) *MsgReader {
 
 func (mr *MsgReader) Reset(m Message) {
 	mr.r.Reset(m.payload)
+	mr.m = m
 	mr.cur = parameter{}
 }
 

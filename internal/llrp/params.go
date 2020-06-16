@@ -332,10 +332,10 @@ func (pe *ParamError) Error() string {
 
 // LLRPStatus holds information about the result of a command.
 type LLRPStatus struct {
-	Code           StatusCode
 	ErrDescription string
-	*FieldError
-	*ParamError
+	FieldErr       *FieldError
+	ParamErr       *ParamError
+	Code           StatusCode
 }
 
 // Err returns an error represented by this LLRPStatus, if any.
@@ -350,12 +350,12 @@ func (ls *LLRPStatus) Err() error {
 		msg += ": " + ls.ErrDescription
 	}
 
-	if ls.FieldError != nil {
-		msg += ": " + ls.FieldError.Error()
+	if ls.FieldErr != nil {
+		msg += ": " + ls.FieldErr.Error()
 	}
 
-	if ls.ParamError != nil {
-		msg += ": " + ls.ParamError.Error()
+	if ls.ParamErr != nil {
+		msg += ": " + ls.ParamErr.Error()
 	}
 
 	return errors.New(msg)
@@ -370,14 +370,14 @@ func (ls *LLRPStatus) encode(mb *MsgBuilder) error {
 		return err
 	}
 
-	if ls.FieldError != nil {
-		if err := mb.writeParam(ls.FieldError); err != nil {
+	if ls.FieldErr != nil {
+		if err := mb.writeParam(ls.FieldErr); err != nil {
 			return err
 		}
 	}
 
-	if ls.ParamError != nil {
-		if err := mb.writeParam(ls.ParamError); err != nil {
+	if ls.ParamErr != nil {
+		if err := mb.writeParam(ls.ParamErr); err != nil {
 			return err
 		}
 	}
@@ -473,13 +473,13 @@ func (s *LLRPStatus) decode(mr *MsgReader) error {
 			if err := mr.read(f); err != nil {
 				return err
 			}
-			s.FieldError = f
+			s.FieldErr = f
 		case ParamParameterError:
 			p := &ParamError{}
 			if err := mr.read(p); err != nil {
 				return err
 			}
-			s.ParamError = p
+			s.ParamErr = p
 		default:
 			return errors.Errorf("expected either %v or %v, but found %v",
 				ParamFieldError, ParamParameterError, mr.cur)
@@ -493,14 +493,14 @@ func (s *LLRPStatus) decode(mr *MsgReader) error {
 	return nil
 }
 
-// SupportedVersions holds a GetSupportedVersionResponse.
-type SupportedVersions struct {
+// SupportedVersion holds a GetSupportedVersionResponse.
+type SupportedVersion struct {
 	LLRPStatus
 	Current   VersionNum
 	Supported VersionNum
 }
 
-func (sv *SupportedVersions) decode(mr *MsgReader) error {
+func (sv *SupportedVersion) decode(mr *MsgReader) error {
 	if err := mr.ReadFields((*uint8)(&(sv.Current)), (*uint8)(&(sv.Supported))); err != nil {
 		return err
 	}

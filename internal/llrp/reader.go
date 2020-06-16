@@ -60,6 +60,8 @@ type Reader struct {
 	logger    ReaderLogger   // reports pressure on the ACK queue
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
+	msgReader *MsgReader
+
 	handlerMu sync.RWMutex
 	handlers  map[MessageType]responseHandler
 
@@ -88,7 +90,7 @@ const (
 	Version1_1 = VersionNum(2)
 
 	versionMin = Version1_0_1 // min version we support
-	versionMax = Version1_0_1 // max version we support
+	versionMax = Version1_1   // max version we support
 )
 
 // NewReader returns a Reader configured by the given options.
@@ -106,6 +108,7 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
 		handlers:  make(map[MessageType]responseHandler),
+		msgReader: NewMsgReader(Message{}),
 	}
 
 	for _, opt := range opts {
@@ -123,7 +126,7 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 	}
 
 	if r.logger == nil {
-		r.logger = stdGoLogger
+		r.logger = log.New(os.Stderr, "LLRP-"+r.conn.RemoteAddr().String()+"-", log.LstdFlags)
 	}
 
 	return r, nil
@@ -195,9 +198,6 @@ var (
 	// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
 	// It may be wrapped, so to check for it, use errors.Is.
 	ErrReaderClosed = goErrs.New("reader closed")
-
-	// errAlreadyNegotiated is returned if negotiate is called on an open connection.
-	errAlreadyNegotiated = goErrs.New("connection is already negotiated")
 )
 
 // Connect to a Reader and start processing messages.
@@ -214,40 +214,23 @@ func (r *Reader) Connect() error {
 	defer r.conn.Close()
 	defer r.Close()
 
-	// process the initial connection message
-	m, err := r.nextMessage()
-	if err != nil {
+	if err := r.checkInitialMessage(); err != nil {
 		return err
 	}
-
-	if m.typ != ReaderEventNotification {
-		return errors.Errorf("expected %v, but got %v",
-			ReaderEventNotification, m.typ)
-	}
-
-	mr := NewMsgReader(m)
-	ren := readerEventNotification{}
-	if err := mr.read(&ren); err != nil {
-		return errors.Wrap(err, "connection failed")
-	}
-	if ren.NotificationData.ConnectionAttempt != ConnectedSuccessfully {
-		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
-	}
-
-	if err := m.Close(); err != nil {
-		return errors.Wrap(err, "failed to completely read initial connection message")
-	}
-
-	// In versions later than 1, we should negotiate
-	if r.version > Version1_0_1 {
-	}
-
-	close(r.ready)
 
 	errs := make(chan error, 2)
 	go func() { errs <- r.handleOutgoing() }()
 	go func() { errs <- r.handleIncoming() }()
 
+	if r.version > Version1_0_1 {
+		if err := r.negotiate(); err != nil {
+			return err
+		}
+	}
+
+	close(r.ready)
+
+	var err error
 	select {
 	case err = <-errs:
 	case <-r.done:
@@ -276,18 +259,36 @@ func (r *Reader) Connect() error {
 //         }
 //     }
 func (r *Reader) Shutdown(ctx context.Context) error {
-	_, err := r.SendMessage(ctx, CloseConnection, nil)
+	r.logger.Println("putting CloseConnection in send queue")
+	resp, err := r.send(ctx, NewHdrOnlyMsg(CloseConnection))
+	r.logger.Println("handling response to CloseConnection")
+
 	if err != nil {
 		return err
 	}
+	defer resp.Close()
 
-	// todo: process the response, as it can contain status information
+	switch resp.typ {
+	case CloseConnectionResponse, ErrorMessage:
+	default:
+		return errors.Errorf("unexpected response to CloseConnection: %v", resp)
+	}
+
+	ls := LLRPStatus{}
+	if err := NewMsgReader(resp).readParameter(&ls); err != nil {
+		return errors.WithMessage(err, "unable to read CloseConnection response")
+	}
+
+	if err := ls.Err(); err != nil {
+		return errors.WithMessage(err, "reader rejected CloseConnection")
+	}
 
 	return r.Close()
 }
 
-// Close closes the Reader.
+// Close closes the Reader immediately.
 //
+// See Shutdown for an attempt to close the connection gracefully.
 // After closing, the Reader can no longer serve connections.
 func (r *Reader) Close() error {
 	if atomic.CompareAndSwapUint32(&r.isClosed, 0, 1) {
@@ -311,12 +312,6 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		return nil, ctx.Err()
 	}
 
-	select {
-	default:
-	case <-r.done:
-		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
-	}
-
 	var mOut Message
 	if len(data) == 0 {
 		mOut = NewHdrOnlyMsg(typ)
@@ -333,15 +328,6 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		return nil, err
 	}
 	defer resp.Close()
-
-	if resp.typ == ErrorMessage {
-		/* todo
-		if err := resp.parseErr(); err != nil {
-			return nil, errors.WithMessage(err,
-				"received ErrorMessage, but unable to parse it")
-		}
-		*/
-	}
 
 	if resp.payloadLen > maxBufferedPayloadSz {
 		return nil, errors.Errorf("message payload exceeds max: %d > %d",
@@ -364,11 +350,11 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 // Once a message header is written,
 // length bytes must also be written to the stream,
 // or the connection will be in an invalid state and should be closed.
-func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ MessageType) error {
+func (r *Reader) writeHeader(h header) error {
 	header := make([]byte, headerSz)
-	binary.BigEndian.PutUint32(header[6:10], uint32(mid))
-	binary.BigEndian.PutUint32(header[2:6], payloadLen+headerSz)
-	binary.BigEndian.PutUint16(header[0:2], uint16(r.version)<<10|uint16(typ))
+	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+headerSz)
+	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
 	_, err := r.conn.Write(header)
 	return errors.Wrapf(err, "failed to write header")
 }
@@ -378,9 +364,9 @@ func (r *Reader) writeHeader(mid messageID, payloadLen uint32, typ MessageType) 
 // It assumes that the next bytes on the incoming stream are a header,
 // and that nothing else is attempting to read from the connection.
 //
-// This method blocks until reading the bytes,
-// unless the underlying connection is closed,
-// as will happen if its deadline is exceeded.
+// If the Reader has a timeout, this will set the read deadline before reading.
+// This method blocks until it reads enough bytes to fill the header buffer
+// unless the underlying connection is closed or times out.
 func (r *Reader) readHeader() (mh header, err error) {
 	if r.timeout > 0 {
 		if err = r.conn.SetReadDeadline(time.Now().Add(r.timeout)); err != nil {
@@ -390,10 +376,12 @@ func (r *Reader) readHeader() (mh header, err error) {
 	}
 
 	buf := make([]byte, headerSz)
-	if _, err = io.ReadFull(r.conn, buf); err == nil {
-		err = mh.UnmarshalBinary(buf)
+	if _, err = io.ReadFull(r.conn, buf); err != nil {
+		err = errors.Wrap(err, "failed to read header")
+		return
 	}
-	err = errors.Wrap(err, "read header failed")
+
+	err = errors.WithMessage(mh.UnmarshalBinary(buf), "failed to unmarshal header")
 	return
 }
 
@@ -437,25 +425,28 @@ func (r *Reader) handleIncoming() error {
 		}
 
 		m, err := r.nextMessage()
-		r.logger.Printf(">>> %v", m)
-
 		if err != nil {
-			if errors.Is(err, io.EOF) && receivedClosed {
-				// wait for the reader to close
-				select {
-				case <-r.done:
-				}
-				return errors.Wrap(ErrReaderClosed, "client connection closed")
+			if !receivedClosed {
+				return errors.Wrap(err, "failed to get next message")
 			}
-			return err
+
+			if !(errors.Is(err, io.EOF) || os.IsTimeout(err)) {
+				return errors.Wrap(err, "timeout")
+			}
+
+			r.logger.Println("detected EOF/io.Timeout after CloseConnection; waiting for reader to close")
+			<-r.done
+			return errors.Wrap(ErrReaderClosed, "client connection closed")
 		}
+
+		r.logger.Printf(">>> %v", m)
 
 		if m.typ == CloseConnectionResponse {
 			receivedClosed = true
 		}
 
 		if m.version != r.version {
-			r.logger.Printf("warning: version mismatch (reader %v): %v", r.version, m)
+			r.logger.Printf("warning: incoming message version mismatch (expected %v): %v", r.version, m)
 		}
 
 		// Handle the payload.
@@ -466,19 +457,17 @@ func (r *Reader) handleIncoming() error {
 		}
 
 		switch err {
-		case nil:
-		case io.ErrClosedPipe:
-			// The message handler stopped listening; that's OK.
+		case nil, io.ErrClosedPipe:
+			// If the message handler stopped listening; that's OK.
+			// Make sure we read the rest of the payload.
+			if err := m.Close(); err != nil {
+				return err
+			}
 		case io.EOF:
 			// The connection may have closed.
 			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
 		default:
 			return errors.Wrap(err, "failed to process response")
-		}
-
-		// Make sure we read the rest of the payload.
-		if err := m.Close(); err != nil {
-			return err
 		}
 	}
 }
@@ -498,36 +487,36 @@ func (r *Reader) handleOutgoing() error {
 
 	for {
 		// Get the next message to send, giving priority to ACKs.
-		var mid messageID
 		var msg Message
 
 		select {
 		case <-r.done:
 			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
-		case mid = <-r.ackQueue:
-			msg = Message{header: header{typ: KeepAliveAck}}
+		case mid := <-r.ackQueue:
+			msg = Message{header: header{id: mid, typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
-			case mid = <-r.ackQueue:
-				msg = Message{header: header{typ: KeepAliveAck}}
+			case mid := <-r.ackQueue:
+				msg = Message{header: header{id: mid, typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
 				// Generate the message ID.
-				mid = nextMsgID
+				msg.id = nextMsgID
 				nextMsgID++
 
 				// Give the read-side a way to correlate the response
 				// with something the sender can listen to.
 				replyChan := make(chan Message, 1)
 				r.awaitMu.Lock()
-				r.awaiting[mid] = replyChan
+				r.awaiting[msg.id] = replyChan
 				r.awaitMu.Unlock()
 
 				// Give the sender a way to clean up
 				// in case a response never comes.
+				mid := msg.id
 				token := sendToken{
 					replyChan: replyChan,
 					cancel: func() {
@@ -546,6 +535,13 @@ func (r *Reader) handleOutgoing() error {
 			}
 		}
 
+		if msg.typ == GetSupportedVersion || msg.typ == SetProtocolVersion {
+			// these messages are required to use version 1.1
+			msg.version = Version1_1
+		} else {
+			msg.version = r.version
+		}
+
 		if r.timeout > 0 {
 			if err := r.conn.SetWriteDeadline(time.Now().Add(r.timeout)); err != nil {
 				return errors.Wrap(err, "failed to set write deadline")
@@ -553,7 +549,7 @@ func (r *Reader) handleOutgoing() error {
 		}
 
 		r.logger.Printf("<<< %v", msg)
-		if err := r.writeHeader(mid, msg.payloadLen, msg.typ); err != nil {
+		if err := r.writeHeader(msg.header); err != nil {
 			return err
 		}
 
@@ -598,7 +594,6 @@ func (r *Reader) sendAck(mid messageID) {
 
 // getResponseHandler returns the handler for a given message's response.
 func (r *Reader) getResponseHandler(hdr header) io.Writer {
-	// todo: handle LLRP error message type
 	if hdr.typ == KeepAlive {
 		r.sendAck(hdr.id)
 		return ioutil.Discard
@@ -610,9 +605,11 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 	r.awaitMu.Unlock()
 
 	if !ok {
+		r.logger.Printf("no handler found for mID %d: %v", hdr.id, hdr.typ)
 		return ioutil.Discard
 	}
 
+	r.logger.Printf("piping mID %d: %v", hdr.id, hdr.typ)
 	// the pipe lets us know when the other side finishes
 	pr, pw := io.Pipe()
 	resp := Message{header: hdr, payload: pr}
@@ -693,47 +690,124 @@ func (r *Reader) send(ctx context.Context, m Message) (Message, error) {
 	}
 }
 
-// negotiate performs version negotiation with a Reader.
-// Upon success, it closes the "ready" channel
-// to signal the Reader is ready to accept external requests.
-//
-// If called on a Reader that previously opened and negotiated a connection,
-// this returns errAlreadyNegotiated.
-func (r *Reader) negotiate(m Message) error {
-	select {
-	default:
-	case <-r.done:
-		return errors.Wrap(ErrReaderClosed, "we don't negotiate with closed connections")
-	}
-
-	select {
-	default:
-	case <-r.ready:
-		return errAlreadyNegotiated
-	}
-
-	resp, err := r.send(context.TODO(), NewHdrOnlyMsg(GetSupportedVersion))
+func (r *Reader) checkInitialMessage() error {
+	m, err := r.nextMessage()
 	if err != nil {
-		return errors.WithMessage(err, "failed to Get Supported Versions")
+		return err
+	}
+	defer m.Close()
+
+	r.logger.Printf(">>> %v", m)
+	if m.typ != ReaderEventNotification {
+		return errors.Errorf("expected %v, but got %v", ReaderEventNotification, m.typ)
 	}
 
-	// todo: unmarshal message; check version
-	if err := resp.isResponseTo(GetSupportedVersion); err != nil {
-		return errors.WithMessage(err, "failed to Get Supported Versions")
-	}
+	r.msgReader.Reset(m)
 
-	if err = resp.Close(); err != nil {
+	ren := readerEventNotification{}
+	if err := r.msgReader.read(&ren); err != nil {
 		return err
 	}
 
-	resp, err = r.send(context.TODO(), NewHdrOnlyMsg(SetProtocolVersion))
-	if err != nil {
-		return errors.WithMessage(err, "failed to Set Protocol Version")
+	if ren.NotificationData.ConnectionAttempt != ConnectedSuccessfully {
+		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
 	}
 
-	// todo: unmarshal message; confirm version match or downgrade
+	return m.Close()
+}
+
+// getSupportedVersion returns device's current and supported LLRP versions.
+//
+// This message was added in LLRP v1.1,
+// so v1.0.1 devices should return ErrorMessage with VersionUnsupported status,
+// but this method handles that case and returns a valid SupportedVersion struct.
+// As a result, error is only not nil when network communication or message processing fails;
+// if the error is not nil, the returned struct will indicate the correct version information.
+func (r *Reader) getSupportedVersion(ctx context.Context) (*SupportedVersion, error) {
+	resp, err := r.send(ctx, NewHdrOnlyMsg(GetSupportedVersion))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Close()
+
+	r.msgReader.Reset(resp)
+	// By default, we'll return version 1.0.1.
+	sv := SupportedVersion{
+		Current:   Version1_0_1,
+		Supported: Version1_0_1,
+	}
+
+	// Every response message that includes an LLRPStatus parameter
+	// puts the status first _except_ GetSupportedVersionResponse,
+	// for some silly reason.
+	// As a result, we have to check the type to know what parts to decode.
+	switch resp.typ {
+	default:
+		return nil, errors.Errorf("unexpected response to %v: %v", GetSupportedVersion, resp)
+	case ErrorMessage:
+		// If the reader only supports v1.0.1, it returns VersionUnsupported.
+		// In that case, we'll drop the error so we can treat all results identically.
+		if err := r.msgReader.readParameter(&sv.LLRPStatus); err != nil {
+			return nil, err
+		}
+
+		if sv.Code == StatusMsgVerUnsupported {
+			sv.LLRPStatus = LLRPStatus{Code: StatusSuccess}
+		}
+
+	case GetSupportedVersionResponse:
+		if err := r.msgReader.ReadFields(&sv); err != nil {
+			return nil, err
+		}
+	}
+
+	return &sv, errors.WithMessagef(sv.Err(), "%v returned an error", resp)
+}
+
+// negotiate LLRP versions with the RFID device.
+//
+// Upon success, this sets the Reader's version to match the negotiated value.
+// The Reader will use the lesser of its configured version and the device's version,
+// or LLRP v1.0.1 if the device does not support version negotiation.
+// By default, newly created Readers use the max version supported by this package.
+func (r *Reader) negotiate() error {
+	sv, err := r.getSupportedVersion(context.Background())
+	if err != nil {
+		return err
+	}
+
+	if sv.Current == r.version {
+		r.logger.Printf("device version matches Reader: %v", r.version)
+		return nil
+	}
+
+	ver := r.version
+	if r.version > sv.Supported {
+		ver = sv.Supported
+		r.logger.Printf("downgrading Reader version to match device max: %v", ver)
+		r.version = ver
+
+		// if the device is already using this, no need to set it
+		if sv.Current == r.version {
+			return nil
+		}
+	}
+
+	r.logger.Printf("requesting device use version %v", ver)
+
+	m, err := NewByteMessage(SetProtocolVersion, []byte{uint8(r.version)})
+	if err != nil {
+		return err
+	}
+
+	resp, err := r.send(context.Background(), m)
+	if err != nil {
+		return err
+	}
+	defer resp.Close()
+
 	if err := resp.isResponseTo(SetProtocolVersion); err != nil {
-		return errors.WithMessage(err, "failed to Set Protocol Version")
+		return err
 	}
 
 	return resp.Close()

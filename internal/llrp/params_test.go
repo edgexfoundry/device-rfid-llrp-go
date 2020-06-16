@@ -162,7 +162,7 @@ func TestMsgReader_llrpStatus(t *testing.T) {
 	exp := LLRPStatus{
 		Code:           StatusMsgParamError,
 		ErrDescription: "your parameter offends my sensibilities",
-		ParamError: &ParamError{
+		ParamErr: &ParamError{
 			ParamType: ParamCustomParameter,
 			ErrorCode: StatusParamParamError,
 			ParamError: &ParamError{
