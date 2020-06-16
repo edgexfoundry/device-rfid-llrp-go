@@ -1,4 +1,4 @@
-def notify = [ email: false, slack: [ success: '#ima-build-success', failure: '#ima-build-failure' ] ]
+def notify = [ email: false, slack: [ success: '#ima-build-success', failure: '#ima-build-failed' ] ]
 
 pipeline {
     agent { label 'edgex-testing' }
