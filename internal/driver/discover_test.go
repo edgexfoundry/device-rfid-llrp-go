@@ -20,17 +20,51 @@ type inetTest struct {
 	err   bool
 }
 
+var (
+	svc = NewMockSdkService()
+)
+
 func TestMain(m *testing.M) {
 	NewProtocolDriver()
-	driver.svc = NewMockSdkService()
+	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
 
 	os.Exit(m.Run())
 }
 
 func TestAutoDiscover(t *testing.T) {
-	// todo: run emulator and wait for it to be discovered
+	oldPortStr := llrpPortStr
+	llrpPortStr = "50923"
+
+	// attempt to discover without emulator, expect none found
+	svc.clearDevices()
 	autoDiscover()
+	if len(driver.svc.Devices()) != 0 {
+		t.Fatalf("expected 0 discovered devices, however got: %d", len(driver.svc.Devices()))
+	}
+
+	// attempt to discover WITH emulator, expect emulator to be found
+	port, _ := strconv.Atoi(llrpPortStr)
+	go emuServer(port)
+	autoDiscover()
+	if len(driver.svc.Devices()) != 1 {
+		t.Fatalf("expected 1 discovered device, however got: %d", len(driver.svc.Devices()))
+	}
+
+	// attempt to discover again WITH emulator, however expect emulator to be skipped
+	svc.resetAddedCount()
+	go emuServer(port)
+	autoDiscover()
+	if svc.added != 0 {
+		t.Fatalf("expected no new devices to be added, but %d was added", svc.added)
+	}
+	if len(driver.svc.Devices()) != 1 {
+		t.Fatalf("expected no number of devices to still be 1, but was %d", len(driver.svc.Devices()))
+	}
+
+	// reset
+	svc.clearDevices()
+	llrpPortStr = oldPortStr
 }
 
 // computeNetSz computes the amount of IPs in a subnet for testing purposes

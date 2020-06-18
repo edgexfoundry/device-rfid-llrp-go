@@ -100,7 +100,7 @@ func getIPv4Nets(includeVirtual bool) <-chan *net.IPNet {
 			}
 
 			if !includeVirtual && virtualRegex.MatchString(iface.Name) {
-				driver.lc.Info("Skipping virtual network interface: " + iface.Name)
+				driver.lc.Debug("Skipping virtual network interface: " + iface.Name)
 				continue
 			}
 

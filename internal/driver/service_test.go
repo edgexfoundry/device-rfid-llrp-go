@@ -3,10 +3,12 @@ package driver
 import (
 	"fmt"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"sync/atomic"
 )
 
 type MockSdkService struct {
 	devices map[string]contract.Device
+	added   uint32
 }
 
 func NewMockSdkService() *MockSdkService {
@@ -17,6 +19,11 @@ func NewMockSdkService() *MockSdkService {
 
 func (s *MockSdkService) clearDevices() {
 	s.devices = make(map[string]contract.Device)
+	s.resetAddedCount()
+}
+
+func (s *MockSdkService) resetAddedCount() {
+	atomic.StoreUint32(&s.added, 0)
 }
 
 func (s *MockSdkService) Devices() []contract.Device {
@@ -40,5 +47,6 @@ func (s *MockSdkService) AddDevice(device contract.Device) (id string, err error
 	if device.Id == "" {
 		device.Id = device.Name
 	}
+	atomic.AddUint32(&s.added, 1)
 	return device.Id, nil
 }
