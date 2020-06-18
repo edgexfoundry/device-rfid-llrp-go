@@ -10,7 +10,7 @@ DOCKERS=docker_device_llrp_go
 COMPOSE_FILE=docker-compose-geneva-redis-no-secty.yml
 DOCKER_COMPOSE=docker-compose -f $(COMPOSE_FILE)
 
-.PHONY: $(DOCKERS) iterate test clean rm down rm-volumes stop tail run deploy fmt
+.PHONY: $(DOCKERS) iterate test clean down rm-volumes stop tail run up deploy fmt
 
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 GIT_SHA=$(shell git rev-parse HEAD)
@@ -39,7 +39,7 @@ docker_device_llrp_go:
 		-t edgexfoundry/docker-device-llrp-go:$(VERSION)-dev \
 		.
 
-run:
+run up:
 	$(DOCKER_COMPOSE) up
 
 deploy:
@@ -50,7 +50,7 @@ iterate: fmt docker deploy tail
 stop:
 	$(DOCKER_COMPOSE) stop
 
-rm down:
+down:
 	$(DOCKER_COMPOSE) down
 
 tail:

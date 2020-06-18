@@ -197,7 +197,7 @@ func resultsWorker(results <-chan uint32) {
 	}
 }
 
-// have your workers pull uint32s, convert to IPs, and send back successful probes
+// ipWorker pulls uint32s, convert to IPs, and send back successful probes
 func ipWorker(deviceMap map[string]bool, wg *sync.WaitGroup, done <-chan struct{}, ipCh <-chan uint32, results chan<- uint32) {
 	ip := net.IP([]byte{0, 0, 0, 0})
 	for {
