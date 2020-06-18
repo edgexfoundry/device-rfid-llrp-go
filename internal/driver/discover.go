@@ -17,10 +17,13 @@ import (
 // todo: most of these need to be configurable
 const (
 	probeTimeout          = 1 * time.Second
-	llrpPortStr           = "5084" // todo: support TLS connections
 	scanVirtualInterfaces = false
 	profileName           = "Device.LLRP.Profile"
 	probeAsyncLimit       = 1000
+)
+
+var (
+	llrpPortStr = "5084" // todo: support TLS connections
 )
 
 // virtualRegex is a regular expression to determine if an interface is likely to be a virtual interface
@@ -132,8 +135,14 @@ func ipGenerator(wg *sync.WaitGroup, netCh <-chan *net.IPNet, ipCh chan<- uint32
 		}
 
 		umask := binary.BigEndian.Uint32(mask)
-		if bits.OnesCount32(umask) <= 1 {
+		maskSz := bits.OnesCount32(umask)
+		if maskSz <= 1 {
 			continue // skip point-to-point connections
+		} else if maskSz >= 31 {
+			// special cases where only 1 ip is valid in subnet
+			wg.Add(1)
+			ipCh <- binary.BigEndian.Uint32(inet.IP)
+			continue
 		}
 
 		netId := binary.BigEndian.Uint32(addr) & umask // network ID

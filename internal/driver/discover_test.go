@@ -2,13 +2,14 @@ package driver
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 type inetTest struct {
@@ -21,12 +22,14 @@ type inetTest struct {
 
 func TestMain(m *testing.M) {
 	NewProtocolDriver()
+	driver.svc = NewMockSdkService()
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
 
 	os.Exit(m.Run())
 }
 
 func TestAutoDiscover(t *testing.T) {
+	// todo: run emulator and wait for it to be discovered
 	autoDiscover()
 }
 
@@ -38,13 +41,28 @@ func computeNetSz(subnetSz int) uint32 {
 	return ^uint32(0)>>subnetSz - 1
 }
 
-func testIpGenerator(input inetTest) (result inetTest) {
-	var wg sync.WaitGroup
-	ipCh := make(chan uint32)
-	netCh := make(chan *net.IPNet)
-	go ipGenerator(&wg, netCh, ipCh)
+func mockIpWorker(wg *sync.WaitGroup, ipCh <-chan uint32, result *inetTest) {
+	ip := net.IP([]byte{0, 0, 0, 0})
+	var last uint32
 
-	wg.Add(1)
+	for a := range ipCh {
+		atomic.AddUint32(&result.size, 1)
+		atomic.StoreUint32(&last, a)
+
+		if result.first == "" {
+			binary.BigEndian.PutUint32(ip, a)
+			result.first = ip.String()
+		}
+		binary.BigEndian.PutUint32(ip, last)
+		result.last = ip.String()
+
+		wg.Done()
+	}
+
+}
+
+func mockIPv4NetGenerator(input inetTest, result *inetTest) <-chan *net.IPNet {
+	netCh := make(chan *net.IPNet)
 	go func() {
 		_, inet, err := net.ParseCIDR(input.inet)
 		if err != nil {
@@ -53,24 +71,18 @@ func testIpGenerator(input inetTest) (result inetTest) {
 			netCh <- inet
 		}
 		close(netCh)
-		wg.Done()
 	}()
+	return netCh
+}
 
-	go func() {
-		ip := net.IP([]byte{0, 0, 0, 0})
+func ipGeneratorTest(input inetTest) (result inetTest) {
+	var wg sync.WaitGroup
+	ipCh := make(chan uint32, input.size)
 
-		for a := range ipCh {
-			atomic.AddUint32(&result.size, 1)
-			binary.BigEndian.PutUint32(ip, a)
-			result.last = ip.String()
-			if result.first == "" {
-				result.first = ip.String()
-			}
-			wg.Done()
-		}
-	}()
+	netCh := mockIPv4NetGenerator(input, &result)
+	go mockIpWorker(&wg, ipCh, &result)
 
-	time.Sleep(1 * time.Second)
+	ipGenerator(&wg, netCh, ipCh)
 	wg.Wait()
 	close(ipCh)
 
@@ -85,18 +97,18 @@ func TestIpGenerator(t *testing.T) {
 			last:  "192.168.1.254",
 			size:  computeNetSz(24),
 		},
-		//{
-		//	inet:  "192.168.1.110/32",
-		//	first: "192.168.1.110",
-		//	last:  "192.168.1.110",
-		//	size:  computeNetSz(32),
-		//},
-		//{
-		//	inet:  "192.168.1.20/31",
-		//	first: "192.168.1.20",
-		//	last:  "192.168.1.20",
-		//	size:  computeNetSz(31),
-		//},
+		{
+			inet:  "192.168.1.110/32",
+			first: "192.168.1.110",
+			last:  "192.168.1.110",
+			size:  computeNetSz(32),
+		},
+		{
+			inet:  "192.168.1.20/31",
+			first: "192.168.1.20",
+			last:  "192.168.1.20",
+			size:  computeNetSz(31),
+		},
 		{
 			inet:  "192.168.99.20/16",
 			first: "192.168.0.1",
@@ -112,7 +124,7 @@ func TestIpGenerator(t *testing.T) {
 	}
 	for _, input := range tests {
 		t.Run(input.inet, func(t *testing.T) {
-			result := testIpGenerator(input)
+			result := ipGeneratorTest(input)
 			if result.err && !input.err {
 				t.Error("got unexpected error")
 			} else if !result.err && input.err {
@@ -127,6 +139,17 @@ func TestIpGenerator(t *testing.T) {
 				if result.last != input.last {
 					t.Errorf("expected last ip in range to be %s, but got %s", input.last, result.last)
 				}
+			}
+		})
+	}
+}
+
+func TestIpGeneratorSubnetSizes(t *testing.T) {
+	for i := 32; i >= 10; i-- {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			result := ipGeneratorTest(inetTest{size: uint32(i), inet: fmt.Sprintf("192.168.1.1/%d", i)})
+			if result.size != computeNetSz(i) {
+				t.Errorf("expected %d ips, but got %d", computeNetSz(i), result.size)
 			}
 		})
 	}

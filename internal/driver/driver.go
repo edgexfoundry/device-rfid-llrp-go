@@ -7,7 +7,6 @@ package driver
 
 import (
 	"fmt"
-	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/pkg/errors"
 	"net"
 	"sync"
@@ -33,7 +32,7 @@ type Driver struct {
 	readers     map[string]*Reader
 	readerMapMu sync.RWMutex
 
-	svc *service.Service
+	svc ServiceWrapper
 }
 
 func NewProtocolDriver() dsModels.ProtocolDriver {
@@ -45,9 +44,9 @@ func NewProtocolDriver() dsModels.ProtocolDriver {
 	return driver
 }
 
-func (d *Driver) service() *service.Service {
+func (d *Driver) service() ServiceWrapper {
 	if d.svc == nil {
-		d.svc = service.RunningService()
+		d.svc = RunningService()
 	}
 	return d.svc
 }
