@@ -11,11 +11,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/driver"
 )
 
-const (
-	serviceName string = "edgex-device-llrp"
-)
-
 func main() {
 	sd := driver.NewProtocolDriver()
-	startup.Bootstrap(serviceName, device_llrp.Version, sd)
+	startup.Bootstrap(driver.ServiceName, device_llrp.Version, sd)
 }

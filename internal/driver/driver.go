@@ -7,6 +7,7 @@ package driver
 
 import (
 	"fmt"
+	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/pkg/errors"
 	"net"
 	"sync"
@@ -15,6 +16,10 @@ import (
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+)
+
+const (
+	ServiceName string = "edgex-device-llrp"
 )
 
 var once sync.Once
@@ -27,6 +32,8 @@ type Driver struct {
 
 	readers     map[string]*Reader
 	readerMapMu sync.RWMutex
+
+	svc *service.Service
 }
 
 func NewProtocolDriver() dsModels.ProtocolDriver {
@@ -38,12 +45,20 @@ func NewProtocolDriver() dsModels.ProtocolDriver {
 	return driver
 }
 
+func (d *Driver) service() *service.Service {
+	if d.svc == nil {
+		d.svc = service.RunningService()
+	}
+	return d.svc
+}
+
 // Initialize performs protocol-specific initialization for the device
 // service.
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
 	d.lc = lc
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
+	// todo: check configuration to make sure enabled
 	go d.Discover()
 	return nil
 }
@@ -214,15 +229,10 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 }
 
 func (d *Driver) Discover() {
+	// todo: todo
 	d.lc.Info("*** Discover was called ***")
-	mon, wg, err := RunScanner()
-	if err != nil {
-		d.lc.Error(err.Error())
-	} else {
-		mon.Stop()
-		wg.Wait()
-		// need to do this to tell edgex that discovery is complete
-		d.deviceCh <- nil
-		d.lc.Info("scanning complete")
-	}
+	autoDiscover()
+	// need to do this to tell edgex that discovery is complete
+	d.deviceCh <- nil
+	d.lc.Info("scanning complete")
 }
