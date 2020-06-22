@@ -5,6 +5,10 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
+#
+#
+#  SPDX-License-Identifier: Apache-2.0
+
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -266,6 +270,8 @@ class DataType:
     values: Union[List[str], Optional[Dict[str, int]]] = None  # maps name -> value, or implicitly name -> iota
     size: int = 0  # storage byte size; for arrays, the byte size of a single element
 
+    bits: int = 8  # number of bits in the final byte; usually should be 8, but occasionally not
+
     description: Optional[str] = None  # for outputting doc comments; currently unused
     min: Optional[int] = None  # currently unused
     max: Optional[int] = None  # currently unused
@@ -314,6 +320,10 @@ class DataType:
         if self.kind == 'external':
             return
 
+        if self.description:
+            for line in self.description.splitlines():
+                w.write(f'// {line.strip()}')
+
         if self.kind == 'alias':
             w.write(f'type {self.name} = {self.storage}')
             return
@@ -331,7 +341,9 @@ class DataType:
                 w.write(f'const {name} = {self.name}({value})')
             return
 
-        w.write(f'\ntype {self.name} {self.storage}')
+        if not self.description:
+            w.write('')
+        w.write(f'type {self.name} {self.storage}')
         if self.kind == 'enum':
             with w.paren('const'):
                 for name, value in sorted(self.values.items(), key=lambda x: x[1]):
@@ -376,27 +388,13 @@ class FieldSpec:
     is_array: bool = False
     length: int = 0  # 0 if has a length prefix, -1 if all remaining bytes, otherwise an array length
 
-    min: Optional[int] = None  # currently unused
+    description: Optional[str] = None  # for doc comments
+
+    min: Optional[int] = None  # currently unused; eventually might be used for validation
     max: Optional[int] = None  # currently unused
-    extract: Optional[str] = None  # currently unused; TODO: should output shift
-    description: Optional[str] = None  # currently unused
 
-    @property
-    def min_size(self) -> int:
-        """Returns the minimum number of bytes this field needs in an LLRP message."""
-        if self.type.name in ('string', 'bitArray'):
-            return 2
-        if self.is_array:
-            if self.length == 0:
-                return 2
-            if self.length == -1:
-                return 0
-            return self.length * self.type.size
-        return self.type.size
-
-    def is_fixed_size(self) -> bool:
-        """Returns True if this field has a fixed size."""
-        return not self.is_array and self.type.is_fixed_size()
+    partial: Optional[bool] = False  # if the next field shares its bits with this one
+    bit: Optional[int] = 0  # starting bit position, where 0=MSB ("leftmost")
 
     @classmethod
     def from_yaml(cls, y: YML, types: Dict[str, DataType]) -> 'FieldSpec':
@@ -415,7 +413,28 @@ class FieldSpec:
         except KeyError:
             raise DefinitionError(y, f'unknown type {typ} in field spec')
 
-        return cls(**y)
+        fs = cls(**y)
+        if fs.partial and fs.type.bits == 8:
+            raise DefinitionError(y, f'fields with partial widths must have fewer than 8 final bits')
+
+        return fs
+
+    @property
+    def min_size(self) -> int:
+        """Returns the minimum number of bytes this field needs in an LLRP message."""
+        if self.type.name in ('string', 'bitArray'):
+            return 2
+        if self.is_array:
+            if self.length == 0:
+                return 2
+            if self.length == -1:
+                return 0
+            return self.length * self.type.size
+        return self.type.size
+
+    def is_fixed_size(self) -> bool:
+        """Returns True if this field has a fixed size."""
+        return not self.is_array and self.type.is_fixed_size()
 
     def var_name(self, struct_name: str = '') -> str:
         """Returns the variable name used to reference this field."""
@@ -450,6 +469,17 @@ class FieldSpec:
             from_exp = f'binary.BigEndian.Uint32({from_exp})'
         elif self.type.size == 8:
             from_exp = f'binary.BigEndian.Uint64({from_exp})'
+
+        bit_size = 8 * (self.type.size - 1) + self.type.bits
+        last_bit = self.bit + bit_size
+        downshift = self.type.size * 8 - last_bit
+        if bit_size == 1:
+            from_exp += f'& 0x{1 << ((self.type.size * 8) - self.bit - 1):02x}'
+        else:
+            if downshift != 0:
+                from_exp += f' >> {downshift}'
+            if self.bit != 0:
+                from_exp += f'& {1 << bit_size - 1}'
 
         # determine if we need to cast
         if self.type.name.startswith('uint') or \
@@ -489,10 +519,10 @@ class FieldSpec:
         sz = self.type.size
         mul = f'*{sz}' if sz != 1 else ''
 
-        # TODO: output overflow check
-        with w.condition(f'arrLen := {length}; arrLen{mul} > len({data})'):
-            w.reterr(f'{self.name} ({typ}) declares it has %d bytes, '
-                     f'but only %d bytes are available', [f'arrLen{mul}', f'len({data})'])
+        # this check casts to int64 to prevent overflow issues
+        with w.condition(f'arrLen := {length}; int64(arrLen){mul} > int64(len({data}))'):
+            w.reterr(f'{self.name} ({typ}) declares it has %d{mul} bytes, '
+                     f'but only %d bytes are available', ['arrLen', f'len({data})'])
             w.ifelse('arrLen != 0')
 
             if self.type.name == 'string':
@@ -613,7 +643,7 @@ class Container:
     header_size: int = 0  # only set for Parameters, not Messages
     has_required: bool = False  # true if has required parameters
 
-    description: Optional[str] = None  # currently unused
+    description: Optional[str] = None
 
     @classmethod
     def from_yaml(cls, y, types: Dict[str, DataType]) -> 'Container':
@@ -657,6 +687,8 @@ class Container:
             for f in self.fields:
                 if f.padding:
                     continue
+                if f.description:
+                    w.write(f'// {f.description.strip()}')
                 w.write(f.struct_field())
 
             for p in self.parameters:
@@ -725,8 +757,8 @@ class Container:
                            (i == len(self.fields) - 1 and any(self.parameters)))
                 f.write_unmarshal(w, reslice, self.short, pos)
                 if reslice:
-                    f.pos = 0
-                else:
+                    pos = 0
+                elif not f.partial:
                     pos += f.min_size
 
         if not any(self.parameters):
@@ -842,12 +874,13 @@ def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], D
     # predefine some types
     types: Dict[str, DataType] = {
         'string':   DataType('string', '[]byte', kind='external', size=1,
-                             description="A series of UTF-8 values starting with uint16 byte-length header"),
+                             description="strings in LLRP are UTF-8 values "
+                                         "starting with uint16 byte-length header"),
         'bitArray': DataType('bitArray', '[]byte', kind='external', size=1,
-                             description="A series of bits, "
+                             description="bitArrays in LLRP are a series of bits, "
                                          "starting with a uint16 indicating number of bits, "
                                          "padded with 0s (as LSBs) to an octet boundary."),
-        'bool':     DataType('bool', 'bool', kind='external', size=1),
+        'bool':     DataType('bool', 'bool', kind='external', size=1, bits=1),
         'uint8':    DataType('uint8', 'uint8', kind='external', size=1),
         'byte':     DataType('byte', 'byte', kind='external', size=1),
         'uint16':   DataType('uint16', 'uint16', kind='external', size=2),
@@ -897,7 +930,9 @@ def set_param_sizes(params: Dict[str, Container]):
         p.header_size = 1 if p.type_id < 128 else 4
         param_sizes[p.name] = 0
 
-        p.min_size = (p.header_size + sum(f.min_size for f in p.fields))
+        p.min_size = (p.header_size +
+                      sum(f.min_size for f in p.fields) -
+                      sum(f.min_size for f in p.fields if f.partial))
         for sp in p.parameters:
             if sp.optional:
                 continue
@@ -935,7 +970,8 @@ def set_msg_sizes(msgs: Dict[str, Message], params: Dict[str, Container]):
             except KeyError:
                 raise MissingParamError(m, p)
 
-        m.min_size = (sum(f.min_size for f in m.fields) +
+        m.min_size = (sum(f.min_size for f in m.fields) -
+                      sum(f.min_size for f in m.fields if f.partial) +
                       sum(p.p_def.min_size for p in m.parameters if not p.optional))
         m.has_required = any(sp for sp in m.parameters if not sp.optional)
 
@@ -974,6 +1010,11 @@ def main():
     w.write('')
     for m in messages.values():
         w.write(f'// {m.type_name} is Message {m.type_id}, {m.name}.')
+        if m.description:
+            w.write('//')
+            for line in m.description.splitlines():
+                w.write(f'// {line.strip()}')
+
         m.write_struct(w)
 
         w.write(f'// UnmarshalBinary Message {m.type_id}, {m.name}.')
@@ -981,6 +1022,11 @@ def main():
 
     for p in parameters.values():
         w.write(f'// {p.type_name} is Parameter {p.type_id}, {p.name}.')
+        if p.description:
+            w.write('//')
+            for line in p.description.splitlines():
+                w.write(f'// {line.strip()}')
+
         p.write_struct(w)
 
         w.write(f'// UnmarshalBinary Parameter {p.type_id}, {p.name}.')

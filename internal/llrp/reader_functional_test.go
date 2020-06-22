@@ -7,10 +7,13 @@ package llrp
 
 import (
 	"context"
+	"encoding"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"github.com/pkg/errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"testing"
@@ -20,11 +23,20 @@ import (
 // ex: go test -reader="localhost:5084"
 // if using Goland, put that in the 'program arguments' part of the test config
 var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables functional tests")
+var update = flag.Bool("update", false, "rather than testing, record messages to the testdata directory")
 
-func TestReader_withGolemu(t *testing.T) {
+func TestReaderFunctional(t *testing.T) {
 	addr := *readerAddr
 	if addr == "" {
 		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
+	}
+
+	if *update {
+		if err := collectData(); err != nil && !errors.Is(err, ErrReaderClosed) {
+			t.Fatal(err)
+		}
+		t.Skip("collected data instead of running tests")
+		return
 	}
 
 	t.Run("hangup", testHangUp)
@@ -34,7 +46,92 @@ func TestReader_withGolemu(t *testing.T) {
 	}
 }
 
-func BenchmarkReader_withGolemu(b *testing.B) {
+// collectData populates the testdata directory for use in future tests.
+func collectData() error {
+	conn, err := net.Dial("tcp", *readerAddr)
+	if err != nil {
+		return err
+	}
+
+	if err := conn.SetDeadline(time.Now().Add(120 * time.Second)); err != nil {
+		return err
+	}
+
+	r, err := NewReader(WithConn(conn))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	connErrs := make(chan error, 1)
+	go func() {
+		defer close(connErrs)
+		connErrs <- r.Connect()
+	}()
+
+	select {
+	case <-r.ready:
+	case <-time.After(10 * time.Second):
+		return errors.New("reader not ready")
+	}
+
+	if r.version > Version1_0_1 {
+		if err := getAndWrite(r, GetSupportedVersion, nil, &getSupportedVersionResponse{}); err != nil {
+			return err
+		}
+	}
+
+	if err := getAndWrite(r, GetReaderConfig, []byte{0, 0, 0, 0, 0, 0, 0}, &getReaderConfigResponse{}); err != nil {
+		return err
+	}
+
+	if err := getAndWrite(r, CloseConnection, nil, &closeConnectionResponse{}); err != nil {
+		return err
+	}
+
+	_ = r.Close()
+
+	return <-connErrs
+}
+
+func getAndWrite(r *Reader, mt MessageType, payload []byte, resultValue encoding.BinaryUnmarshaler) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resultT, result, err := r.SendMessage(ctx, mt, payload)
+	if err != nil {
+		return err
+	}
+
+	expR, ok := mt.responseType()
+	if ok && expR != resultT {
+		return errors.Errorf("expected %v; got %v", expR, mt)
+	}
+
+	bfn := fmt.Sprintf("testdata/%v.bytes", resultT)
+	jfn := fmt.Sprintf("testdata/%v.json", resultT)
+
+	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
+		return err
+	}
+
+	if err := resultValue.UnmarshalBinary(result); err != nil {
+		return err
+	}
+
+	j, err := json.MarshalIndent(resultValue, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(jfn, j, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func BenchmarkReaderFunctional(b *testing.B) {
 	addr := *readerAddr
 	if addr == "" {
 		b.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")

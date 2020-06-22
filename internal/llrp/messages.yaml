@@ -146,7 +146,7 @@ parameters:
         type: uint16
       - name: ReceiveSensitivity
         type: dB
-        description: 'This is relative the receive sensitivity max.'
+        description: 'ReceiveSensitivity is relative the maximum.'
         min: 0
         max: 128
   - name: PerAntennaAirProtocol
@@ -377,15 +377,16 @@ parameters:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: RFSurveySpecStopTrigger
     typeID: 188
     fields:
-      - name: AISpecStopTriggerType
-        type: AISpecStopTriggerType
+      - type: RFSurveySpecStopTriggerType
       - name: Duration
         type: milliSecs32
       - name: N
         type: milliSecs32
+
   - name: AccessSpec
     typeID: 207
     fields:
@@ -407,6 +408,7 @@ parameters:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: AccessSpecStopTrigger
     typeID: 208
     fields:
@@ -518,8 +520,9 @@ parameters:
     fields:
       - name: GPOPort
         type: uint16
-      - name: GPOWriteFlags
-        type: GPOWriteFlags
+        min: 1
+      - name: GPOData
+        type: bool
   - name: KeepAliveSpec
     typeID: 220
     fields:
@@ -530,8 +533,8 @@ parameters:
   - name: AntennaProperties
     typeID: 221
     fields:
-      - name: AntennaPropertiesFlags
-        type: AntennaPropertiesFlags
+      - name: AntennaConnected
+        type: bool
       - name: AntennaID
         type: uint16
       - name: AntennaGain
@@ -562,7 +565,7 @@ parameters:
     fields:
       - name: HopTableID
         type: uint16
-      - name: ChannelIndexinFixedFrequencyTable
+      - name: ChannelIndexInFixedFrequencyTable
         type: uint16
       - name: TransmitPowerTableIndex
         type: uint16
@@ -571,15 +574,16 @@ parameters:
     fields:
       - name: GPIPort
         type: uint16
-      - name: GPIPortConfigFlags
-        type: GPIPortConfigFlags
+        min: 1
+      - name: GPIPortEnabled
+        type: bool
       - name: GPIState
         type: GPIStateType
   - name: EventsAndReports
     typeID: 226
     fields:
-      - name: EventsandReportsFlags
-        type: EventsandReportsFlags
+      - name: HoldEventsAndReportsUponReconnect
+        type: bool
   - name: ROReportSpec
     typeID: 237
     fields:
@@ -595,8 +599,44 @@ parameters:
   - name: TagReportContentSelector
     typeID: 238
     fields:
-      - name: TagReportContentSelectorFlags
-        type: TagReportContentSelectorFlags
+      - name: EnableROSpecID
+        type: bool
+        bit: 0
+        partial: true
+      - name: EnableSpecIndex
+        type: bool
+        bit: 1
+        partial: true
+      - name: EnableInventoryParamSpecID
+        type: bool
+        bit: 2
+        partial: true
+      - name: EnableAntennaID
+        type: bool
+        bit: 3
+        partial: true
+      - name: EnableChannelIndex
+        type: bool
+        bit: 4
+        partial: true
+      - name: EnablePeakRSSI
+        type: bool
+        bit: 5
+        partial: true
+      - name: EnableFirstSeenTimestamp
+        type: bool
+        bit: 6
+        partial: true
+      - name: EnableLastSeenTimestamp
+        type: bool
+        bit: 7
+      - name: EnableTagSeenCount
+        type: bool
+        bit: 0
+        partial: true
+      - name: EnableAccessSpecID
+        type: bool
+        bit: 1
     parameters:
       - type: C1G2EPCMemorySelector
         optional: true
@@ -741,8 +781,8 @@ parameters:
     fields:
       - name: ReaderEventType
         type: ReaderEventType
-      - name: NotificationStateFlags
-        type: NotificationStateFlags
+      - name: NotificationEnabled
+        type: bool
   - name: ReaderEventNotificationData
     typeID: 246
     parameters:
@@ -786,8 +826,8 @@ parameters:
     fields:
       - name: GPIPort
         type: uint16
-      - name: GPIEventFlags
-        type: GPIEventFlags
+      - name: GPIEvent
+        type: bool
   - name: ROSpecEvent
     typeID: 249
     fields:
@@ -1009,10 +1049,10 @@ parameters:
     fields:
       - name: C1G2MemoryBank
         type: C1G2MemoryBankType
-        extract: '>> 6'
+        partial: true
       - name: MatchFlag
         type: bool
-        extract: '>> 5'
+        bit: 2
       - name: MostSignificantBit
         type: uint16
       - name: TagMask
@@ -1222,7 +1262,7 @@ parameters:
     fields:
       - name: MaxSensitivity
         type: dBm16
-        description: This is an absolute sensitivity, not relative.
+        description: MaximumReceiveSensitivity is an absolute sensitivity, not relative.
   - name: RFSurveyFrequencyCapabilities
     typeID: 365
     fields:
@@ -1242,111 +1282,149 @@ parameters:
         length: -1  # all remaining data
 
 types:
+  # ----- aliases ------
   - name: dBm16
     storage: int16
+    description: dBm16 is a 16-bit dBm value, primarily for absolute max sensitivity.
+
   - name: dBm8
     storage: int8
+    description: dBm8 is a 8-bit dBm value, usually to represent RSSI.
+
   - name: dBiX100
     storage: uint16
+    description: dBiX100 is dBi*100, primarily for fractional dBi antenna gain values.
+
   - name: dBmX100
     storage: uint16
+    description: dBmX100 is dBm*100, primarily for fractional dBm transmit power values.
+
   - name: dB
     storage: uint16
+    description: dB relative a reference, primarily for receive sensitivity values.
+
   - name: microSecs64
     storage: uint64
+    description: |-
+      microSecs64 is a 64-bit number of microseconds.
+
+      It's usually used to represent a time offset since a known reference,
+      Unix Epoch or the reader's start.
+
   - name: milliSecs32
     storage: uint32
+    description: |-
+      microSecs64 is a 32-bit number of milliseconds.
+
+      It's used to represent a time offset since a known reference,
+      usually Unix Epoch or a message receipt time.
+      Other times, it's used as a time period or timeout,
+      in which case 0 may mean "never timeout".
+
   - name: milliSecs16
     storage: uint16
+    description: |-
+      milliSecs16 is a 16-bit number of milliseconds.
+
+      It's used to represent a timeouts or duration triggers.
+
   - name: nanoSecs32
     storage: uint32
+    description: nanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
+
   - name: nanoSecs16
     storage: uint16
+    description: |-
+      nanoSecs16 is a 16-bit number of nanoseconds
+      used for some Tari values or for RF Control.
+
   - name: kHz
     storage: uint32
+    description: kHz is kilo-Hertz, used for frequency values.
+
   - name: bps
     storage: uint32
+    description: bps is bits per second, used in backscatter data rates.
 
   - name: C1G2MemoryBankType
     storage: uint8
+    bits: 2
     max: 3
+    description: C1G2MemoryBankType selection.
 
+  # ----- enumerations -----
   - name: C1G2BlockPermalockResultType
     storage: uint8
     kind: enum
+    prefix: 'C1G2BPLock'
+    values:
+      - Success
+      - InsufficientPower
+      - NonSpecificTagError
+      - NoResponseFromTag
+      - NonSpecificReaderError
+      - IncorrectPassword
+      - MemoryOverrun
+
   - name: AirProtocolIDType
     storage: uint8
     kind: enum
+    prefix: AirProto
+    values:
+      - Unspecified
+      - EPCGlobalClass1Gen2
+
   - name: CountryCodeType
     storage: uint16
     kind: enum
-  - name: AccessReportTriggerType
-    storage: uint8
-    kind: enum
+    description: CountryCodeType is an ISO-3166 country code.
+
   - name: C1G2ReadOpSpecResultType
     storage: uint8
     kind: enum
+
   - name: LockDataType
     storage: uint8
     kind: enum
+
   - name: C1G2TagInventoryTargetType
     storage: uint8
     kind: enum
+
   - name: C1G2SingulationControlSessionType
     storage: uint8
     kind: enum
+
   - name: C1G2TagInventoryStateAwareFilterActionType
     storage: uint8
     kind: enum
+
   - name: C1G2TagInventoryStateUnawareFilterActionType
     storage: uint8
     kind: enum
-  - name: AISpecStopTriggerType
-    storage: uint8
-    kind: enum
-  - name: ROSpecStartTriggerType
-    storage: uint8
-    kind: enum
-  - name: SpectralMaskType
-    storage: uint8
-    kind: enum
-  - name: C1G2RecommissionResultType
-    storage: uint8
-    kind: enum
-  - name: C1G2WriteOpSpecResultType
-    storage: uint8
-    kind: enum
-  - name: ROSpecEventType
-    storage: uint8
-    kind: enum
-  - name: IDType
-    storage: uint8
-    kind: enum
-  - name: TagObservationTriggerType
-    storage: uint8
-    kind: enum
-  - name: ROReportTriggerType
-    storage: uint8
-    kind: enum
-  - name: ReaderEventType
-    storage: uint16
-    kind: enum
-  - name: AntennaEventType
-    storage: uint8
-    kind: enum
-  - name: C1G2KillResultType
-    storage: uint8
-    kind: enum
-  - name: C1G2LockResultType
-    storage: uint8
-    kind: enum
-  - name: RFSurveyEventType
-    storage: uint8
-    kind: enum
+
   - name: ROSpecCurrentStateType
     storage: uint8
     kind: enum
-  - name: ModulationType
+    prefix: ROSpecState
+    values:
+      - Disabled
+      - Inactive
+      - Active
+
+  - name: AccessSpecStopTriggerType
+    storage: uint8
+    kind: enum
+    prefix: AccessSpecStopTrigger
+    values:
+      - None
+      - OperationCount
+
+  - name: ReaderEventType
+    storage: uint16
+    kind: enum
+
+  - name: AntennaEventType
     storage: uint8
     kind: enum
 
@@ -1361,109 +1439,142 @@ types:
       - FailedReasonUnknown
       - AttemptedAgain
 
-  - name: C1G2BlockEraseResultType
+  - name: ROSpecEventType
     storage: uint8
     kind: enum
-  - name: AccessSpecStopTriggerType
-    storage: uint8
-    kind: enum
-  - name: KeepAliveTriggerType
-    storage: uint8
-    kind: enum
-  - name: ROSpecStopTriggerType
-    storage: uint8
-    kind: enum
-  - name: GPIStateType
-    storage: uint8
-    kind: enum
+
   - name: AISpecEventType
     storage: uint8
     kind: enum
+
+  - name: RFSurveyEventType
+    storage: uint8
+    kind: enum
+
+  - name: KeepAliveTriggerType
+    storage: uint8
+    kind: enum
+    prefix: KATrigger
+    values:
+      - None
+      - Periodic
+
+  - name: AccessReportTriggerType
+    storage: uint8
+    kind: enum
+
+  - name: ROReportTriggerType
+    storage: uint8
+    kind: enum
+
+  - name: ROSpecStartTriggerType
+    storage: uint8
+    prefix: ROStartTrigger
+    kind: enum
+    values:
+      - None
+      - Immediate
+      - Periodic
+      - GPI
+
+  - name: ROSpecStopTriggerType
+    storage: uint8
+    kind: enum
+    prefix: ROStopTrigger
+    values:
+      - None
+      - Duration
+      - GPI
+
+  - name: RFSurveySpecStopTriggerType
+    storage: uint8
+    kind: enum
+    prefix: RFSurveyStopTrigger
+    values:
+      - None
+      - Duration
+      - NIteration
+
+  - name: AISpecStopTriggerType
+    storage: uint8
+    kind: enum
+    prefix: AIStopTrigger
+    values:
+      - None
+      - Duration
+      - GPI
+      - TagObservation
+
+  - name: TagObservationTriggerType
+    storage: uint8
+    kind: enum
+    prefix: TagObsTrigger
+    values:
+      - NTagObservations
+      - NoNewAfterT
+      - NAttempts
+      - NUniqueObservations
+      - NoUniqueAfterT
+
+  - name: SpectralMaskType
+    storage: uint8
+    kind: enum
+
+  - name: C1G2RecommissionResultType
+    storage: uint8
+    kind: enum
+
+  - name: C1G2WriteOpSpecResultType
+    storage: uint8
+    kind: enum
+
+  - name: IDType
+    storage: uint8
+    kind: enum
+    prefix: ID
+    values:
+      - MAC_EUI64
+      - EPC
+
+  - name: C1G2KillResultType
+    storage: uint8
+    kind: enum
+
+  - name: C1G2LockResultType
+    storage: uint8
+    kind: enum
+
+  - name: ModulationType
+    storage: uint8
+    kind: enum
+
+  - name: C1G2BlockEraseResultType
+    storage: uint8
+    kind: enum
+
+  - name: GPIStateType
+    storage: uint8
+    kind: enum
+
   - name: ForwardLinkModulationType
     storage: uint8
     kind: enum
+
   - name: LockPrivilegeType
     storage: uint8
     kind: enum
+
   - name: C1G2GetBlockPermalockStatusResultType
     storage: uint8
     kind: enum
+
   - name: C1G2BlockWriteResultType
     storage: uint8
     kind: enum
+
   - name: C1G2FilterActionType
     storage: uint8
     kind: enum
-
-  - name: GPITriggerFlags
-    storage: uint8
-    kind: flag
-  - name: C1G2TagInventoryStateAwareSingulationActionFlags
-    storage: uint8
-    kind: flag
-  - name: GPIEventFlags
-    storage: uint8
-    kind: flag
-  - name: AntennaPropertiesFlags
-    storage: uint8
-    kind: flag
-  - name: GPOWriteFlags
-    storage: uint8
-    kind: flag
-  - name: UHFC1G2RFModeFlags
-    storage: uint8
-    kind: flag
-  - name: GPIPortConfigFlags
-    storage: uint8
-    kind: flag
-  - name: C1G2EPCMemorySelectorFlags
-    storage: uint8
-    kind: flag
-  - name: EventsandReportsFlags
-    storage: uint8
-    kind: flag
-  - name: AccessSpecFlags
-    storage: uint8
-    kind: flag
-  - name: TagReportContentSelectorFlags
-    storage: uint16
-    kind: flag
-  - name: NotificationStateFlags
-    storage: uint8
-    kind: flag
-  - name: C1G2CapabilitiesFlags
-    storage: uint8
-    kind: flag
-  - name: C1G2RecommissionFlags
-    storage: uint8
-    kind: flag
-
-  - name: C1G2InventoryCommandFlags
-    storage: uint8
-    kind: flag
-
-  - name: GeneralCapabilityFlags
-    storage: uint8
-    kind: flag
-    values:
-      - CanSetAntennaProperties
-      - HasUTCClock
-
-  - name: HoppingFlags
-    storage: uint8
-    kind: flag
-    values:
-      - Hopping
-
-  - name: LLRPCapabilitiesFlags
-    storage: uint8
-    kind: flag
-    values:
-      - CanDoRFSurvey
-      - CanReportBufferFillWarning
-      - SupportsClientRequestOpSpec
-      - CanDoTagInventoryStateAwareSingulation
-      - SupportsEventsAndReportHolding
 
   - name: VersionNum
     storage: uint8
@@ -1525,6 +1636,7 @@ types:
   - name: ReaderCapabilitiesRequestedDataType
     storage: uint8
     prefix: ReaderCap
+    kind: enum
     values:
       - All
       - GeneralDeviceCapabilities
@@ -1534,11 +1646,111 @@ types:
 
   - name: ReaderConfigRequestedDataType
     storage: uint8
-    kind: flag
+    kind: enum
+    prefix: ReaderConfReq
+    values:
+      - All
+      - Identification
+      - AntennaProperties
+      - AntennaConfig
+      - ROReportSpec
+      - ReaderEventNotifSpec
+      - AccessReportSpec
+      - LLRPConfStateVal
+      - KeepAliveSpec
+      - GPIPortCurState
+      - GPOWriteData
+      - EventsAndReports
 
-  - name: SetReaderConfigFlags
+  # ----- Flag types -----
+  - name: GPITriggerFlags
     storage: uint8
     kind: flag
+    values:
+      - GPIEvent
+
+  - name: GPIPortConfigFlags
+    storage: uint8
+    kind: flag
+
+  - name: GPOWriteFlags
+    storage: uint8
+    kind: flag
+    values:
+      - GPOPinTargetState
+
+  - name: C1G2TagInventoryStateAwareSingulationActionFlags
+    storage: uint8
+    kind: flag
+
+  - name: GPIEventFlags
+    storage: uint8
+    kind: flag
+
+  - name: AntennaPropertiesFlags
+    storage: uint8
+    kind: flag
+    values:
+      - AntennaConnected
+
+  - name: UHFC1G2RFModeFlags
+    storage: uint8
+    kind: flag
+
+  - name: C1G2EPCMemorySelectorFlags
+    storage: uint8
+    kind: flag
+
+  - name: EventsandReportsFlags
+    storage: uint8
+    kind: flag
+
+  - name: AccessSpecFlags
+    storage: uint8
+    kind: flag
+
+  - name: TagReportContentSelectorFlags
+    storage: uint16
+    kind: flag
+
+  - name: NotificationStateFlags
+    storage: uint8
+    kind: flag
+
+  - name: C1G2CapabilitiesFlags
+    storage: uint8
+    kind: flag
+
+  - name: C1G2RecommissionFlags
+    storage: uint8
+    kind: flag
+
+  - name: C1G2InventoryCommandFlags
+    storage: uint8
+    kind: flag
+
+  - name: GeneralCapabilityFlags
+    storage: uint8
+    kind: flag
+    values:
+      - CanSetAntennaProperties
+      - HasUTCClock
+
+  - name: HoppingFlags
+    storage: uint8
+    kind: flag
+    values:
+      - Hopping
+
+  - name: LLRPCapabilitiesFlags
+    storage: uint8
+    kind: flag
+    values:
+      - CanDoRFSurvey
+      - CanReportBufferFillWarning
+      - SupportsClientRequestOpSpec
+      - CanDoTagInventoryStateAwareSingulation
+      - SupportsEventsAndReportHolding
 
   - name: ParamType
     storage: uint16
@@ -1796,11 +2008,12 @@ messages:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: SetReaderConfig
     typeID: 3
     fields:
-      - name: SetReaderConfigFlags
-        type: SetReaderConfigFlags
+      - name: ResetToFactoryDefaults
+        type: bool
     parameters:
       - type: ReaderEventNotificationSpec
         optional: true
