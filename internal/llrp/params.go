@@ -3,7 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate stringer -type=ParamType,ConnectionStatus,StatusCode
+//go:generate python3 generate_param_code.py -i messages.yaml -o generated_unmarshal.go
+//go:generate stringer -type=ParamType,ConnectionAttemptEventType,StatusCode
 
 package llrp
 
@@ -37,49 +38,139 @@ import (
 type ParamType uint16
 
 const (
-	ParamLLRPStatus                  = ParamType(287)
-	ParamFieldError                  = ParamType(288)
-	ParamParameterError              = ParamType(289)
-	ParamReaderEventNotificationData = ParamType(246)
-	ParamUTCTimestamp                = ParamType(128)
-	ParamUptime                      = ParamType(129)
-	ParamHoppingEvent                = ParamType(247)
-	ParamGPIEvent                    = ParamType(248)
-	ParamROSpecEvent                 = ParamType(249)
-	ParamBufferLevelWarnEvent        = ParamType(250)
-	ParamBufferOverflowEvent         = ParamType(251)
-	ParamReaderExceptionEvent        = ParamType(252)
-	ParamRFSurveyEvent               = ParamType(253)
-	ParamAISpecEvent                 = ParamType(254)
-	ParamAntennaEvent                = ParamType(255)
-	ParamConnectionAttemptEvent      = ParamType(256)
-	ParamConnectionCloseEvent        = ParamType(257)
-	ParamSpecLoopEvent               = ParamType(365)
-	ParamCustomParameter             = ParamType(1023)
+	paramInvalid = ParamType(0)
 
 	// TV-encoded params
-	ParamEPC96                  = ParamType(13)
-	ParamROSpectID              = ParamType(9)
-	ParamSpecIndex              = ParamType(14)
-	ParamInventoryParamSpecID   = ParamType(10)
-	ParamAntennaID              = ParamType(1)
-	ParamPeakRSSI               = ParamType(6)
-	ParamChannelIndex           = ParamType(7)
-	ParamFirstSeenUTC           = ParamType(2)
-	ParamFirstSeenUptime        = ParamType(3)
-	ParamLastSeenUTC            = ParamType(4)
-	ParamLastSeenUptime         = ParamType(5)
-	ParamTagSeenCount           = ParamType(8)
-	ParamClientReqOpSpecResult  = ParamType(15)
-	ParamAccessSpecID           = ParamType(16)
-	ParamOpSpecID               = ParamType(17)
-	ParamC1G2PC                 = ParamType(12)
-	ParamC1G2XPCW1              = ParamType(19)
-	ParamC1G2XPCW2              = ParamType(20)
-	ParamC1G2CRC                = ParamType(11)
-	ParamC1G2SingulationDetails = ParamType(18)
 
-	paramInvalid   = ParamType(0)
+	ParamAntennaID                 = ParamType(1)
+	ParamFirstSeenUTC              = ParamType(2)
+	ParamFirstSeenUptime           = ParamType(3)
+	ParamLastSeenUTC               = ParamType(4)
+	ParamLastSeenUptime            = ParamType(5)
+	ParamPeakRSSI                  = ParamType(6)
+	ParamChannelIndex              = ParamType(7)
+	ParamTagSeenCount              = ParamType(8)
+	ParamROSpecID                  = ParamType(9)
+	ParamInventoryParameterSpecID  = ParamType(10)
+	ParamC1G2CRC                   = ParamType(11)
+	ParamC1G2PC                    = ParamType(12)
+	ParamEPC96                     = ParamType(13)
+	ParamSpecIndex                 = ParamType(14)
+	ParamClientRequestOpSpecResult = ParamType(15)
+	ParamAccessSpecID              = ParamType(16)
+	ParamOpSpecID                  = ParamType(17)
+	ParamC1G2SingulationDetails    = ParamType(18)
+	ParamC1G2XPCW1                 = ParamType(19)
+	ParamC1G2XPCW2                 = ParamType(20)
+
+	// TLV encoded parameters
+
+	ParamUTCTimestamp                      = ParamType(128)
+	ParamUptime                            = ParamType(129)
+	ParamGeneralDeviceCapabilities         = ParamType(137)
+	ParamReceiveSensitivityTableEntry      = ParamType(139)
+	ParamPerAntennaAirProtocol             = ParamType(140)
+	ParamGPIOCapabilities                  = ParamType(141)
+	ParamLLRPCapabilities                  = ParamType(142)
+	ParamRegulatoryCapabilities            = ParamType(143)
+	ParamUHFBandCapabilities               = ParamType(144)
+	ParamTransmitPowerLevelTableEntry      = ParamType(145)
+	ParamFrequencyInformation              = ParamType(146)
+	ParamFrequencyHopTable                 = ParamType(147)
+	ParamFixedFrequencyTable               = ParamType(148)
+	ParamPerAntennaReceiveSensitivityRange = ParamType(149)
+	ParamROSpec                            = ParamType(177)
+	ParamROBoundarySpec                    = ParamType(178)
+	ParamROSpecStartTrigger                = ParamType(179)
+	ParamPeriodicTriggerValue              = ParamType(180)
+	ParamGPITriggerValue                   = ParamType(181)
+	ParamROSpecStopTrigger                 = ParamType(182)
+	ParamAISpec                            = ParamType(183)
+	ParamAISpecStopTrigger                 = ParamType(184)
+	ParamTagObservationTrigger             = ParamType(185)
+	ParamInventoryParameterSpec            = ParamType(186)
+	ParamRFSurveySpec                      = ParamType(187)
+	ParamRFSurveySpecStopTrigger           = ParamType(188)
+	ParamAccessSpec                        = ParamType(207)
+	ParamAccessSpecStopTrigger             = ParamType(208)
+	ParamAccessCommand                     = ParamType(209)
+	ParamClientRequestOpSpec               = ParamType(210)
+	ParamClientRequestResponse             = ParamType(211)
+	ParamLLRPConfigurationStateValue       = ParamType(217)
+	ParamIdentification                    = ParamType(218)
+	ParamGPOWriteData                      = ParamType(219)
+	ParamKeepAliveSpec                     = ParamType(220)
+	ParamAntennaProperties                 = ParamType(221)
+	ParamAntennaConfiguration              = ParamType(222)
+	ParamRFReceiver                        = ParamType(223)
+	ParamRFTransmitter                     = ParamType(224)
+	ParamGPIPortCurrentState               = ParamType(225)
+	ParamEventsAndReports                  = ParamType(226)
+	ParamROReportSpec                      = ParamType(237)
+	ParamTagReportContentSelector          = ParamType(238)
+	ParamAccessReportSpec                  = ParamType(239)
+	ParamTagReportData                     = ParamType(240)
+	ParamEPCData                           = ParamType(241)
+	ParamRFSurveyReportData                = ParamType(242)
+	ParamFrequencyRSSILevelEntry           = ParamType(243)
+	ParamReaderEventNotificationSpec       = ParamType(244)
+	ParamEventNotificationState            = ParamType(245)
+	ParamReaderEventNotificationData       = ParamType(246)
+	ParamHoppingEvent                      = ParamType(247)
+	ParamGPIEvent                          = ParamType(248)
+	ParamROSpecEvent                       = ParamType(249)
+	ParamReportBufferLevelWarningEvent     = ParamType(250)
+	ParamReportBufferOverflowErrorEvent    = ParamType(251)
+	ParamReaderExceptionEvent              = ParamType(252)
+	ParamRFSurveyEvent                     = ParamType(253)
+	ParamAISpecEvent                       = ParamType(254)
+	ParamAntennaEvent                      = ParamType(255)
+	ParamConnectionAttemptEvent            = ParamType(256)
+	ParamConnectionCloseEvent              = ParamType(257)
+	ParamLLRPStatus                        = ParamType(287)
+	ParamFieldError                        = ParamType(288)
+	ParamParameterError                    = ParamType(289)
+	ParamLoopSpec                          = ParamType(355)
+	ParamSpecLoopEvent                     = ParamType(356)
+	ParamCustom                            = ParamType(1023)
+
+	ParamC1G2LLRPCapabilities                        = ParamType(327)
+	ParamUHFC1G2RFModeTable                          = ParamType(328)
+	ParamUHFC1G2RFModeTableEntry                     = ParamType(329)
+	ParamC1G2InventoryCommand                        = ParamType(330)
+	ParamC1G2Filter                                  = ParamType(331)
+	ParamC1G2TagInventoryMask                        = ParamType(332)
+	ParamC1G2TagInventoryStateAwareFilterAction      = ParamType(333)
+	ParamC1G2TagInventoryStateUnawareFilterAction    = ParamType(334)
+	ParamC1G2RFControl                               = ParamType(335)
+	ParamC1G2SingulationControl                      = ParamType(336)
+	ParamC1G2TagInventoryStateAwareSingulationAction = ParamType(337)
+	ParamC1G2TagSpec                                 = ParamType(338)
+	ParamC1G2TargetTag                               = ParamType(339)
+	ParamC1G2Read                                    = ParamType(341)
+	ParamC1G2Write                                   = ParamType(342)
+	ParamC1G2Kill                                    = ParamType(343)
+	ParamC1G2Lock                                    = ParamType(344)
+	ParamC1G2LockPayload                             = ParamType(345)
+	ParamC1G2BlockErase                              = ParamType(346)
+	ParamC1G2BlockWrite                              = ParamType(347)
+	ParamC1G2EPCMemorySelector                       = ParamType(348)
+	ParamC1G2ReadOpSpecResult                        = ParamType(349)
+	ParamC1G2WriteOpSpecResult                       = ParamType(350)
+	ParamC1G2KillOpSpecResult                        = ParamType(351)
+	ParamC1G2LockOpSpecResult                        = ParamType(352)
+	ParamC1G2BlockEraseOpSpecResult                  = ParamType(353)
+	ParamC1G2BlockWriteOpSpecResult                  = ParamType(354)
+	ParamC1G2Recommission                            = ParamType(357)
+	ParamC1G2BlockPermalock                          = ParamType(358)
+	ParamC1G2GetBlockPermalockStatus                 = ParamType(359)
+	ParamC1G2RecommissionOpSpecResult                = ParamType(360)
+	ParamC1G2BlockPermalockOpSpecResult              = ParamType(361)
+	ParamC1G2GetBlockPermalockStatusOpSpecResult     = ParamType(362)
+
+	ParamMaximumReceiveSensitivity     = ParamType(363)
+	ParamRFSurveyFrequencyCapabilities = ParamType(365)
+
 	paramResvStart = ParamType(900)
 	paramResvEnd   = ParamType(999)
 
@@ -89,26 +180,26 @@ const (
 
 // tvLengths to byte lengths (not including the 1-byte type itself)
 var tvLengths = map[ParamType]int{
-	ParamEPC96:                  12,
-	ParamROSpectID:              4,
-	ParamSpecIndex:              2,
-	ParamInventoryParamSpecID:   2,
-	ParamAntennaID:              2,
-	ParamPeakRSSI:               1,
-	ParamChannelIndex:           2,
-	ParamFirstSeenUTC:           8,
-	ParamFirstSeenUptime:        8,
-	ParamLastSeenUTC:            8,
-	ParamLastSeenUptime:         8,
-	ParamTagSeenCount:           2,
-	ParamClientReqOpSpecResult:  2,
-	ParamAccessSpecID:           4,
-	ParamOpSpecID:               4,
-	ParamC1G2PC:                 2,
-	ParamC1G2XPCW1:              2,
-	ParamC1G2XPCW2:              2,
-	ParamC1G2CRC:                2,
-	ParamC1G2SingulationDetails: 4,
+	ParamEPC96:                     12,
+	ParamROSpecID:                  4,
+	ParamSpecIndex:                 2,
+	ParamInventoryParameterSpecID:  2,
+	ParamAntennaID:                 2,
+	ParamPeakRSSI:                  1,
+	ParamChannelIndex:              2,
+	ParamFirstSeenUTC:              8,
+	ParamFirstSeenUptime:           8,
+	ParamLastSeenUTC:               8,
+	ParamLastSeenUptime:            8,
+	ParamTagSeenCount:              2,
+	ParamClientRequestOpSpecResult: 2,
+	ParamAccessSpecID:              4,
+	ParamOpSpecID:                  4,
+	ParamC1G2PC:                    2,
+	ParamC1G2XPCW1:                 2,
+	ParamC1G2XPCW2:                 2,
+	ParamC1G2CRC:                   2,
+	ParamC1G2SingulationDetails:    4,
 }
 
 // isTV returns true if the ParamType is TV-encoded.
@@ -154,66 +245,14 @@ func (ph parameter) String() string {
 	}
 }
 
-// ConnectionStatus reports the status field of a ConnectionAttemptEvent (TLV 256).
-type ConnectionStatus uint16
-
 const (
-	ConnectedSuccessfully     = ConnectionStatus(0)
-	ConnExistsReaderInitiated = ConnectionStatus(1)
-	ConnExistsClientInitiated = ConnectionStatus(2)
-	ConnFailedReasonUnknown   = ConnectionStatus(3)
-	ConnAttemptedAgain        = ConnectionStatus(4)
-)
-
-func (cs ConnectionStatus) encode(mb *MsgBuilder) error {
-	return mb.writeUint(uint64(cs), 2)
-}
-
-// StatusCode matches LLRP's Status Codes.
-//
-// These are described in Section 14 of the Low Level Reader Protocol v1.0.1
-// and in Section 15 of Low Level Reader Protocol v1.1.
-type StatusCode uint16
-
-const (
-	StatusSuccess = StatusCode(0) // message was received and processed successfully
-
-	statusMsgStart            = StatusMsgParamError
-	StatusMsgParamError       = StatusCode(100)
-	StatusMsgFieldError       = StatusCode(101)
-	StatusMsgParamUnexpected  = StatusCode(102)
-	StatusMsgParamMissing     = StatusCode(103)
-	StatusMsgParamDuplicate   = StatusCode(104)
-	StatusMsgParamOverflow    = StatusCode(105)
-	StatusMsgFieldOverflow    = StatusCode(106)
-	StatusMsgParamUnknown     = StatusCode(107)
-	StatusMsgFieldUnknown     = StatusCode(108)
-	StatusMsgMsgUnsupported   = StatusCode(109)
-	StatusMsgVerUnsupported   = StatusCode(110)
-	StatusMsgParamUnsupported = StatusCode(111)
-	StatusMsgMsgUnexpected    = StatusCode(112) // version 1.1 only
-	statusMsgEnd              = StatusMsgMsgUnexpected
-
-	statusParamStart            = StatusParamParamError
-	StatusParamParamError       = StatusCode(200) // some sub-parameter of the parameter is in error
-	StatusParamFieldError       = StatusCode(201) // some field in the parameter is in error
-	StatusParamParamUnexpected  = StatusCode(202) // sub-parameter not expected
-	StatusParamParamMissing     = StatusCode(203) // sub-parameter not expected
-	StatusParamParamDuplicate   = StatusCode(204) // sub-parameter not expected
-	StatusParamParamOverflow    = StatusCode(205) // sub-parameter not expected
-	StatusParamFieldOverflow    = StatusCode(206) // sub-parameter not expected
-	StatusParamParamUnknown     = StatusCode(207) // sub-parameter not expected
-	StatusParamFieldUnknown     = StatusCode(208) // sub-parameter not expected
-	StatusParamParamUnsupported = StatusCode(209) // sub-parameter not expected
-	statusParamEnd              = StatusParamParamUnsupported
-
-	statusFieldStart      = StatusFieldInvalid
-	StatusFieldInvalid    = StatusCode(300)
-	StatusFieldOutOfRange = StatusCode(301)
-	statusFieldEnd        = StatusFieldOutOfRange
-
+	statusMsgStart    = StatusMsgParamError
+	statusMsgEnd      = StatusMsgMsgUnexpected
+	statusParamStart  = StatusParamParamError
+	statusParamEnd    = StatusParamParamUnsupported
+	statusFieldStart  = StatusFieldInvalid
+	statusFieldEnd    = StatusFieldOutOfRange
 	statusDeviceStart = StatusDeviceError
-	StatusDeviceError = StatusCode(401)
 	statusDeviceEnd   = StatusDeviceError
 )
 
@@ -296,88 +335,76 @@ func (sc StatusCode) encode(mb *MsgBuilder) error {
 	return mb.writeUint(uint64(sc), 2)
 }
 
-type FieldError struct {
-	FieldNum  uint16
-	ErrorCode StatusCode
-}
-
-func (fe FieldError) Error() string {
-	return fe.ErrorCode.defaultText() + " at index " + strconv.Itoa(int(fe.FieldNum))
-}
-
-type ParamError struct {
-	ParamType ParamType
-	ErrorCode StatusCode
-	*FieldError
-	*ParamError
+func (fe fieldError) Error() string {
+	return fe.ErrorCode.defaultText() + " at index " + strconv.Itoa(int(fe.FieldIndex))
 }
 
 // Error constructs a string from the parameter's error.
-func (pe *ParamError) Error() string {
-	msg := pe.ErrorCode.defaultText() + " " + pe.ParamType.String()
-	if pe.ParamType.isValid() {
-		msg += " (type " + strconv.Itoa(int(pe.ParamType)) + ")"
+func (pe *parameterError) Error() string {
+	msg := pe.ErrorCode.defaultText() + " " + pe.ParameterType.String()
+	if pe.ParameterType.isValid() {
+		msg += " (type " + strconv.Itoa(int(pe.ParameterType)) + ")"
 	}
 
 	if pe.FieldError != nil {
 		msg += ": " + pe.FieldError.Error()
 	}
 
-	if pe.ParamError != nil {
-		msg += ": " + pe.ParamError.Error()
+	if pe.ParameterError != nil {
+		msg += ": " + pe.ParameterError.Error()
 	}
 
 	return msg
 }
 
-// LLRPStatus holds information about the result of a command.
-type LLRPStatus struct {
-	ErrDescription string
-	FieldErr       *FieldError
-	ParamErr       *ParamError
-	Code           StatusCode
-}
-
 // Err returns an error represented by this LLRPStatus, if any.
 // If the Status is Success, this returns nil.
-func (ls *LLRPStatus) Err() error {
-	if ls.Code == StatusSuccess {
+func (ls *llrpStatus) Err() error {
+	if ls.Status == StatusSuccess {
 		return nil
 	}
 
-	msg := ls.Code.defaultText()
-	if ls.ErrDescription != "" {
-		msg += ": " + ls.ErrDescription
+	msg := ls.Status.defaultText()
+	if ls.ErrorDescription != "" {
+		msg += ": " + ls.ErrorDescription
 	}
 
-	if ls.FieldErr != nil {
-		msg += ": " + ls.FieldErr.Error()
+	if ls.FieldError != nil {
+		msg += ": " + ls.FieldError.Error()
 	}
 
-	if ls.ParamErr != nil {
-		msg += ": " + ls.ParamErr.Error()
+	if ls.ParameterError != nil {
+		msg += ": " + ls.ParameterError.Error()
 	}
 
 	return errors.New(msg)
 }
 
-func (*LLRPStatus) getType() ParamType {
+func (*llrpStatus) getType() ParamType {
 	return ParamLLRPStatus
 }
 
-func (ls *LLRPStatus) encode(mb *MsgBuilder) error {
-	if err := mb.WriteFields(uint16(ls.Code), ls.ErrDescription); err != nil {
+func (fe *parameterError) getType() ParamType {
+	return ParamParameterError
+}
+
+func (fe *fieldError) getType() ParamType {
+	return ParamFieldError
+}
+
+func (ls *llrpStatus) encode(mb *MsgBuilder) error {
+	if err := mb.WriteFields(uint16(ls.Status), ls.ErrorDescription); err != nil {
 		return err
 	}
 
-	if ls.FieldErr != nil {
-		if err := mb.writeParam(ls.FieldErr); err != nil {
+	if ls.FieldError != nil {
+		if err := mb.writeParam(ls.FieldError); err != nil {
 			return err
 		}
 	}
 
-	if ls.ParamErr != nil {
-		if err := mb.writeParam(ls.ParamErr); err != nil {
+	if ls.ParameterError != nil {
+		if err := mb.writeParam(ls.ParameterError); err != nil {
 			return err
 		}
 	}
@@ -385,24 +412,16 @@ func (ls *LLRPStatus) encode(mb *MsgBuilder) error {
 	return nil
 }
 
-func (*FieldError) getType() ParamType {
-	return ParamFieldError
+func (fe *fieldError) encode(mb *MsgBuilder) error {
+	return mb.WriteFields(fe.FieldIndex, fe.ErrorCode)
 }
 
-func (fe *FieldError) encode(mb *MsgBuilder) error {
-	return mb.WriteFields(fe.FieldNum, fe.ErrorCode)
+func (fe *fieldError) decode(mr *MsgReader) error {
+	return mr.ReadFields(&(fe.FieldIndex), (*uint16)(&(fe.ErrorCode)))
 }
 
-func (fe *FieldError) decode(mr *MsgReader) error {
-	return mr.ReadFields(&(fe.FieldNum), (*uint16)(&(fe.ErrorCode)))
-}
-
-func (*ParamError) getType() ParamType {
-	return ParamParameterError
-}
-
-func (pe *ParamError) encode(mb *MsgBuilder) error {
-	if err := mb.WriteFields(uint16(pe.ParamType), uint16(pe.ErrorCode)); err != nil {
+func (pe *parameterError) encode(mb *MsgBuilder) error {
+	if err := mb.WriteFields(uint16(pe.ParameterType), uint16(pe.ErrorCode)); err != nil {
 		return err
 	}
 
@@ -412,8 +431,8 @@ func (pe *ParamError) encode(mb *MsgBuilder) error {
 		}
 	}
 
-	if pe.ParamError != nil {
-		if err := mb.writeParam(pe.ParamError); err != nil {
+	if pe.ParameterError != nil {
+		if err := mb.writeParam(pe.ParameterError); err != nil {
 			return err
 		}
 	}
@@ -421,8 +440,8 @@ func (pe *ParamError) encode(mb *MsgBuilder) error {
 	return nil
 }
 
-func (pe *ParamError) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint16)(&(pe.ParamType)), (*uint16)(&(pe.ErrorCode))); err != nil {
+func (pe *parameterError) decode(mr *MsgReader) error {
+	if err := mr.ReadFields((*uint16)(&(pe.ParameterType)), (*uint16)(&(pe.ErrorCode))); err != nil {
 		return err
 	}
 
@@ -434,13 +453,13 @@ func (pe *ParamError) decode(mr *MsgReader) error {
 
 		switch mr.cur.typ {
 		case ParamFieldError:
-			pe.FieldError = new(FieldError)
+			pe.FieldError = new(fieldError)
 			if err := mr.read(pe.FieldError); err != nil {
 				return err
 			}
 		case ParamParameterError:
-			pe.ParamError = new(ParamError)
-			if err := mr.read(pe.ParamError); err != nil {
+			pe.ParameterError = new(parameterError)
+			if err := mr.read(pe.ParameterError); err != nil {
 				return err
 			}
 		default:
@@ -456,8 +475,8 @@ func (pe *ParamError) decode(mr *MsgReader) error {
 	return nil
 }
 
-func (s *LLRPStatus) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint16)(&(s.Code)), &(s.ErrDescription)); err != nil {
+func (s *llrpStatus) decode(mr *MsgReader) error {
+	if err := mr.ReadFields((*uint16)(&(s.Status)), &(s.ErrorDescription)); err != nil {
 		return err
 	}
 
@@ -469,17 +488,17 @@ func (s *LLRPStatus) decode(mr *MsgReader) error {
 
 		switch mr.cur.typ {
 		case ParamFieldError:
-			f := &FieldError{}
+			f := &fieldError{}
 			if err := mr.read(f); err != nil {
 				return err
 			}
-			s.FieldErr = f
+			s.FieldError = f
 		case ParamParameterError:
-			p := &ParamError{}
+			p := &parameterError{}
 			if err := mr.read(p); err != nil {
 				return err
 			}
-			s.ParamErr = p
+			s.ParameterError = p
 		default:
 			return errors.Errorf("expected either %v or %v, but found %v",
 				ParamFieldError, ParamParameterError, mr.cur)
@@ -493,48 +512,43 @@ func (s *LLRPStatus) decode(mr *MsgReader) error {
 	return nil
 }
 
-// SupportedVersion holds a GetSupportedVersionResponse.
-type SupportedVersion struct {
-	LLRPStatus
-	Current   VersionNum
-	Supported VersionNum
-}
-
-func (sv *SupportedVersion) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint8)(&(sv.Current)), (*uint8)(&(sv.Supported))); err != nil {
+func (sv *getSupportedVersionResponse) decode(mr *MsgReader) error {
+	if err := mr.ReadFields((*uint8)(&(sv.CurrentVersion)), (*uint8)(&(sv.MaxSupportedVersion))); err != nil {
 		return err
 	}
 	return mr.readParameter(&sv.LLRPStatus)
 }
 
-type readerEventNotification struct {
-	NotificationData readerEventNotificationData
-}
-
 func (ren *readerEventNotification) decode(mr *MsgReader) error {
-	return mr.ReadParameters(&ren.NotificationData)
+	return mr.ReadParameters(&ren.ReaderEventNotificationData)
 }
 
 func (ren *readerEventNotification) encode(mb *MsgBuilder) error {
-	return mb.writeParam(&ren.NotificationData)
-}
-
-// TLV type 246
-type readerEventNotificationData struct {
-	TS                timestamp
-	ConnectionAttempt ConnectionStatus
+	return mb.writeParam(&ren.ReaderEventNotificationData)
 }
 
 func (rend *readerEventNotificationData) encode(mb *MsgBuilder) error {
-	return mb.WriteParams(&rend.TS, &rend.ConnectionAttempt)
+	return mb.WriteParams(&rend.UTCTimestamp, rend.ConnectionAttemptEvent)
+}
+
+func (utcTS *utcTimestamp) encode(mb *MsgBuilder) error {
+	return mb.write(uint64(*utcTS))
+}
+
+func (cae *connectionAttemptEvent) encode(mb *MsgBuilder) error {
+	return mb.write(uint16(*cae))
+}
+
+func (*utcTimestamp) getType() ParamType {
+	return ParamUTCTimestamp
+}
+
+func (*connectionAttemptEvent) getType() ParamType {
+	return ParamConnectionAttemptEvent
 }
 
 func (*readerEventNotificationData) getType() ParamType {
 	return ParamReaderEventNotificationData
-}
-
-func (*ConnectionStatus) getType() ParamType {
-	return ParamConnectionAttemptEvent
 }
 
 func (ren *readerEventNotificationData) decode(mr *MsgReader) error {
@@ -542,7 +556,7 @@ func (ren *readerEventNotificationData) decode(mr *MsgReader) error {
 	if err != nil {
 		return err
 	}
-	if err := mr.read(&ren.TS); err != nil {
+	if err := mr.read(&ren.UTCTimestamp); err != nil {
 		return err
 	}
 	if err := mr.endParam(prev); err != nil {
@@ -557,9 +571,49 @@ func (ren *readerEventNotificationData) decode(mr *MsgReader) error {
 
 		switch mr.cur.typ {
 		case ParamConnectionAttemptEvent:
-			if err := mr.read((*uint16)(&ren.ConnectionAttempt)); err != nil {
+			if err := mr.read(ren.ConnectionAttemptEvent); err != nil {
 				return err
 			}
+		}
+
+		if err := mr.endParam(prev); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ren *readerEventNotification) isConnectSuccess() bool {
+	if ren == nil || ren.ReaderEventNotificationData.ConnectionAttemptEvent == nil {
+		return false
+	}
+
+	return ConnSuccess == ConnectionAttemptEventType(*ren.ReaderEventNotificationData.ConnectionAttemptEvent)
+}
+
+func (gdc *generalDeviceCapabilities) decode(mr *MsgReader) error {
+	if err := mr.ReadFields(&gdc.MaxSupportedAntennas,
+		(*uint8)(&gdc.GeneralCapabilityFlags),
+		&gdc.DeviceManufacturerName,
+		&gdc.ModelName,
+		&gdc.ReaderFirmwareVersion); err != nil {
+		return err
+	}
+
+	for mr.hasData() {
+		prev, err := mr.readParam()
+		if err != nil {
+			return err
+		}
+
+		switch mr.cur.typ {
+		case ParamReceiveSensitivityTableEntry:
+			rste := receiveSensitivityTableEntry{}
+			if err := mr.read(&rste); err != nil {
+				return err
+			}
+			gdc.ReceiveSensitivityTableEntries = append(gdc.ReceiveSensitivityTableEntries, rste)
 		}
 
 		if err := mr.endParam(prev); err != nil {
@@ -573,7 +627,7 @@ func (ren *readerEventNotificationData) decode(mr *MsgReader) error {
 // TLV type 128 == UTC Timestamp, microseconds since 00:00:00 UTC, Jan 1, 1970.
 // TLV type 129 == Uptime Timestamp, microseconds since reader started.
 type timestamp struct {
-	microseconds uint64
+	microseconds microSecs64
 	isUptime     bool // true if microseconds is uptime instead of offset since unix epoch
 }
 

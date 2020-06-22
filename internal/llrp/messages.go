@@ -67,10 +67,11 @@ const (
 	ErrorMessage                  = MessageType(100)
 	CustomMessage                 = MessageType(1023)
 
-	minMsgType   = GetReaderCapabilities
-	maxMsgType   = CustomMessage    // highest legal message type
-	msgResvStart = MessageType(900) // 900-999 are reserved for ISO/IEC 24971-5
-	msgResvEnd   = MessageType(999)
+	minMsgType     = GetReaderCapabilities
+	maxMsgType     = CustomMessage    // highest legal message type
+	msgResvStart   = MessageType(900) // 900-999 are reserved for ISO/IEC 24971-5
+	msgResvEnd     = MessageType(999)
+	msgTypeInvalid = MessageType(0)
 
 	headerSz     = 10                           // LLRP message headers are 10 bytes
 	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
@@ -236,49 +237,6 @@ func (m Message) isResponseTo(reqType MessageType) error {
 	return nil
 }
 
-type msgValidator interface {
-	validate(m Message) error
-}
-
-type msgValidatorFunc func(m Message) error
-
-func (f msgValidatorFunc) validate(m Message) error {
-	return f(m)
-}
-
-func (m Message) match(v ...msgValidator) error {
-	for _, vv := range v {
-		if err := vv.validate(m); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (mt MessageType) validate(m Message) error {
-	if m.typ != mt {
-		return errors.Errorf("%v has wrong type; expected: %v", m.typ, mt)
-	}
-	return nil
-}
-
-type msgPayloadLen uint32
-
-func (mpl msgPayloadLen) min() msgValidator {
-	return msgValidatorFunc(func(m Message) error {
-		if m.payloadLen < uint32(mpl) {
-			if mpl == 1 {
-				return errors.Errorf("empty payload: %v", m)
-			}
-
-			return errors.Errorf("payload must be at least %d bytes: %v", mpl, m)
-		}
-		return nil
-	})
-}
-
-var hasPayload = msgPayloadLen(1).min()
-
 // newMessage prepares a message for sending.
 //
 // For now, this is intentionally not exported.
@@ -344,10 +302,37 @@ func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 		return Message{}, errors.New("LLRP messages are limited to 4GiB (minus a 10 byte header)")
 	}
 	n := uint32(len(payload))
-	return newMessage(ioutil.NopCloser(bytes.NewReader(payload)), n, typ), nil
+	return newMessage(bytes.NewReader(payload), n, typ), nil
 }
 
 // msgErr returns a new error for LLRP message issues.
 func msgErr(why string, v ...interface{}) error {
 	return errors.Errorf("invalid LLRP message: "+why, v...)
+}
+
+var msgFieldSizes = map[MessageType]uint16{
+	CustomMessage:               4 + 1,         // VendorID, Message Subtype
+	SetReaderConfig:             1,             // flags
+	GetReaderConfig:             2 + 1 + 2 + 2, // antenna ID, requested data flags, GPI port, GPO port
+	DeleteAccessSpec:            4,             // AccessSpecID
+	EnableAccessSpec:            4,             // AccessSpecID
+	DisableAccessSpec:           4,             // AccessSpecID
+	DeleteROSpec:                4,             // ROSpecID
+	StartROSpec:                 4,             // ROSpecID
+	StopROSpec:                  4,             // ROSpecID
+	EnableROSpec:                4,             // ROSpecID
+	DisableROSpec:               4,             // ROSpecID
+	SetProtocolVersion:          1,             // Target Version
+	GetSupportedVersionResponse: 1 + 1,         // current, max
+	GetReaderCapabilities:       1,             // capability flags
+}
+
+var fixedParamSizes = map[ParamType]uint16{
+	ParamAntennaID:       2,
+	ParamFirstSeenUptime: 8,
+	ParamLastSeenUptime:  8,
+	ParamFirstSeenUTC:    8,
+	ParamLastSeenUTC:     8,
+	ParamPeakRSSI:        1,
+	ParamChannelIndex:    2,
 }

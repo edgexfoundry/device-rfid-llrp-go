@@ -13,12 +13,12 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[versionInvalid-0]
+	_ = x[versionUnknown-0]
 	_ = x[Version1_0_1-1]
 	_ = x[Version1_1-2]
 }
 
-const _VersionNum_name = "versionInvalidVersion1_0_1Version1_1"
+const _VersionNum_name = "versionUnknownVersion1_0_1Version1_1"
 
 var _VersionNum_index = [...]uint8{0, 14, 26, 36}
 
@@ -34,18 +34,47 @@ func _() {
 	var x [1]struct{}
 	_ = x[GetReaderCapabilities-1]
 	_ = x[GetReaderConfig-2]
-	_ = x[GetReaderConfigResponse-12]
 	_ = x[SetReaderConfig-3]
 	_ = x[CloseConnectionResponse-4]
 	_ = x[GetReaderCapabilitiesResponse-11]
+	_ = x[GetReaderConfigResponse-12]
 	_ = x[SetReaderConfigResponse-13]
 	_ = x[CloseConnection-14]
+	_ = x[AddROSpec-20]
+	_ = x[DeleteROSpec-21]
+	_ = x[StartROSpec-22]
+	_ = x[StopROSpec-23]
+	_ = x[EnableROSpec-24]
+	_ = x[DisableROSpec-25]
+	_ = x[GetROSpecs-26]
+	_ = x[AddROSpecResponse-30]
+	_ = x[DeleteROSpecResponse-31]
+	_ = x[StartROSpecResponse-32]
+	_ = x[StopROSpecResponse-33]
+	_ = x[EnableROSpecResponse-34]
+	_ = x[DisableROSpecResponse-35]
+	_ = x[GetROSpecsResponse-36]
+	_ = x[AddAccessSpec-40]
+	_ = x[DeleteAccessSpec-41]
+	_ = x[EnableAccessSpec-42]
+	_ = x[DisableAccessSpec-43]
+	_ = x[GetAccessSpecs-44]
+	_ = x[ClientRequestOp-45]
 	_ = x[GetSupportedVersion-46]
 	_ = x[SetProtocolVersion-47]
+	_ = x[AddAccessSpecResponse-50]
+	_ = x[DeleteAccessSpecResponse-51]
+	_ = x[EnableAccessSpecResponse-52]
+	_ = x[DisableAccessSpecResponse-53]
+	_ = x[GetAccessSpecsResponse-54]
+	_ = x[ClientRequestOpResponse-55]
 	_ = x[GetSupportedVersionResponse-56]
 	_ = x[SetProtocolVersionResponse-57]
+	_ = x[GetReport-60]
+	_ = x[ROAccessReport-61]
 	_ = x[KeepAlive-62]
 	_ = x[ReaderEventNotification-63]
+	_ = x[EnableEventsAndReports-64]
 	_ = x[KeepAliveAck-72]
 	_ = x[ErrorMessage-100]
 	_ = x[CustomMessage-1023]
@@ -53,55 +82,62 @@ func _() {
 	_ = x[msgResvEnd-999]
 }
 
-const (
-	_MessageType_name_0 = "GetReaderCapabilitiesGetReaderConfigSetReaderConfigCloseConnectionResponse"
-	_MessageType_name_1 = "GetReaderCapabilitiesResponseGetReaderConfigResponseSetReaderConfigResponseCloseConnection"
-	_MessageType_name_2 = "GetSupportedVersionSetProtocolVersion"
-	_MessageType_name_3 = "GetSupportedVersionResponseSetProtocolVersionResponse"
-	_MessageType_name_4 = "KeepAliveReaderEventNotification"
-	_MessageType_name_5 = "KeepAliveAck"
-	_MessageType_name_6 = "ErrorMessage"
-	_MessageType_name_7 = "msgResvStart"
-	_MessageType_name_8 = "msgResvEnd"
-	_MessageType_name_9 = "CustomMessage"
-)
+const _MessageType_name = "GetReaderCapabilitiesGetReaderConfigSetReaderConfigCloseConnectionResponseGetReaderCapabilitiesResponseGetReaderConfigResponseSetReaderConfigResponseCloseConnectionAddROSpecDeleteROSpecStartROSpecStopROSpecEnableROSpecDisableROSpecGetROSpecsAddROSpecResponseDeleteROSpecResponseStartROSpecResponseStopROSpecResponseEnableROSpecResponseDisableROSpecResponseGetROSpecsResponseAddAccessSpecDeleteAccessSpecEnableAccessSpecDisableAccessSpecGetAccessSpecsClientRequestOpGetSupportedVersionSetProtocolVersionAddAccessSpecResponseDeleteAccessSpecResponseEnableAccessSpecResponseDisableAccessSpecResponseGetAccessSpecsResponseClientRequestOpResponseGetSupportedVersionResponseSetProtocolVersionResponseGetReportROAccessReportKeepAliveReaderEventNotificationEnableEventsAndReportsKeepAliveAckErrorMessagemsgResvStartmsgResvEndCustomMessage"
 
-var (
-	_MessageType_index_0 = [...]uint8{0, 21, 36, 51, 74}
-	_MessageType_index_1 = [...]uint8{0, 29, 52, 75, 90}
-	_MessageType_index_2 = [...]uint8{0, 19, 37}
-	_MessageType_index_3 = [...]uint8{0, 27, 53}
-	_MessageType_index_4 = [...]uint8{0, 9, 32}
-)
+var _MessageType_map = map[MessageType]string{
+	1:    _MessageType_name[0:21],
+	2:    _MessageType_name[21:36],
+	3:    _MessageType_name[36:51],
+	4:    _MessageType_name[51:74],
+	11:   _MessageType_name[74:103],
+	12:   _MessageType_name[103:126],
+	13:   _MessageType_name[126:149],
+	14:   _MessageType_name[149:164],
+	20:   _MessageType_name[164:173],
+	21:   _MessageType_name[173:185],
+	22:   _MessageType_name[185:196],
+	23:   _MessageType_name[196:206],
+	24:   _MessageType_name[206:218],
+	25:   _MessageType_name[218:231],
+	26:   _MessageType_name[231:241],
+	30:   _MessageType_name[241:258],
+	31:   _MessageType_name[258:278],
+	32:   _MessageType_name[278:297],
+	33:   _MessageType_name[297:315],
+	34:   _MessageType_name[315:335],
+	35:   _MessageType_name[335:356],
+	36:   _MessageType_name[356:374],
+	40:   _MessageType_name[374:387],
+	41:   _MessageType_name[387:403],
+	42:   _MessageType_name[403:419],
+	43:   _MessageType_name[419:436],
+	44:   _MessageType_name[436:450],
+	45:   _MessageType_name[450:465],
+	46:   _MessageType_name[465:484],
+	47:   _MessageType_name[484:502],
+	50:   _MessageType_name[502:523],
+	51:   _MessageType_name[523:547],
+	52:   _MessageType_name[547:571],
+	53:   _MessageType_name[571:596],
+	54:   _MessageType_name[596:618],
+	55:   _MessageType_name[618:641],
+	56:   _MessageType_name[641:668],
+	57:   _MessageType_name[668:694],
+	60:   _MessageType_name[694:703],
+	61:   _MessageType_name[703:717],
+	62:   _MessageType_name[717:726],
+	63:   _MessageType_name[726:749],
+	64:   _MessageType_name[749:771],
+	72:   _MessageType_name[771:783],
+	100:  _MessageType_name[783:795],
+	900:  _MessageType_name[795:807],
+	999:  _MessageType_name[807:817],
+	1023: _MessageType_name[817:830],
+}
 
 func (i MessageType) String() string {
-	switch {
-	case 1 <= i && i <= 4:
-		i -= 1
-		return _MessageType_name_0[_MessageType_index_0[i]:_MessageType_index_0[i+1]]
-	case 11 <= i && i <= 14:
-		i -= 11
-		return _MessageType_name_1[_MessageType_index_1[i]:_MessageType_index_1[i+1]]
-	case 46 <= i && i <= 47:
-		i -= 46
-		return _MessageType_name_2[_MessageType_index_2[i]:_MessageType_index_2[i+1]]
-	case 56 <= i && i <= 57:
-		i -= 56
-		return _MessageType_name_3[_MessageType_index_3[i]:_MessageType_index_3[i+1]]
-	case 62 <= i && i <= 63:
-		i -= 62
-		return _MessageType_name_4[_MessageType_index_4[i]:_MessageType_index_4[i+1]]
-	case i == 72:
-		return _MessageType_name_5
-	case i == 100:
-		return _MessageType_name_6
-	case i == 900:
-		return _MessageType_name_7
-	case i == 999:
-		return _MessageType_name_8
-	case i == 1023:
-		return _MessageType_name_9
-	default:
-		return "MessageType(" + strconv.FormatInt(int64(i), 10) + ")"
+	if str, ok := _MessageType_map[i]; ok {
+		return str
 	}
+	return "MessageType(" + strconv.FormatInt(int64(i), 10) + ")"
 }

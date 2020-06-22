@@ -178,8 +178,9 @@ func connectSuccess(h *header, rfid net.Conn) error {
 }
 
 func closeSuccess(h *header, rfid net.Conn) error {
-	d, _ := hex.DecodeString("0404000000200000000000f600160080000c0005a738133c2c9e010000060000")
-	binary.BigEndian.PutUint32(d[6:10], uint32(h.id))
+	d, _ := hex.DecodeString("04040000000000000000011f000800000000")
+	binary.BigEndian.PutUint32(d[2:], uint32(len(d)))
+	binary.BigEndian.PutUint32(d[6:], uint32(h.id))
 	_, err := rfid.Write(d)
 	return err
 }
@@ -254,19 +255,21 @@ func TestReader_SendNotConnected(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if _, err := r.SendMessage(ctx, MessageType(0), nil); context.DeadlineExceeded != err {
+	if _, _, err := r.SendMessage(ctx, MessageType(0), nil); context.DeadlineExceeded != err {
 		t.Errorf("expected DeadlineExceeded; got: %v", err)
 	}
 }
 
 func TestReader_Connection(t *testing.T) {
+	const tout = 3 * time.Second
+
 	// Connect to a Reader, send some messages, close the Reader.
 	client, rfid := net.Pipe()
-	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+	if err := client.SetDeadline(time.Now().Add(tout)); err != nil {
 		t.Fatal(err)
 		return
 	}
-	if err := rfid.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+	if err := rfid.SetDeadline(time.Now().Add(tout)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -286,9 +289,10 @@ func TestReader_Connection(t *testing.T) {
 	rfidErrs := make(chan error, 1)
 	go func() {
 		defer close(rfidErrs)
+		defer rfid.Close()
 		h := header{version: Version1_0_1}
-		err := connectSuccess(&h, rfid)
 		for _, op := range []func(*header, net.Conn) error{
+			connectSuccess,
 			dummyRead,  // CustomMessage
 			dummyReply, // response
 			dummyRead,  // CloseConnection
@@ -303,19 +307,19 @@ func TestReader_Connection(t *testing.T) {
 	}()
 
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	resp, err := r.SendMessage(context.Background(), CustomMessage, data)
+	_, resp, err := r.SendMessage(context.Background(), CustomMessage, data)
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
 		t.Error("expected non-nil response")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), tout)
 	defer cancel()
-	if err := r.Shutdown(ctx); err == nil {
-		t.Error("Shutdown should fail because CloseConnection isn't mocked")
+	if err := r.Shutdown(ctx); err != nil {
+		t.Errorf("%+v", err)
+		_ = r.Close()
 	}
-	_ = r.Close()
 
 	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
@@ -331,7 +335,7 @@ func TestReader_Connection(t *testing.T) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
 
-	_, err = r.SendMessage(context.Background(), CustomMessage, data)
+	_, _, err = r.SendMessage(context.Background(), CustomMessage, data)
 	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
@@ -396,7 +400,7 @@ func TestReader_ManySenders(t *testing.T) {
 			data := make([]byte, sz)
 			rand.Read(data)
 
-			_, err := r.SendMessage(ctx, CustomMessage, data)
+			_, _, err := r.SendMessage(ctx, CustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}
@@ -405,9 +409,6 @@ func TestReader_ManySenders(t *testing.T) {
 
 	msgGrp.Wait()
 	t.Log("closing")
-	if err := r.Shutdown(context.Background()); err == nil {
-		t.Error("dummy reader doesn't handle CloseConnection, but Shutdown didn't return an error")
-	}
 	_ = r.Close()
 
 	close(sendErrs)
@@ -490,7 +491,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			data := make([]byte, sz)
 			rand.Read(data)
 
-			_, err := r.SendMessage(ctx, CustomMessage, data)
+			_, _, err := r.SendMessage(ctx, CustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}

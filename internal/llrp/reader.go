@@ -35,6 +35,7 @@ package llrp
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	goErrs "errors"
 	"github.com/pkg/errors"
 	"io"
@@ -68,27 +69,7 @@ type Reader struct {
 	version VersionNum // sent in headers; established during negotiation
 }
 
-// VersionNum corresponds to an LLRP version number.
-//
-// The version number is 3 bits
-// and embedded in each message sent between a Reader and Client.
-//
-// By default, this package will attempt to establish connection with Readers
-// using the higher version it knows,
-// but you can explicitly override it when creating a connection.
-// In either case, for versions greater than 1.0.1,
-// the Client will negotiate versions with the Reader and downgrade if necessary.
-type VersionNum uint8
-
-//noinspection GoSnakeCaseUsage: it seems like the best way to handle version strings as a variable name.
 const (
-	versionInvalid = VersionNum(0)
-
-	// Version1_0_1 corresponds to LLRP v1.0.1.
-	Version1_0_1 = VersionNum(1)
-	// Version1_1 corresponds to LLRP v1.1.
-	Version1_1 = VersionNum(2)
-
 	versionMin = Version1_0_1 // min version we support
 	versionMax = Version1_1   // max version we support
 )
@@ -260,23 +241,27 @@ func (r *Reader) Connect() error {
 //     }
 func (r *Reader) Shutdown(ctx context.Context) error {
 	r.logger.Println("putting CloseConnection in send queue")
-	resp, err := r.send(ctx, NewHdrOnlyMsg(CloseConnection))
-	r.logger.Println("handling response to CloseConnection")
-
+	rTyp, resp, err := r.SendMessage(ctx, CloseConnection, nil)
 	if err != nil {
 		return err
 	}
-	defer resp.Close()
 
-	switch resp.typ {
-	case CloseConnectionResponse, ErrorMessage:
+	r.logger.Println("handling response to CloseConnection")
+
+	ls := llrpStatus{}
+	switch rTyp {
+	case CloseConnectionResponse:
+		ccr := closeConnectionResponse{}
+		if err := ccr.UnmarshalBinary(resp); err != nil {
+			return errors.WithMessage(err, "unable to read CloseConnectionResponse")
+		}
+		ls = ccr.LLRPStatus
+	case ErrorMessage:
+		if err := ls.UnmarshalBinary(resp); err != nil {
+			return errors.WithMessage(err, "unable to read ErrorMessage response")
+		}
 	default:
-		return errors.Errorf("unexpected response to CloseConnection: %v", resp)
-	}
-
-	ls := LLRPStatus{}
-	if err := NewMsgReader(resp).readParameter(&ls); err != nil {
-		return errors.WithMessage(err, "unable to read CloseConnection response")
+		return errors.Errorf("unexpected response to CloseConnection: %v", rTyp)
 	}
 
 	if err := ls.Err(); err != nil {
@@ -303,13 +288,13 @@ const maxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
-func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) ([]byte, error) {
+func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) (MessageType, []byte, error) {
 	select {
 	case <-r.ready: // ensure the connection is negotiated
 	case <-r.done:
-		return nil, errors.Wrap(ErrReaderClosed, "message not sent")
+		return 0, nil, errors.Wrap(ErrReaderClosed, "message not sent")
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return 0, nil, ctx.Err()
 	}
 
 	var mOut Message
@@ -319,27 +304,27 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		var err error
 		mOut, err = NewByteMessage(typ, data)
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 	}
 
 	resp, err := r.send(ctx, mOut)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	defer resp.Close()
 
 	if resp.payloadLen > maxBufferedPayloadSz {
-		return nil, errors.Errorf("message payload exceeds max: %d > %d",
+		return 0, nil, errors.Errorf("message payload exceeds max: %d > %d",
 			resp.payloadLen, maxBufferedPayloadSz)
 	}
 
 	buffResponse := make([]byte, resp.payloadLen)
 	if _, err := io.ReadFull(resp.payload, buffResponse); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return buffResponse, nil
+	return resp.typ, buffResponse, nil
 }
 
 // writeHeader writes a message header to the connection.
@@ -455,6 +440,8 @@ func (r *Reader) handleIncoming() error {
 		if pw, ok := handler.(*io.PipeWriter); ok {
 			pw.Close()
 		}
+
+		r.logger.Printf("handled %v", m)
 
 		switch err {
 		case nil, io.ErrClosedPipe:
@@ -594,6 +581,8 @@ func (r *Reader) sendAck(mid messageID) {
 
 // getResponseHandler returns the handler for a given message's response.
 func (r *Reader) getResponseHandler(hdr header) io.Writer {
+	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
+
 	if hdr.typ == KeepAlive {
 		r.sendAck(hdr.id)
 		return ioutil.Discard
@@ -697,20 +686,27 @@ func (r *Reader) checkInitialMessage() error {
 	}
 	defer m.Close()
 
-	r.logger.Printf(">>> %v", m)
+	r.logger.Printf(">>> (initial) %v", m)
 	if m.typ != ReaderEventNotification {
 		return errors.Errorf("expected %v, but got %v", ReaderEventNotification, m.typ)
 	}
 
-	r.msgReader.Reset(m)
-
-	ren := readerEventNotification{}
-	if err := r.msgReader.read(&ren); err != nil {
-		return err
+	buf := make([]byte, m.payloadLen)
+	if _, err := io.ReadFull(m.payload, buf); err != nil {
+		return errors.Wrap(err, "failed to read message payload")
 	}
 
-	if ren.NotificationData.ConnectionAttempt != ConnectedSuccessfully {
-		return errors.Wrapf(err, "connection not successful: %v", ren.NotificationData)
+	ren := readerEventNotification{}
+	if err := ren.UnmarshalBinary(buf); err != nil {
+		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
+	}
+
+	if j, err := json.MarshalIndent(ren, "", "\t"); err == nil {
+		r.logger.Printf(">>> (initial) %s", j)
+	}
+
+	if ren.isConnectSuccess() {
+		return errors.Wrapf(err, "connection not successful: %+v", ren)
 	}
 
 	return m.Close()
@@ -723,7 +719,7 @@ func (r *Reader) checkInitialMessage() error {
 // but this method handles that case and returns a valid SupportedVersion struct.
 // As a result, error is only not nil when network communication or message processing fails;
 // if the error is not nil, the returned struct will indicate the correct version information.
-func (r *Reader) getSupportedVersion(ctx context.Context) (*SupportedVersion, error) {
+func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionResponse, error) {
 	resp, err := r.send(ctx, NewHdrOnlyMsg(GetSupportedVersion))
 	if err != nil {
 		return nil, err
@@ -732,9 +728,9 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*SupportedVersion, er
 
 	r.msgReader.Reset(resp)
 	// By default, we'll return version 1.0.1.
-	sv := SupportedVersion{
-		Current:   Version1_0_1,
-		Supported: Version1_0_1,
+	sv := getSupportedVersionResponse{
+		CurrentVersion:      Version1_0_1,
+		MaxSupportedVersion: Version1_0_1,
 	}
 
 	// Every response message that includes an LLRPStatus parameter
@@ -751,8 +747,8 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*SupportedVersion, er
 			return nil, err
 		}
 
-		if sv.Code == StatusMsgVerUnsupported {
-			sv.LLRPStatus = LLRPStatus{Code: StatusSuccess}
+		if sv.LLRPStatus.Status == StatusMsgVerUnsupported {
+			sv.LLRPStatus = llrpStatus{Status: StatusSuccess}
 		}
 
 	case GetSupportedVersionResponse:
@@ -761,7 +757,7 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*SupportedVersion, er
 		}
 	}
 
-	return &sv, errors.WithMessagef(sv.Err(), "%v returned an error", resp)
+	return &sv, errors.WithMessagef(sv.LLRPStatus.Err(), "%v returned an error", resp)
 }
 
 // negotiate LLRP versions with the RFID device.
@@ -776,19 +772,19 @@ func (r *Reader) negotiate() error {
 		return err
 	}
 
-	if sv.Current == r.version {
+	if sv.CurrentVersion == r.version {
 		r.logger.Printf("device version matches Reader: %v", r.version)
 		return nil
 	}
 
 	ver := r.version
-	if r.version > sv.Supported {
-		ver = sv.Supported
+	if r.version > sv.MaxSupportedVersion {
+		ver = sv.MaxSupportedVersion
 		r.logger.Printf("downgrading Reader version to match device max: %v", ver)
 		r.version = ver
 
 		// if the device is already using this, no need to set it
-		if sv.Current == r.version {
+		if sv.CurrentVersion == r.version {
 			return nil
 		}
 	}

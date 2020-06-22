@@ -48,6 +48,30 @@ type paramDecoder interface {
 	decode(*MsgReader) error
 }
 
+type fieldDescription struct {
+	fixedByteSize uint16
+	isTV          bool
+	isRepeatable  bool
+}
+
+type paramDescription struct {
+	fields []fieldDescription
+	params []paramDescription
+}
+
+var paramDesc = map[ParamType]paramDescription{
+	ParamUTCTimestamp: {fields: []fieldDescription{{fixedByteSize: 8}}}, // microseconds
+	ParamUptime:       {fields: []fieldDescription{{fixedByteSize: 8}}}, //microseconds
+	ParamTransmitPowerLevelTableEntry: {fields: []fieldDescription{
+		{fixedByteSize: 8}, // index
+	}},
+}
+
+func (mr *MsgReader) readDesc(v interface{}, d fieldDescription) error {
+
+	return nil
+}
+
 // hasData returns true if the reader current parameter has data.
 func (mr MsgReader) hasData() bool {
 	return mr.cur.typ != paramInvalid && mr.cur.length > 0
@@ -142,28 +166,6 @@ func (mr *MsgReader) ReadParameters(params ...pT) error {
 		}
 	}
 	return nil
-}
-
-func (mr *MsgReader) readOneOf(params ...pT) error {
-	prev, err := mr.readParam()
-	if err != nil {
-		return err
-	}
-
-	for _, p := range params {
-		if mr.cur.typ != p.getType() {
-			continue
-		}
-
-		if err := mr.read(p); err != nil {
-			return err
-		}
-
-		return mr.endParam(prev)
-	}
-
-	return errors.Errorf("unexpected parameter %v when looking for %v",
-		mr.cur.typ, params)
 }
 
 // readParameter reads a single, required parameter,

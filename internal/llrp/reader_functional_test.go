@@ -7,6 +7,7 @@ package llrp
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"github.com/pkg/errors"
 	"io"
@@ -28,7 +29,7 @@ func TestReader_withGolemu(t *testing.T) {
 
 	t.Run("hangup", testHangUp)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ {
 		t.Run("connect "+strconv.Itoa(i), testConnect)
 	}
 }
@@ -99,7 +100,10 @@ func benchmarkSend(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m, err := r.SendMessage(ctx, GetSupportedVersion, nil)
+		mt, m, err := r.SendMessage(ctx, GetSupportedVersion, nil)
+		if GetSupportedVersionResponse != mt {
+			b.Errorf("expected %v; got %v", GetSupportedVersionResponse, mt)
+		}
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -155,7 +159,7 @@ func benchmarkConnect(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err = r.SendMessage(ctx, GetSupportedVersion, nil)
+	_, _, err = r.SendMessage(ctx, GetSupportedVersion, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -196,25 +200,60 @@ func testConnect(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	var empty []byte
 
-	resp, err := r.SendMessage(ctx, SetReaderConfig, empty)
+	payload := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+	mt, resp, err := r.SendMessage(ctx, GetReaderConfig, payload)
+	cancel()
+
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
 		t.Error("expected non-nil response")
 	}
-	cancel()
 
-	<-time.After(20 * time.Second)
+	if GetReaderConfigResponse != mt {
+		t.Errorf("expected %v; got %v", GetReaderConfigResponse, mt)
+		if mt == ErrorMessage {
+			var errMsg errorMessage
+
+			if err := errMsg.UnmarshalBinary(resp); err != nil {
+				t.Error(err)
+				t.Logf("%# 02x", resp)
+			} else if err := errMsg.LLRPStatus.Err(); err != nil {
+				t.Logf("%+v", errMsg)
+				t.Error(err)
+			} else {
+				if r, err := json.MarshalIndent(errMsg, "", "\t"); err != nil {
+					t.Error(err)
+				} else {
+					t.Log(string(r))
+				}
+			}
+		}
+	} else {
+		var conf getReaderConfigResponse
+		if err := conf.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := conf.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		}
+
+		t.Logf("%+v", conf)
+
+		if r, err := json.MarshalIndent(conf, "", "\t"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log(string(r))
+		}
+	}
+
+	<-time.After(10 * time.Second)
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
-		if err == context.DeadlineExceeded {
-			if err := r.Close(); err != nil {
-				t.Error(err)
-			}
-		} else {
+		t.Errorf("%+v", err)
+		if err := r.Close(); err != nil {
 			t.Errorf("%+v", err)
 		}
 	}
