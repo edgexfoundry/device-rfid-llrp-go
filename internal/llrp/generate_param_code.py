@@ -9,6 +9,10 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
+#
+#
+#  SPDX-License-Identifier: Apache-2.0
+
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -589,17 +593,7 @@ class FieldSpec:
 @dataclass
 class ParamSpec:
     """ParamSpec specifies the parameters permitted in a certain context,
-    and under what conditions.
-
-    Some ParamSpecs are groups of parameters that can be presented in arbitrary order,
-    often associated with a particular Air Protocol.
-    The whole group may be optional/repeatable,
-    and individual elements of the group may be optional/repeatable.
-    If all the elements are optional, but the group itself isn't,
-    then it implies "at least one of these must be present".
-    If a group is repeatable, but all it's members are required and non-repeatable,
-    it means the elements can come in any order, but each must be given exactly once.
-    """
+    and under what conditions."""
     name: str  # name used for a struct; may be omitted from yaml to use the parameter name
     param_name: str  # name of an LLRP parameter type
     optional: bool = False  # parameter is "0-1" or "0-n"
@@ -619,11 +613,13 @@ class ParamSpec:
                          y['type'],
                          y.get('optional', False),
                          y.get('repeatable', False),
-                         y.get('airProtocol'))
+                         y.get('airProtocol'),
+                         )
 
     def struct_field(self) -> str:
         if self.repeatable:
             return f'{self.name} []{self.p_def.type_name}'
+        return ''
 
 
 @dataclass
@@ -764,9 +760,20 @@ class Container:
         if not any(self.parameters):
             return
 
+        # it's easier to just special-case timestamp than do much else with it
+        if self.type_id == 243 or self.type_name == 246:
+            with w.condition(f'subType := ParamType(binary.BigEndian.Uint16(data)); '
+                             f'subType == ParamUTCTimestamp'):
+                w.write('// TODO')
+                w.ifelse('subType == ParamUptime')
+                w.write('// TODO')
+            return
+
         # parameters/sub-parameters
         w.write('\n// sub-parameters')
         for i, p in enumerate(self.parameters):
+            sub = p.p_def
+
             if p.optional and all(pp.optional for pp in self.parameters[i:]):
                 if len(self.parameters) > i + 1:
                     w.write('\n// only optional parameters remain; return if no more data')
@@ -775,7 +782,6 @@ class Container:
                 with w.condition('len(data) == 0'):
                     w.write('return nil')
 
-            sub = p.p_def
 
             # add the header type check
             if sub.header_size == 1:  # TV parameter
@@ -818,14 +824,8 @@ class Container:
 
                             w.write('data = data[subLen:]')
                     else:
-                        w.write('subLen := binary.BigEndian.Uint16(data[2:])')
-                        with w.condition('int(subLen) > len(data)'):
-                            w.reterr(f'Param{sub.name} '
-                                     'says it has %d bytes,\n but only %d bytes remain',
-                                     ['subLen', 'len(data)'])
-
-                        if p.optional:
-                            w.write(f'{self.short}.{p.name} = new({sub.type_name})')
+                        sub.len_check(w)
+                        self.alloc(w, p)
 
                         if sub.can_inline():
                             exp = sub.fields[0].value(4)
@@ -838,6 +838,16 @@ class Container:
             else:
                 assert False
 
+    def alloc(self, w: GoWriter, p: ParamSpec):
+        if p.optional:
+            w.write(f'{self.short}.{p.name} = new({p.p_def.type_name})')
+
+    def len_check(self, w: GoWriter):
+        w.write('subLen := binary.BigEndian.Uint16(data[2:])')
+        with w.condition('int(subLen) > len(data)'):
+            w.reterr(f'Param{self.name} '
+                     'says it has %d bytes,\n but only %d bytes remain',
+                     ['subLen', 'len(data)'])
 
 @dataclass
 class Message(Container):
@@ -893,6 +903,7 @@ def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], D
     }
 
     parameters: Dict[str, Container] = {}
+
     messages: Dict[str, Message] = {}
 
     for y in definitions['types']:
@@ -1021,6 +1032,9 @@ def main():
         m.write_unmarshal(w)
 
     for p in parameters.values():
+        if p.type_id == 0:
+            continue
+
         w.write(f'// {p.type_name} is Parameter {p.type_id}, {p.name}.')
         if p.description:
             w.write('//')

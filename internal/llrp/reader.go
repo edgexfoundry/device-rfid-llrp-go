@@ -61,8 +61,6 @@ type Reader struct {
 	logger    ReaderLogger   // reports pressure on the ACK queue
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
-	msgReader *MsgReader
-
 	handlerMu sync.RWMutex
 	handlers  map[MessageType]responseHandler
 
@@ -89,7 +87,6 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
 		handlers:  make(map[MessageType]responseHandler),
-		msgReader: NewMsgReader(Message{}),
 	}
 
 	for _, opt := range opts {
@@ -726,7 +723,14 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	}
 	defer resp.Close()
 
-	r.msgReader.Reset(resp)
+	data := make([]byte, resp.payloadLen)
+	if _, err := io.ReadFull(resp.payload, data); err != nil {
+		return nil, err
+	}
+	if err := resp.Close(); err != nil {
+		return nil, err
+	}
+
 	// By default, we'll return version 1.0.1.
 	sv := getSupportedVersionResponse{
 		CurrentVersion:      Version1_0_1,
@@ -741,18 +745,21 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	default:
 		return nil, errors.Errorf("unexpected response to %v: %v", GetSupportedVersion, resp)
 	case ErrorMessage:
+		errMsg := errorMessage{}
 		// If the reader only supports v1.0.1, it returns VersionUnsupported.
 		// In that case, we'll drop the error so we can treat all results identically.
-		if err := r.msgReader.readParameter(&sv.LLRPStatus); err != nil {
+		if err := errMsg.UnmarshalBinary(data); err != nil {
 			return nil, err
 		}
+
+		sv.LLRPStatus = errMsg.LLRPStatus
 
 		if sv.LLRPStatus.Status == StatusMsgVerUnsupported {
 			sv.LLRPStatus = llrpStatus{Status: StatusSuccess}
 		}
 
 	case GetSupportedVersionResponse:
-		if err := r.msgReader.ReadFields(&sv); err != nil {
+		if err := sv.UnmarshalBinary(data); err != nil {
 			return nil, err
 		}
 	}

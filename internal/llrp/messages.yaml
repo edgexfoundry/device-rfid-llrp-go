@@ -102,6 +102,7 @@ parameters:
     fields:
       - name: C1G2XPCW2
         type: uint16
+
   - name: UTCTimestamp
     typeID: 128
     fields:
@@ -112,6 +113,7 @@ parameters:
     fields:
       - name: Microseconds
         type: microSecs64
+
   - name: GeneralDeviceCapabilities
     typeID: 137
     fields:
@@ -281,6 +283,7 @@ parameters:
         optional: true
       - type: GPITriggerValue
         optional: true
+
   - name: PeriodicTriggerValue
     typeID: 180
     fields:
@@ -291,6 +294,7 @@ parameters:
     parameters:
       - type: UTCTimestamp
         optional: true
+
   - name: GPITriggerValue
     typeID: 181
     fields:
@@ -755,6 +759,7 @@ parameters:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: FrequencyRSSILevelEntry
     typeID: 243
     fields:
@@ -768,9 +773,9 @@ parameters:
         type: dBm8
     parameters:
       - type: UTCTimestamp
-        optional: true
       - type: Uptime
         optional: true
+
   - name: ReaderEventNotificationSpec
     typeID: 244
     parameters:

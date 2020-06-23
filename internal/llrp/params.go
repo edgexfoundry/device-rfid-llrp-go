@@ -9,6 +9,7 @@
 package llrp
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/pkg/errors"
 	"strconv"
@@ -202,6 +203,32 @@ var tvLengths = map[ParamType]int{
 	ParamC1G2SingulationDetails:    4,
 }
 
+func (gcf *GeneralCapabilityFlags) MarshalJSON() ([]byte, error) {
+	if *gcf == 0 {
+		return []byte(`{}`), nil
+	}
+
+	b := &bytes.Buffer{}
+	b.WriteByte('{')
+
+	needsComma := false
+	if *gcf&CanSetAntennaProperties != 0 {
+		b.WriteString(`"CanSetAntennaProperties":true`)
+		needsComma = true
+	}
+
+	if *gcf&HasUTCClock != 0 {
+		if needsComma {
+			b.WriteByte(',')
+		}
+		b.WriteString(`"CanSetAntennaProperties":true`)
+		needsComma = true
+	}
+
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
 // isTV returns true if the ParamType is TV-encoded.
 // TV-encoded parameters have specific lengths which must be looked up.
 func (pt ParamType) isTV() bool {
@@ -331,10 +358,6 @@ var statusDeviceErrs = [...]string{
 }
 var _ = statusDeviceErrs[statusDeviceEnd-statusDeviceStart] // compile error == missing message
 
-func (sc StatusCode) encode(mb *MsgBuilder) error {
-	return mb.writeUint(uint64(sc), 2)
-}
-
 func (fe fieldError) Error() string {
 	return fe.ErrorCode.defaultText() + " at index " + strconv.Itoa(int(fe.FieldIndex))
 }
@@ -380,248 +403,12 @@ func (ls *llrpStatus) Err() error {
 	return errors.New(msg)
 }
 
-func (*llrpStatus) getType() ParamType {
-	return ParamLLRPStatus
-}
-
-func (fe *parameterError) getType() ParamType {
-	return ParamParameterError
-}
-
-func (fe *fieldError) getType() ParamType {
-	return ParamFieldError
-}
-
-func (ls *llrpStatus) encode(mb *MsgBuilder) error {
-	if err := mb.WriteFields(uint16(ls.Status), ls.ErrorDescription); err != nil {
-		return err
-	}
-
-	if ls.FieldError != nil {
-		if err := mb.writeParam(ls.FieldError); err != nil {
-			return err
-		}
-	}
-
-	if ls.ParameterError != nil {
-		if err := mb.writeParam(ls.ParameterError); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (fe *fieldError) encode(mb *MsgBuilder) error {
-	return mb.WriteFields(fe.FieldIndex, fe.ErrorCode)
-}
-
-func (fe *fieldError) decode(mr *MsgReader) error {
-	return mr.ReadFields(&(fe.FieldIndex), (*uint16)(&(fe.ErrorCode)))
-}
-
-func (pe *parameterError) encode(mb *MsgBuilder) error {
-	if err := mb.WriteFields(uint16(pe.ParameterType), uint16(pe.ErrorCode)); err != nil {
-		return err
-	}
-
-	if pe.FieldError != nil {
-		if err := mb.writeParam(pe.FieldError); err != nil {
-			return err
-		}
-	}
-
-	if pe.ParameterError != nil {
-		if err := mb.writeParam(pe.ParameterError); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (pe *parameterError) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint16)(&(pe.ParameterType)), (*uint16)(&(pe.ErrorCode))); err != nil {
-		return err
-	}
-
-	for mr.hasData() {
-		prev, err := mr.readParam()
-		if err != nil {
-			return err
-		}
-
-		switch mr.cur.typ {
-		case ParamFieldError:
-			pe.FieldError = new(fieldError)
-			if err := mr.read(pe.FieldError); err != nil {
-				return err
-			}
-		case ParamParameterError:
-			pe.ParameterError = new(parameterError)
-			if err := mr.read(pe.ParameterError); err != nil {
-				return err
-			}
-		default:
-			return errors.Errorf("expected either %v or %v, but found %v",
-				ParamFieldError, ParamParameterError, mr.cur)
-		}
-
-		if err := mr.endParam(prev); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *llrpStatus) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint16)(&(s.Status)), &(s.ErrorDescription)); err != nil {
-		return err
-	}
-
-	for mr.hasData() {
-		prev, err := mr.readParam()
-		if err != nil {
-			return err
-		}
-
-		switch mr.cur.typ {
-		case ParamFieldError:
-			f := &fieldError{}
-			if err := mr.read(f); err != nil {
-				return err
-			}
-			s.FieldError = f
-		case ParamParameterError:
-			p := &parameterError{}
-			if err := mr.read(p); err != nil {
-				return err
-			}
-			s.ParameterError = p
-		default:
-			return errors.Errorf("expected either %v or %v, but found %v",
-				ParamFieldError, ParamParameterError, mr.cur)
-		}
-
-		if err := mr.endParam(prev); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (sv *getSupportedVersionResponse) decode(mr *MsgReader) error {
-	if err := mr.ReadFields((*uint8)(&(sv.CurrentVersion)), (*uint8)(&(sv.MaxSupportedVersion))); err != nil {
-		return err
-	}
-	return mr.readParameter(&sv.LLRPStatus)
-}
-
-func (ren *readerEventNotification) decode(mr *MsgReader) error {
-	return mr.ReadParameters(&ren.ReaderEventNotificationData)
-}
-
-func (ren *readerEventNotification) encode(mb *MsgBuilder) error {
-	return mb.writeParam(&ren.ReaderEventNotificationData)
-}
-
-func (rend *readerEventNotificationData) encode(mb *MsgBuilder) error {
-	return mb.WriteParams(&rend.UTCTimestamp, rend.ConnectionAttemptEvent)
-}
-
-func (utcTS *utcTimestamp) encode(mb *MsgBuilder) error {
-	return mb.write(uint64(*utcTS))
-}
-
-func (cae *connectionAttemptEvent) encode(mb *MsgBuilder) error {
-	return mb.write(uint16(*cae))
-}
-
-func (*utcTimestamp) getType() ParamType {
-	return ParamUTCTimestamp
-}
-
-func (*connectionAttemptEvent) getType() ParamType {
-	return ParamConnectionAttemptEvent
-}
-
-func (*readerEventNotificationData) getType() ParamType {
-	return ParamReaderEventNotificationData
-}
-
-func (ren *readerEventNotificationData) decode(mr *MsgReader) error {
-	prev, err := mr.readParam()
-	if err != nil {
-		return err
-	}
-	if err := mr.read(&ren.UTCTimestamp); err != nil {
-		return err
-	}
-	if err := mr.endParam(prev); err != nil {
-		return err
-	}
-
-	for mr.hasData() {
-		prev, err := mr.readParam()
-		if err != nil {
-			return err
-		}
-
-		switch mr.cur.typ {
-		case ParamConnectionAttemptEvent:
-			if err := mr.read(ren.ConnectionAttemptEvent); err != nil {
-				return err
-			}
-		}
-
-		if err := mr.endParam(prev); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (ren *readerEventNotification) isConnectSuccess() bool {
 	if ren == nil || ren.ReaderEventNotificationData.ConnectionAttemptEvent == nil {
 		return false
 	}
 
 	return ConnSuccess == ConnectionAttemptEventType(*ren.ReaderEventNotificationData.ConnectionAttemptEvent)
-}
-
-func (gdc *generalDeviceCapabilities) decode(mr *MsgReader) error {
-	if err := mr.ReadFields(&gdc.MaxSupportedAntennas,
-		(*uint8)(&gdc.GeneralCapabilityFlags),
-		&gdc.DeviceManufacturerName,
-		&gdc.ModelName,
-		&gdc.ReaderFirmwareVersion); err != nil {
-		return err
-	}
-
-	for mr.hasData() {
-		prev, err := mr.readParam()
-		if err != nil {
-			return err
-		}
-
-		switch mr.cur.typ {
-		case ParamReceiveSensitivityTableEntry:
-			rste := receiveSensitivityTableEntry{}
-			if err := mr.read(&rste); err != nil {
-				return err
-			}
-			gdc.ReceiveSensitivityTableEntries = append(gdc.ReceiveSensitivityTableEntries, rste)
-		}
-
-		if err := mr.endParam(prev); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // TLV type 128 == UTC Timestamp, microseconds since 00:00:00 UTC, Jan 1, 1970.
@@ -656,29 +443,4 @@ func utcCurrent() timestamp {
 	return timestamp{
 		microseconds: uint64(time.Duration(time.Now().UnixNano()).Microseconds()),
 	}
-}
-
-func (ts *timestamp) getType() ParamType {
-	if ts.isUptime {
-		return ParamUptime
-	}
-	return ParamUTCTimestamp
-}
-
-func (ts *timestamp) decode(mr *MsgReader) error {
-	switch mr.cur.typ {
-	case ParamUTCTimestamp:
-		ts.isUptime = false
-		return mr.read(&ts.microseconds)
-	case ParamUptime:
-		ts.isUptime = true
-		return mr.read(&ts.microseconds)
-	default:
-		return errors.Errorf("expected %v or %v, but got %v",
-			ParamUptime, ParamUTCTimestamp, mr.cur.typ)
-	}
-}
-
-func (ts *timestamp) encode(mb *MsgBuilder) error {
-	return mb.writeUint(ts.microseconds, 8)
 }

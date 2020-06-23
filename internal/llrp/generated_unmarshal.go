@@ -6121,8 +6121,8 @@ type rfSurveyReportData struct {
 
 // UnmarshalBinary Parameter 242, RFSurveyReportData.
 func (p *rfSurveyReportData) UnmarshalBinary(data []byte) error {
-	if len(data) < 14 {
-		return errors.Errorf("ParamRFSurveyReportData requires at least 14 bytes "+
+	if len(data) < 26 {
+		return errors.Errorf("ParamRFSurveyReportData requires at least 26 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -6209,14 +6209,14 @@ type frequencyRSSILevelEntry struct {
 	Bandwidth    kHz
 	AverageRSSI  dBm8
 	PeakRSSI     dBm8
-	UTCTimestamp *utcTimestamp
+	UTCTimestamp utcTimestamp
 	Uptime       *uptime
 }
 
 // UnmarshalBinary Parameter 243, FrequencyRSSILevelEntry.
 func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
-	if len(data) < 10 {
-		return errors.Errorf("ParamFrequencyRSSILevelEntry requires at least 10 bytes "+
+	if len(data) < 22 {
+		return errors.Errorf("ParamFrequencyRSSILevelEntry requires at least 22 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -6225,51 +6225,10 @@ func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	p.AverageRSSI = dBm8(data[8])
 	p.PeakRSSI = dBm8(data[9])
 	data = data[10:]
-
-	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUTCTimestamp needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUTCTimestamp {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamUTCTimestamp says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.UTCTimestamp = new(utcTimestamp)
-		*p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
-		data = data[subLen:]
-	}
-
-	// Uptime is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUptime needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUptime {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamUptime says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.Uptime = new(uptime)
-		*p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
-		data = data[subLen:]
+		// TODO
+	} else if subType == ParamUptime {
+		// TODO
 	}
 
 	return nil
@@ -6319,8 +6278,8 @@ func (p *readerEventNotificationSpec) UnmarshalBinary(data []byte) error {
 
 // eventNotificationState is Parameter 245, EventNotificationState.
 type eventNotificationState struct {
-	ReaderEventType        ReaderEventType
-	NotificationStateFlags NotificationStateFlags
+	ReaderEventType     ReaderEventType
+	NotificationEnabled bool
 }
 
 // UnmarshalBinary Parameter 245, EventNotificationState.
@@ -6331,7 +6290,7 @@ func (p *eventNotificationState) UnmarshalBinary(data []byte) error {
 	}
 
 	p.ReaderEventType = ReaderEventType(binary.BigEndian.Uint16(data))
-	p.NotificationStateFlags = NotificationStateFlags(data[2])
+	p.NotificationEnabled = data[2]&0x80 != 0
 	return nil
 }
 
@@ -6741,8 +6700,8 @@ func (p *hoppingEvent) UnmarshalBinary(data []byte) error {
 
 // gpiEvent is Parameter 248, GPIEvent.
 type gpiEvent struct {
-	GPIPort       uint16
-	GPIEventFlags GPIEventFlags
+	GPIPort  uint16
+	GPIEvent bool
 }
 
 // UnmarshalBinary Parameter 248, GPIEvent.
@@ -6753,7 +6712,7 @@ func (p *gpiEvent) UnmarshalBinary(data []byte) error {
 	}
 
 	p.GPIPort = binary.BigEndian.Uint16(data)
-	p.GPIEventFlags = GPIEventFlags(data[2])
+	p.GPIEvent = data[2]&0x80 != 0
 	return nil
 }
 

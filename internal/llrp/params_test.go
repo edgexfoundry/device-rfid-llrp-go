@@ -6,43 +6,10 @@
 package llrp
 
 import (
-	"bytes"
 	"encoding/binary"
-	"io"
-	"reflect"
 	"testing"
 	"time"
 )
-
-func TestMsgReader_readUints(t *testing.T) {
-	data := []byte{
-		0x12,
-		0x34, 0x56,
-		0x78, 0x9a, 0xbc, 0xde,
-		0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0x12, 0x34,
-	}
-	reader := bytes.NewReader(data)
-	mr := NewMsgReader(Message{payload: reader})
-	mr.cur = parameter{length: uint16(len(data))}
-
-	type T struct {
-		U8  uint8
-		U16 uint16
-		U32 uint32
-		U64 uint64
-	}
-
-	exp := T{0x12, 0x3456, 0x789abcde, 0xf0123456789a1234}
-
-	v := T{}
-	if err := mr.ReadFields(&v.U8, &v.U16, &v.U32, &v.U64); err != nil {
-		t.Error(err)
-	}
-
-	if exp != v {
-		t.Errorf("expected %+v; got %+v", exp, v)
-	}
-}
 
 func TestMsgReader_readerEventNotification(t *testing.T) {
 	pConnAttempt := []byte{
@@ -90,6 +57,7 @@ func newReaderEventNotification(ts time.Time, ca ConnectionAttemptEventType) rea
 	}
 }
 
+/*
 func TestMsgReader_buildNotification(t *testing.T) {
 	ts := time.Unix(646327080, 0)
 	ren := newReaderEventNotification(ts, ConnFailedReasonUnknown)
@@ -131,7 +99,6 @@ func TestMsgReader_buildNotification(t *testing.T) {
 	}
 }
 
-/*
 func TestMsgReader_roundTrip(t *testing.T) {
 	ts := time.Unix(646327080, 0)
 	out := newReaderEventNotification(ts, ConnFailedReasonUnknown)
@@ -156,7 +123,6 @@ func TestMsgReader_roundTrip(t *testing.T) {
 		t.Errorf("mismatch: %+v != %+v", out, in)
 	}
 }
-*/
 
 func TestMsgReader_llrpStatus(t *testing.T) {
 	exp := llrpStatus{
@@ -240,6 +206,7 @@ func BenchmarkMsgReader_readerEventNotification(b *testing.B) {
 		}
 	}
 }
+*/
 
 func BenchmarkReaderEventNotification_UnmarshalBinary(b *testing.B) {
 	data := []byte{
