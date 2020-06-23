@@ -108,6 +108,7 @@ parameters:
     fields:
       - name: Microseconds
         type: microSecs64
+
   - name: Uptime
     typeID: 129
     fields:
@@ -140,7 +141,7 @@ parameters:
         repeatable: true
       - type: MaximumReceiveSensitivity
         optional: true
-        minVersion: '1.1'
+        version: 2
   - name: ReceiveSensitivityTableEntry
     typeID: 139
     fields:
@@ -262,8 +263,17 @@ parameters:
     parameters:
       - type: ROBoundarySpec
       - type: AISpec
+        optional: true
+        repeatable: true
+        group: specs
       - type: RFSurveySpec
+        optional: true
+        repeatable: true
+        group: specs
       - type: Custom
+        optional: true
+        repeatable: true
+        group: specs
       - type: LoopSpec
         optional: true
       - type: ROReportSpec
@@ -657,9 +667,10 @@ parameters:
     typeID: 240
     parameters:
       - type: EPCData
-        # optional: true
+        group: epc-data
       - type: EPC96
-        optional: true
+        group: epc-data
+
       - type: ROSpecID
         optional: true
       - type: SpecIndex
@@ -773,8 +784,9 @@ parameters:
         type: dBm8
     parameters:
       - type: UTCTimestamp
+        group: timestamp
       - type: Uptime
-        optional: true
+        group: timestamp
 
   - name: ReaderEventNotificationSpec
     typeID: 244
@@ -792,8 +804,10 @@ parameters:
     typeID: 246
     parameters:
       - type: UTCTimestamp
+        group: timestamp
       - type: Uptime
-        optional: true
+        group: timestamp
+
       - type: HoppingEvent
         optional: true
       - type: GPIEvent

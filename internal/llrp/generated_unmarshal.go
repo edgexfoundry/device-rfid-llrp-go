@@ -357,11 +357,6 @@ func (m *getSupportedVersionResponse) UnmarshalBinary(data []byte) error {
 	data = data[2:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamLLRPStatus needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
 	} else {
@@ -450,39 +445,20 @@ func (m *getReaderCapabilities) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.Custom = append(m.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.Custom = append(m.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -522,138 +498,59 @@ func (m *getReaderCapabilitiesResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGeneralDeviceCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGeneralDeviceCapabilities {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamGeneralDeviceCapabilities says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		m.GeneralDeviceCapabilities = new(generalDeviceCapabilities)
-		if err := m.GeneralDeviceCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamLLRPCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamLLRPCapabilities {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamLLRPCapabilities says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.LLRPCapabilities = new(llrpCapabilities)
-		if err := m.LLRPCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRegulatoryCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRegulatoryCapabilities {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamRegulatoryCapabilities says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.RegulatoryCapabilities = new(regulatoryCapabilities)
-		if err := m.RegulatoryCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2LLRPCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2LLRPCapabilities {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2LLRPCapabilities says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.C1G2LLRPCapabilities = new(c1G2LLRPCapabilities)
-		if err := m.C1G2LLRPCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		switch pt {
+		case ParamGeneralDeviceCapabilities:
+			m.GeneralDeviceCapabilities = new(generalDeviceCapabilities)
+			if err := m.GeneralDeviceCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.Custom = append(m.Custom, tmp)
-			data = data[subLen:]
+		case ParamLLRPCapabilities:
+			m.LLRPCapabilities = new(llrpCapabilities)
+			if err := m.LLRPCapabilities.UnmarshalBinary(data[4:28]); err != nil {
+				return err
+			}
+
+		case ParamRegulatoryCapabilities:
+			m.RegulatoryCapabilities = new(regulatoryCapabilities)
+			if err := m.RegulatoryCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2LLRPCapabilities:
+			m.C1G2LLRPCapabilities = new(c1G2LLRPCapabilities)
+			if err := m.C1G2LLRPCapabilities.UnmarshalBinary(data[4:7]); err != nil {
+				return err
+			}
+
+		default:
+			break group1
 		}
 
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
+		}
+
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.Custom = append(m.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -666,8 +563,8 @@ type addROSpecs struct {
 
 // UnmarshalBinary Message 20, AddROSpecs.
 func (m *addROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 89 {
-		return errors.Errorf("ParamAddROSpecs requires at least 89 bytes "+
+	if len(data) < 19 {
+		return errors.Errorf("ParamAddROSpecs requires at least 19 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -1026,38 +923,20 @@ func (m *getROSpecsResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// ROSpec is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROSpec {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamROSpec {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamROSpec says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp roSpec
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.ROSpec = append(m.ROSpec, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamROSpec says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(roSpec)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.ROSpec = append(m.ROSpec, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -1070,8 +949,8 @@ type addAccessSpec struct {
 
 // UnmarshalBinary Message 40, AddAccessSpec.
 func (m *addAccessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 42 {
-		return errors.Errorf("ParamAddAccessSpec requires at least 42 bytes "+
+	if len(data) < 23 {
+		return errors.Errorf("ParamAddAccessSpec requires at least 23 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -1326,38 +1205,20 @@ func (m *getAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// AccessSpec is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessSpec {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAccessSpec {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAccessSpec says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp accessSpec
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.AccessSpec = append(m.AccessSpec, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamAccessSpec says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(accessSpec)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.AccessSpec = append(m.AccessSpec, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -1449,11 +1310,45 @@ type roAccessReport struct {
 
 // UnmarshalBinary Message 61, ROAccessReport.
 func (m *roAccessReport) UnmarshalBinary(data []byte) error {
-	// ROAccessReport is a header-only message
-	if len(data) > 0 {
-		return errors.Errorf("ROAccessReport should be empty, but has %d bytes", len(data))
-	}
+	// ParamROAccessReport can be empty
 
+	// sub-parameters
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
+
+		switch pt {
+		case ParamTagReportData:
+			tmp := new(tagReportData)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			m.TagReportData = append(m.TagReportData, *tmp)
+		case ParamRFSurveyReportData:
+			tmp := new(rfSurveyReportData)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			m.RFSurveyReportData = append(m.RFSurveyReportData, *tmp)
+		case ParamCustom:
+			tmp := new(custom)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			m.Custom = append(m.Custom, *tmp)
+		default:
+			break group0
+		}
+
+	}
 	return nil
 }
 
@@ -1583,39 +1478,20 @@ func (m *getReaderConfig) UnmarshalBinary(data []byte) error {
 	data = data[7:]
 
 	// sub-parameters
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.Custom = append(m.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.Custom = append(m.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -1662,16 +1538,6 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamIdentification needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamIdentification {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1687,271 +1553,103 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
+group2:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaProperties needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaProperties {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAntennaProperties {
-				break
+		switch pt {
+		case ParamAntennaProperties:
+			tmp := new(antennaProperties)
+			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
+				return err
 			}
 
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAntennaProperties says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp antennaProperties
+			m.AntennaProperties = append(m.AntennaProperties, *tmp)
+		case ParamAntennaConfiguration:
+			tmp := new(antennaConfiguration)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.AntennaProperties = append(m.AntennaProperties, tmp)
-			data = data[subLen:]
+			m.AntennaConfiguration = append(m.AntennaConfiguration, *tmp)
+		default:
+			break group2
 		}
 
 	}
+group3:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaConfiguration needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaConfiguration {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAntennaConfiguration {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAntennaConfiguration says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp antennaConfiguration
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		switch pt {
+		case ParamReaderEventNotificationSpec:
+			m.ReaderEventNotificationSpec = new(readerEventNotificationSpec)
+			if err := m.ReaderEventNotificationSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.AntennaConfiguration = append(m.AntennaConfiguration, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReaderEventNotificationSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReaderEventNotificationSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamReaderEventNotificationSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.ReaderEventNotificationSpec = new(readerEventNotificationSpec)
-		if err := m.ReaderEventNotificationSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROReportSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamROReportSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.ROReportSpec = new(roReportSpec)
-		if err := m.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessReportSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamAccessReportSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.AccessReportSpec = new(accessReportSpec)
-		*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamLLRPConfigurationStateValue needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamLLRPConfigurationStateValue {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamLLRPConfigurationStateValue says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.LLRPConfigurationStateValue = new(llrpConfigurationStateValue)
-		*m.LLRPConfigurationStateValue = llrpConfigurationStateValue(binary.BigEndian.Uint32(data[4:]))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamKeepAliveSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamKeepAliveSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamKeepAliveSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.KeepAliveSpec = new(keepAliveSpec)
-		if err := m.KeepAliveSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPIPortCurrentState needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPIPortCurrentState {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamGPIPortCurrentState {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamGPIPortCurrentState says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp gpiPortCurrentState
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		case ParamROReportSpec:
+			m.ROReportSpec = new(roReportSpec)
+			if err := m.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.GPIPortCurrentState = append(m.GPIPortCurrentState, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPOWriteData needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPOWriteData {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamGPOWriteData {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamGPOWriteData says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp gpoWriteData
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		case ParamAccessReportSpec:
+			m.AccessReportSpec = new(accessReportSpec)
+			*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
+		case ParamLLRPConfigurationStateValue:
+			m.LLRPConfigurationStateValue = new(llrpConfigurationStateValue)
+			*m.LLRPConfigurationStateValue = llrpConfigurationStateValue(binary.BigEndian.Uint32(data[4:]))
+		case ParamKeepAliveSpec:
+			m.KeepAliveSpec = new(keepAliveSpec)
+			if err := m.KeepAliveSpec.UnmarshalBinary(data[4:9]); err != nil {
 				return err
 			}
 
-			m.GPOWriteData = append(m.GPOWriteData, tmp)
-			data = data[subLen:]
+		default:
+			break group3
 		}
 
 	}
+group4:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
+		switch pt {
+		case ParamGPIPortCurrentState:
+			tmp := new(gpiPortCurrentState)
+			if err := tmp.UnmarshalBinary(data[4:8]); err != nil {
+				return err
+			}
+
+			m.GPIPortCurrentState = append(m.GPIPortCurrentState, *tmp)
+		case ParamGPOWriteData:
+			tmp := new(gpoWriteData)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
+				return err
+			}
+
+			m.GPOWriteData = append(m.GPOWriteData, *tmp)
+		default:
+			break group4
+		}
+
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamEventsAndReports needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamEventsAndReports {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1964,38 +1662,20 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.Custom = append(m.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.Custom = append(m.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -2027,17 +1707,6 @@ func (m *setReaderConfig) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReaderEventNotificationSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReaderEventNotificationSpec {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2053,224 +1722,94 @@ func (m *setReaderConfig) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaProperties needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaProperties {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAntennaProperties {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAntennaProperties says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp antennaProperties
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.AntennaProperties = append(m.AntennaProperties, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaConfiguration needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaConfiguration {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAntennaConfiguration {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAntennaConfiguration says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp antennaConfiguration
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.AntennaConfiguration = append(m.AntennaConfiguration, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROReportSpec {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamROReportSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		m.ROReportSpec = new(roReportSpec)
-		if err := m.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessReportSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamAccessReportSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.AccessReportSpec = new(accessReportSpec)
-		*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamKeepAliveSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamKeepAliveSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamKeepAliveSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		m.KeepAliveSpec = new(keepAliveSpec)
-		if err := m.KeepAliveSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPOWriteData needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPOWriteData {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamGPOWriteData {
-				break
+		switch pt {
+		case ParamAntennaProperties:
+			tmp := new(antennaProperties)
+			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
+				return err
 			}
 
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamGPOWriteData says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp gpoWriteData
+			m.AntennaProperties = append(m.AntennaProperties, *tmp)
+		case ParamAntennaConfiguration:
+			tmp := new(antennaConfiguration)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.GPOWriteData = append(m.GPOWriteData, tmp)
-			data = data[subLen:]
+			m.AntennaConfiguration = append(m.AntennaConfiguration, *tmp)
+		default:
+			break group1
 		}
 
 	}
+group2:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPIPortCurrentState needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPIPortCurrentState {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamGPIPortCurrentState {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamGPIPortCurrentState says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp gpiPortCurrentState
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		switch pt {
+		case ParamROReportSpec:
+			m.ROReportSpec = new(roReportSpec)
+			if err := m.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			m.GPIPortCurrentState = append(m.GPIPortCurrentState, tmp)
-			data = data[subLen:]
+		case ParamAccessReportSpec:
+			m.AccessReportSpec = new(accessReportSpec)
+			*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
+		case ParamKeepAliveSpec:
+			m.KeepAliveSpec = new(keepAliveSpec)
+			if err := m.KeepAliveSpec.UnmarshalBinary(data[4:9]); err != nil {
+				return err
+			}
+
+		default:
+			break group2
 		}
 
 	}
+group3:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
+		switch pt {
+		case ParamGPOWriteData:
+			tmp := new(gpoWriteData)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
+				return err
+			}
+
+			m.GPOWriteData = append(m.GPOWriteData, *tmp)
+		case ParamGPIPortCurrentState:
+			tmp := new(gpiPortCurrentState)
+			if err := tmp.UnmarshalBinary(data[4:8]); err != nil {
+				return err
+			}
+
+			m.GPIPortCurrentState = append(m.GPIPortCurrentState, *tmp)
+		default:
+			break group3
+		}
+
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamEventsAndReports needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamEventsAndReports {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2283,38 +1822,20 @@ func (m *setReaderConfig) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			m.Custom = append(m.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		m.Custom = append(m.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -2599,17 +2120,13 @@ type epc96 struct {
 
 // UnmarshalBinary Parameter 13, EPC96.
 func (p *epc96) UnmarshalBinary(data []byte) error {
-	if len(data) < 12 {
-		return errors.Errorf("ParamEPC96 requires at least 12 bytes "+
-			"but only %d are available", len(data))
+	if len(data) != 12 {
+		return errors.Errorf("ParamEPC96 requires exactly 12 bytes "+
+			"but received %d", len(data))
 	}
 
 	p.EPC = make([]byte, 12)
 	copy(p.EPC, data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading EPC96, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -2759,8 +2276,8 @@ type generalDeviceCapabilities struct {
 
 // UnmarshalBinary Parameter 137, GeneralDeviceCapabilities.
 func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) < 37 {
-		return errors.Errorf("ParamGeneralDeviceCapabilities requires at least 37 bytes "+
+	if len(data) < 29 {
+		return errors.Errorf("ParamGeneralDeviceCapabilities requires at least 29 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -2776,69 +2293,38 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReceiveSensitivityTableEntry needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamReceiveSensitivityTableEntry {
 		return errors.Errorf("expected ParamReceiveSensitivityTableEntry, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamReceiveSensitivityTableEntry {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamReceiveSensitivityTableEntry says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp receiveSensitivityTableEntry
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.ReceiveSensitivityTableEntries = append(p.ReceiveSensitivityTableEntries, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamReceiveSensitivityTableEntry says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(receiveSensitivityTableEntry)
+		if err := tmp.UnmarshalBinary(data[4:8]); err != nil {
+			return err
+		}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamPerAntennaReceiveSensitivityRange needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.ReceiveSensitivityTableEntries = append(p.ReceiveSensitivityTableEntries, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamPerAntennaReceiveSensitivityRange {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamPerAntennaReceiveSensitivityRange {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamPerAntennaReceiveSensitivityRange says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp perAntennaReceiveSensitivityRange
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.PerAntennaReceiveSensitivityRanges = append(p.PerAntennaReceiveSensitivityRanges, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamPerAntennaReceiveSensitivityRange says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(perAntennaReceiveSensitivityRange)
+		if err := tmp.UnmarshalBinary(data[4:10]); err != nil {
+			return err
+		}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPIOCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.PerAntennaReceiveSensitivityRanges = append(p.PerAntennaReceiveSensitivityRanges, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamGPIOCapabilities {
@@ -2850,52 +2336,29 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 				" but only %d bytes remain", subLen, len(data))
 		}
 
-		if err := p.GPIOCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.GPIOCapabilities.UnmarshalBinary(data[4:8]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamPerAntennaAirProtocol needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamPerAntennaAirProtocol {
 		return errors.Errorf("expected ParamPerAntennaAirProtocol, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamPerAntennaAirProtocol {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamPerAntennaAirProtocol says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp perAntennaAirProtocol
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.PerAntennaAirProtocols = append(p.PerAntennaAirProtocols, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamPerAntennaAirProtocol says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(perAntennaAirProtocol)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
 
-	// MaximumReceiveSensitivity is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamMaximumReceiveSensitivity needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.PerAntennaAirProtocols = append(p.PerAntennaAirProtocols, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamMaximumReceiveSensitivity {
@@ -3032,17 +2495,6 @@ func (p *regulatoryCapabilities) UnmarshalBinary(data []byte) error {
 	data = data[4:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUHFBandCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUHFBandCapabilities {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3058,38 +2510,20 @@ func (p *regulatoryCapabilities) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -3105,110 +2539,48 @@ type uhfBandCapabilities struct {
 
 // UnmarshalBinary Parameter 144, UHFBandCapabilities.
 func (p *uhfBandCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) < 49 {
-		return errors.Errorf("ParamUHFBandCapabilities requires at least 49 bytes "+
+	if len(data) < 5 {
+		return errors.Errorf("ParamUHFBandCapabilities requires at least 5 bytes "+
 			"but only %d are available", len(data))
 	}
 
 	// sub-parameters
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamTransmitPowerLevelTableEntry {
-		return errors.Errorf("expected ParamTransmitPowerLevelTableEntry, but found %v", subType)
-	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamTransmitPowerLevelTableEntry {
-				break
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
+
+		switch pt {
+		case ParamTransmitPowerLevelTableEntry:
+			tmp := new(transmitPowerLevelTableEntry)
+			if err := tmp.UnmarshalBinary(data[4:8]); err != nil {
+				return err
 			}
 
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamTransmitPowerLevelTableEntry says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp transmitPowerLevelTableEntry
+			p.TransmitPowerLevelTableEntry = append(p.TransmitPowerLevelTableEntry, *tmp)
+		case ParamFrequencyInformation:
+			tmp := new(frequencyInformation)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.TransmitPowerLevelTableEntry = append(p.TransmitPowerLevelTableEntry, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFrequencyInformation needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamFrequencyInformation {
-		return errors.Errorf("expected ParamFrequencyInformation, but found %v", subType)
-	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamFrequencyInformation {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamFrequencyInformation says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp frequencyInformation
+			p.FrequencyInformation = append(p.FrequencyInformation, *tmp)
+		case ParamUHFC1G2RFModeTable:
+			tmp := new(uhfc1G2RFModeTable)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.FrequencyInformation = append(p.FrequencyInformation, tmp)
-			data = data[subLen:]
+			p.UHFC1G2RFModeTable = append(p.UHFC1G2RFModeTable, *tmp)
+		default:
+			break group0
 		}
 
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUHFC1G2RFModeTable needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamUHFC1G2RFModeTable {
-		return errors.Errorf("expected ParamUHFC1G2RFModeTable, but found %v", subType)
-	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamUHFC1G2RFModeTable {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamUHFC1G2RFModeTable says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp uhfc1G2RFModeTable
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.UHFC1G2RFModeTable = append(p.UHFC1G2RFModeTable, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// RFSurveyFrequencyCapabilities is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFSurveyFrequencyCapabilities needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRFSurveyFrequencyCapabilities {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3217,7 +2589,7 @@ func (p *uhfBandCapabilities) UnmarshalBinary(data []byte) error {
 		}
 
 		p.RFSurveyFrequencyCapabilities = new(rfSurveyFrequencyCapabilities)
-		if err := p.RFSurveyFrequencyCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.RFSurveyFrequencyCapabilities.UnmarshalBinary(data[4:12]); err != nil {
 			return err
 		}
 
@@ -3263,49 +2635,20 @@ func (p *frequencyInformation) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFrequencyHopTable needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFrequencyHopTable {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamFrequencyHopTable {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamFrequencyHopTable says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp frequencyHopTable
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.FrequencyHopTable = append(p.FrequencyHopTable, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamFrequencyHopTable says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(frequencyHopTable)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
 
-	// FixedFrequencyTable is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFixedFrequencyTable needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.FrequencyHopTable = append(p.FrequencyHopTable, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFixedFrequencyTable {
@@ -3414,17 +2757,17 @@ type roSpec struct {
 	Priority           uint8
 	ROSpecCurrentState ROSpecCurrentStateType
 	ROBoundarySpec     roBoundarySpec
-	AISpec             aiSpec
-	RFSurveySpec       rfSurveySpec
-	Custom             custom
+	AISpec             []aiSpec
+	RFSurveySpec       []rfSurveySpec
+	Custom             []custom
 	LoopSpec           *loopSpec
 	ROReportSpec       *roReportSpec
 }
 
 // UnmarshalBinary Parameter 177, ROSpec.
 func (p *roSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 85 {
-		return errors.Errorf("ParamROSpec requires at least 85 bytes "+
+	if len(data) < 15 {
+		return errors.Errorf("ParamROSpec requires at least 15 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -3434,11 +2777,6 @@ func (p *roSpec) UnmarshalBinary(data []byte) error {
 	data = data[6:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROBoundarySpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamROBoundarySpec {
 		return errors.Errorf("expected ParamROBoundarySpec, but found %v", subType)
 	} else {
@@ -3455,116 +2793,66 @@ func (p *roSpec) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAISpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAISpec {
-		return errors.Errorf("expected ParamAISpec, but found %v", subType)
-	} else {
+groupspecs:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamAISpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		if err := p.AISpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamAISpec:
+			tmp := new(aiSpec)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			p.AISpec = append(p.AISpec, *tmp)
+		case ParamRFSurveySpec:
+			tmp := new(rfSurveySpec)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			p.RFSurveySpec = append(p.RFSurveySpec, *tmp)
+		case ParamCustom:
+			tmp := new(custom)
+			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			p.Custom = append(p.Custom, *tmp)
+		default:
+			break groupspecs
 		}
 
-		data = data[subLen:]
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFSurveySpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamRFSurveySpec {
-		return errors.Errorf("expected ParamRFSurveySpec, but found %v", subType)
-	} else {
+group2:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamRFSurveySpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		if err := p.RFSurveySpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamLoopSpec:
+			p.LoopSpec = new(loopSpec)
+			*p.LoopSpec = loopSpec(binary.BigEndian.Uint32(data[4:]))
+		case ParamROReportSpec:
+			p.ROReportSpec = new(roReportSpec)
+			if err := p.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		default:
+			break group2
 		}
 
-		data = data[subLen:]
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamCustom {
-		return errors.Errorf("expected ParamCustom, but found %v", subType)
-	} else {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamCustom says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		if err := p.Custom.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamLoopSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamLoopSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamLoopSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.LoopSpec = new(loopSpec)
-		*p.LoopSpec = loopSpec(binary.BigEndian.Uint32(data[4:]))
-		data = data[subLen:]
-	}
-
-	// ROReportSpec is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROReportSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamROReportSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ROReportSpec = new(roReportSpec)
-		if err := p.ROReportSpec.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -3576,8 +2864,8 @@ type roBoundarySpec struct {
 
 // UnmarshalBinary Parameter 178, ROBoundarySpec.
 func (p *roBoundarySpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 14 {
-		return errors.Errorf("ParamROBoundarySpec requires at least 14 bytes "+
+	if len(data) < 5 {
+		return errors.Errorf("ParamROBoundarySpec requires at least 5 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -3596,11 +2884,6 @@ func (p *roBoundarySpec) UnmarshalBinary(data []byte) error {
 		}
 
 		data = data[subLen:]
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROSpecStopTrigger needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamROSpecStopTrigger {
@@ -3640,57 +2923,33 @@ func (p *roSpecStartTrigger) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamPeriodicTriggerValue needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamPeriodicTriggerValue {
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamPeriodicTriggerValue says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.PeriodicTriggerValue = new(periodicTriggerValue)
-		if err := p.PeriodicTriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamPeriodicTriggerValue:
+			p.PeriodicTriggerValue = new(periodicTriggerValue)
+			if err := p.PeriodicTriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamGPITriggerValue:
+			p.GPITriggerValue = new(gpiTriggerValue)
+			if err := p.GPITriggerValue.UnmarshalBinary(data[4:11]); err != nil {
+				return err
+			}
+
+		default:
+			break group0
 		}
 
-		data = data[subLen:]
 	}
-
-	// GPITriggerValue is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPITriggerValue needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPITriggerValue {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamGPITriggerValue says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.GPITriggerValue = new(gpiTriggerValue)
-		if err := p.GPITriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -3713,17 +2972,6 @@ func (p *periodicTriggerValue) UnmarshalBinary(data []byte) error {
 	data = data[8:]
 
 	// sub-parameters
-
-	// UTCTimestamp is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUTCTimestamp needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUTCTimestamp {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3778,17 +3026,6 @@ func (p *roSpecStopTrigger) UnmarshalBinary(data []byte) error {
 	data = data[5:]
 
 	// sub-parameters
-
-	// GPITriggerValue is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPITriggerValue needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPITriggerValue {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3797,7 +3034,7 @@ func (p *roSpecStopTrigger) UnmarshalBinary(data []byte) error {
 		}
 
 		p.GPITriggerValue = new(gpiTriggerValue)
-		if err := p.GPITriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.GPITriggerValue.UnmarshalBinary(data[4:11]); err != nil {
 			return err
 		}
 
@@ -3817,8 +3054,8 @@ type aiSpec struct {
 
 // UnmarshalBinary Parameter 183, AISpec.
 func (p *aiSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 18 {
-		return errors.Errorf("ParamAISpec requires at least 18 bytes "+
+	if len(data) < 9 {
+		return errors.Errorf("ParamAISpec requires at least 9 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -3834,11 +3071,6 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAISpecStopTrigger needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAISpecStopTrigger {
 		return errors.Errorf("expected ParamAISpecStopTrigger, but found %v", subType)
 	} else {
@@ -3855,69 +3087,38 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamInventoryParameterSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamInventoryParameterSpec {
 		return errors.Errorf("expected ParamInventoryParameterSpec, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamInventoryParameterSpec {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamInventoryParameterSpec says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp inventoryParameterSpec
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.InventoryParameterSpec = append(p.InventoryParameterSpec, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamInventoryParameterSpec says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(inventoryParameterSpec)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.InventoryParameterSpec = append(p.InventoryParameterSpec, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -3943,57 +3144,33 @@ func (p *aiSpecStopTrigger) UnmarshalBinary(data []byte) error {
 	data = data[5:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPITriggerValue needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPITriggerValue {
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamGPITriggerValue says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.GPITriggerValue = new(gpiTriggerValue)
-		if err := p.GPITriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamGPITriggerValue:
+			p.GPITriggerValue = new(gpiTriggerValue)
+			if err := p.GPITriggerValue.UnmarshalBinary(data[4:11]); err != nil {
+				return err
+			}
+
+		case ParamTagObservationTrigger:
+			p.TagObservationTrigger = new(tagObservationTrigger)
+			if err := p.TagObservationTrigger.UnmarshalBinary(data[4:16]); err != nil {
+				return err
+			}
+
+		default:
+			break group0
 		}
 
-		data = data[subLen:]
 	}
-
-	// TagObservationTrigger is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamTagObservationTrigger needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamTagObservationTrigger {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamTagObservationTrigger says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.TagObservationTrigger = new(tagObservationTrigger)
-		if err := p.TagObservationTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -4041,75 +3218,35 @@ func (p *inventoryParameterSpec) UnmarshalBinary(data []byte) error {
 	data = data[3:]
 
 	// sub-parameters
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaConfiguration needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaConfiguration {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamAntennaConfiguration {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamAntennaConfiguration says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp antennaConfiguration
+		switch pt {
+		case ParamAntennaConfiguration:
+			tmp := new(antennaConfiguration)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.AntennaConfiguration = append(p.AntennaConfiguration, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
+			p.AntennaConfiguration = append(p.AntennaConfiguration, *tmp)
+		case ParamCustom:
+			tmp := new(custom)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+			p.Custom = append(p.Custom, *tmp)
+		default:
+			break group0
 		}
 
 	}
-
 	return nil
 }
 
@@ -4135,11 +3272,6 @@ func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
 	data = data[10:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFSurveySpecStopTrigger needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamRFSurveySpecStopTrigger {
 		return errors.Errorf("expected ParamRFSurveySpecStopTrigger, but found %v", subType)
 	} else {
@@ -4149,45 +3281,27 @@ func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
 				" but only %d bytes remain", subLen, len(data))
 		}
 
-		if err := p.RFSurveySpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.RFSurveySpecStopTrigger.UnmarshalBinary(data[4:13]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -4228,8 +3342,8 @@ type accessSpec struct {
 
 // UnmarshalBinary Parameter 207, AccessSpec.
 func (p *accessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 38 {
-		return errors.Errorf("ParamAccessSpec requires at least 38 bytes "+
+	if len(data) < 19 {
+		return errors.Errorf("ParamAccessSpec requires at least 19 bytes "+
 			"but only %d are available", len(data))
 	}
 
@@ -4241,11 +3355,6 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 	data = data[12:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessSpecStopTrigger needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAccessSpecStopTrigger {
 		return errors.Errorf("expected ParamAccessSpecStopTrigger, but found %v", subType)
 	} else {
@@ -4255,16 +3364,11 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 				" but only %d bytes remain", subLen, len(data))
 		}
 
-		if err := p.AccessSpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.AccessSpecStopTrigger.UnmarshalBinary(data[4:7]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessCommand needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAccessCommand {
@@ -4283,16 +3387,6 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAccessReportSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessReportSpec {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4305,38 +3399,20 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -4400,278 +3476,84 @@ func (p *accessCommand) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Read needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Read {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Read says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.C1G2Read = new(c1G2Read)
-		if err := p.C1G2Read.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamC1G2Read:
+			p.C1G2Read = new(c1G2Read)
+			if err := p.C1G2Read.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Write:
+			p.C1G2Write = new(c1G2Write)
+			if err := p.C1G2Write.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Kill:
+			p.C1G2Kill = new(c1G2Kill)
+			if err := p.C1G2Kill.UnmarshalBinary(data[4:10]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Recommission:
+			p.C1G2Recommission = new(c1G2Recommission)
+			if err := p.C1G2Recommission.UnmarshalBinary(data[4:11]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Lock:
+			p.C1G2Lock = new(c1G2Lock)
+			if err := p.C1G2Lock.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockErase:
+			p.C1G2BlockErase = new(c1G2BlockErase)
+			if err := p.C1G2BlockErase.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockWrite:
+			p.C1G2BlockWrite = new(c1G2BlockWrite)
+			if err := p.C1G2BlockWrite.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockPermalock:
+			p.C1G2BlockPermalock = new(c1G2BlockPermalock)
+			if err := p.C1G2BlockPermalock.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2GetBlockPermalockStatus:
+			p.C1G2GetBlockPermalockStatus = new(c1G2GetBlockPermalockStatus)
+			if err := p.C1G2GetBlockPermalockStatus.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamClientRequestOpSpec:
+			p.ClientRequestOpSpec = new(clientRequestOpSpec)
+			*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
+		case ParamCustom:
+			p.Custom = new(custom)
+			if err := p.Custom.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		default:
+			break group1
 		}
 
-		data = data[subLen:]
 	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Write needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Write {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Write says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Write = new(c1G2Write)
-		if err := p.C1G2Write.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Kill needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Kill {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Kill says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Kill = new(c1G2Kill)
-		if err := p.C1G2Kill.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Recommission needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Recommission {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Recommission says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Recommission = new(c1G2Recommission)
-		if err := p.C1G2Recommission.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Lock needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Lock {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Lock says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Lock = new(c1G2Lock)
-		if err := p.C1G2Lock.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockErase needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockErase {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockErase says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockErase = new(c1G2BlockErase)
-		if err := p.C1G2BlockErase.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockWrite needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockWrite {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockWrite says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockWrite = new(c1G2BlockWrite)
-		if err := p.C1G2BlockWrite.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockPermalock needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockPermalock {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockPermalock says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockPermalock = new(c1G2BlockPermalock)
-		if err := p.C1G2BlockPermalock.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2GetBlockPermalockStatus needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2GetBlockPermalockStatus {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2GetBlockPermalockStatus says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2GetBlockPermalockStatus = new(c1G2GetBlockPermalockStatus)
-		if err := p.C1G2GetBlockPermalockStatus.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamClientRequestOpSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamClientRequestOpSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamClientRequestOpSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ClientRequestOpSpec = new(clientRequestOpSpec)
-		*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
-		data = data[subLen:]
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamCustom says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.Custom = new(custom)
-		if err := p.Custom.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -4717,11 +3599,6 @@ func (p *clientRequestResponse) UnmarshalBinary(data []byte) error {
 	data = data[4:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamEPCData needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEPCData {
 		return errors.Errorf("expected ParamEPCData, but found %v", subType)
 	} else {
@@ -4738,278 +3615,84 @@ func (p *clientRequestResponse) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Read needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Read {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Read says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.C1G2Read = new(c1G2Read)
-		if err := p.C1G2Read.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamC1G2Read:
+			p.C1G2Read = new(c1G2Read)
+			if err := p.C1G2Read.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Write:
+			p.C1G2Write = new(c1G2Write)
+			if err := p.C1G2Write.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Kill:
+			p.C1G2Kill = new(c1G2Kill)
+			if err := p.C1G2Kill.UnmarshalBinary(data[4:10]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Recommission:
+			p.C1G2Recommission = new(c1G2Recommission)
+			if err := p.C1G2Recommission.UnmarshalBinary(data[4:11]); err != nil {
+				return err
+			}
+
+		case ParamC1G2Lock:
+			p.C1G2Lock = new(c1G2Lock)
+			if err := p.C1G2Lock.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockErase:
+			p.C1G2BlockErase = new(c1G2BlockErase)
+			if err := p.C1G2BlockErase.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockWrite:
+			p.C1G2BlockWrite = new(c1G2BlockWrite)
+			if err := p.C1G2BlockWrite.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2BlockPermalock:
+			p.C1G2BlockPermalock = new(c1G2BlockPermalock)
+			if err := p.C1G2BlockPermalock.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamC1G2GetBlockPermalockStatus:
+			p.C1G2GetBlockPermalockStatus = new(c1G2GetBlockPermalockStatus)
+			if err := p.C1G2GetBlockPermalockStatus.UnmarshalBinary(data[4:15]); err != nil {
+				return err
+			}
+
+		case ParamClientRequestOpSpec:
+			p.ClientRequestOpSpec = new(clientRequestOpSpec)
+			*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
+		case ParamCustom:
+			p.Custom = new(custom)
+			if err := p.Custom.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		default:
+			break group1
 		}
 
-		data = data[subLen:]
 	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Write needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Write {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Write says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Write = new(c1G2Write)
-		if err := p.C1G2Write.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Kill needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Kill {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Kill says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Kill = new(c1G2Kill)
-		if err := p.C1G2Kill.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Recommission needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Recommission {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Recommission says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Recommission = new(c1G2Recommission)
-		if err := p.C1G2Recommission.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Lock needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Lock {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2Lock says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2Lock = new(c1G2Lock)
-		if err := p.C1G2Lock.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockErase needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockErase {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockErase says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockErase = new(c1G2BlockErase)
-		if err := p.C1G2BlockErase.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockWrite needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockWrite {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockWrite says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockWrite = new(c1G2BlockWrite)
-		if err := p.C1G2BlockWrite.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockPermalock needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockPermalock {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2BlockPermalock says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2BlockPermalock = new(c1G2BlockPermalock)
-		if err := p.C1G2BlockPermalock.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2GetBlockPermalockStatus needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2GetBlockPermalockStatus {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2GetBlockPermalockStatus says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2GetBlockPermalockStatus = new(c1G2GetBlockPermalockStatus)
-		if err := p.C1G2GetBlockPermalockStatus.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamClientRequestOpSpec needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamClientRequestOpSpec {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamClientRequestOpSpec says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ClientRequestOpSpec = new(clientRequestOpSpec)
-		*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
-		data = data[subLen:]
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamCustom says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.Custom = new(custom)
-		if err := p.Custom.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -5132,122 +3815,59 @@ func (p *antennaConfiguration) UnmarshalBinary(data []byte) error {
 	data = data[2:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFReceiver needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRFReceiver {
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamRFReceiver says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.RFReceiver = new(rfReceiver)
-		*p.RFReceiver = rfReceiver(binary.BigEndian.Uint16(data[4:]))
-		data = data[subLen:]
-	}
+		switch pt {
+		case ParamRFReceiver:
+			p.RFReceiver = new(rfReceiver)
+			*p.RFReceiver = rfReceiver(binary.BigEndian.Uint16(data[4:]))
+		case ParamRFTransmitter:
+			p.RFTransmitter = new(rfTransmitter)
+			if err := p.RFTransmitter.UnmarshalBinary(data[4:10]); err != nil {
+				return err
+			}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
+		default:
+			break group0
+		}
 
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFTransmitter needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
 	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRFTransmitter {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamRFTransmitter says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.RFTransmitter = new(rfTransmitter)
-		if err := p.RFTransmitter.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2InventoryCommand needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2InventoryCommand {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2InventoryCommand {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2InventoryCommand says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp c1G2InventoryCommand
+		switch pt {
+		case ParamC1G2InventoryCommand:
+			tmp := new(c1G2InventoryCommand)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.C1G2InventoryCommand = append(p.C1G2InventoryCommand, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
+			p.C1G2InventoryCommand = append(p.C1G2InventoryCommand, *tmp)
+		case ParamCustom:
+			tmp := new(custom)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+			p.Custom = append(p.Custom, *tmp)
+		default:
+			break group1
 		}
 
 	}
-
 	return nil
 }
 
@@ -5339,11 +3959,6 @@ func (p *roReportSpec) UnmarshalBinary(data []byte) error {
 	data = data[3:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamTagReportContentSelector needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamTagReportContentSelector {
 		return errors.Errorf("expected ParamTagReportContentSelector, but found %v", subType)
 	} else {
@@ -5360,38 +3975,20 @@ func (p *roReportSpec) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -5433,75 +4030,35 @@ func (p *tagReportContentSelector) UnmarshalBinary(data []byte) error {
 	data = data[2:]
 
 	// sub-parameters
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2EPCMemorySelector needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2EPCMemorySelector {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2EPCMemorySelector {
-				break
+		switch pt {
+		case ParamC1G2EPCMemorySelector:
+			tmp := new(c1G2EPCMemorySelector)
+			if err := tmp.UnmarshalBinary(data[4:5]); err != nil {
+				return err
 			}
 
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2EPCMemorySelector says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp c1G2EPCMemorySelector
+			p.C1G2EPCMemorySelector = append(p.C1G2EPCMemorySelector, *tmp)
+		case ParamCustom:
+			tmp := new(custom)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.C1G2EPCMemorySelector = append(p.C1G2EPCMemorySelector, tmp)
-			data = data[subLen:]
+			p.Custom = append(p.Custom, *tmp)
+		default:
+			break group0
 		}
 
 	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
-		}
-
-	}
-
 	return nil
 }
 
@@ -5522,7 +4079,7 @@ func (p *accessReportSpec) UnmarshalBinary(data []byte) error {
 // tagReportData is Parameter 240, TagReportData.
 type tagReportData struct {
 	EPCData                                 epcData
-	EPC96                                   *epc96
+	EPC96                                   epc96
 	ROSpecID                                *roSpecID
 	SpecIndex                               *specIndex
 	InventoryParameterSpecID                *inventoryParameterSpecID
@@ -5560,519 +4117,296 @@ func (p *tagReportData) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEPCData {
-		return errors.Errorf("expected ParamEPCData, but found %v", subType)
-	} else {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamEPCData says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		if err := p.EPCData.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamEPC96 {
-		return errors.Errorf("expected ParamEPC96, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamROSpecID {
-		return errors.Errorf("expected ParamROSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamSpecIndex {
-		return errors.Errorf("expected ParamSpecIndex, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamInventoryParameterSpecID {
-		return errors.Errorf("expected ParamInventoryParameterSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamAntennaID {
-		return errors.Errorf("expected ParamAntennaID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamPeakRSSI {
-		return errors.Errorf("expected ParamPeakRSSI, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamChannelIndex {
-		return errors.Errorf("expected ParamChannelIndex, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamFirstSeenUTC {
-		return errors.Errorf("expected ParamFirstSeenUTC, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamFirstSeenUptime {
-		return errors.Errorf("expected ParamFirstSeenUptime, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamLastSeenUTC {
-		return errors.Errorf("expected ParamLastSeenUTC, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamLastSeenUptime {
-		return errors.Errorf("expected ParamLastSeenUptime, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamTagSeenCount {
-		return errors.Errorf("expected ParamTagSeenCount, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamC1G2PC {
-		return errors.Errorf("expected ParamC1G2PC, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamC1G2XPCW1 {
-		return errors.Errorf("expected ParamC1G2XPCW1, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamC1G2XPCW2 {
-		return errors.Errorf("expected ParamC1G2XPCW2, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamC1G2CRC {
-		return errors.Errorf("expected ParamC1G2CRC, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamAccessSpecID {
-		return errors.Errorf("expected ParamAccessSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2ReadOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2ReadOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2ReadOpSpecResult {
-				break
+	if data[0]&0x80 == 1 {
+		// TV parameter
+		if subType := ParamType(data[0]); subType != ParamEPC96 {
+			return errors.Errorf("expected ParamEPC96, but found %v", subType)
+		} else {
+			if err := p.EPC96.UnmarshalBinary(data[1:13]); err != nil {
+				return err
 			}
 
+		}
+
+	} else {
+		if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEPCData {
+			return errors.Errorf("expected ParamEPCData, but found %v", subType)
+		} else {
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamEPCData says it has %d bytes,"+
+					" but only %d bytes remain", subLen, len(data))
+			}
+
+			if err := p.EPCData.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+			data = data[subLen:]
+		}
+
+	}
+
+group1:
+	for len(data) > 1 {
+		pt := ParamType(data[0])
+		switch pt {
+		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
+			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
+			data = data[5:]
+		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
+			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamInventoryParameterSpecID:
+			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
+			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamAntennaID:
+			p.AntennaID = new(antennaID)
+			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamPeakRSSI:
+			p.PeakRSSI = new(peakRSSI)
+			*p.PeakRSSI = peakRSSI(dBm8(data[4]))
+			data = data[2:]
+		case ParamChannelIndex:
+			p.ChannelIndex = new(channelIndex)
+			*p.ChannelIndex = channelIndex(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamFirstSeenUTC:
+			p.FirstSeenUTC = new(firstSeenUTC)
+			*p.FirstSeenUTC = firstSeenUTC(binary.BigEndian.Uint64(data[4:]))
+			data = data[9:]
+		case ParamFirstSeenUptime:
+			p.FirstSeenUptime = new(firstSeenUptime)
+			*p.FirstSeenUptime = firstSeenUptime(binary.BigEndian.Uint64(data[4:]))
+			data = data[9:]
+		case ParamLastSeenUTC:
+			p.LastSeenUTC = new(lastSeenUTC)
+			*p.LastSeenUTC = lastSeenUTC(binary.BigEndian.Uint64(data[4:]))
+			data = data[9:]
+		case ParamLastSeenUptime:
+			p.LastSeenUptime = new(lastSeenUptime)
+			*p.LastSeenUptime = lastSeenUptime(binary.BigEndian.Uint64(data[4:]))
+			data = data[9:]
+		case ParamTagSeenCount:
+			p.TagSeenCount = new(tagSeenCount)
+			*p.TagSeenCount = tagSeenCount(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		default:
+			break group1
+		}
+
+	}
+group2:
+	for len(data) > 1 {
+		pt := ParamType(data[0])
+		switch pt {
+		case ParamC1G2PC:
+			tmp := new(c1G2PC)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+
+			p.C1G2PC = append(p.C1G2PC, *tmp)
+			data = data[3:]
+		case ParamC1G2XPCW1:
+			tmp := new(c1G2XPCW1)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+
+			p.C1G2XPCW1 = append(p.C1G2XPCW1, *tmp)
+			data = data[3:]
+		case ParamC1G2XPCW2:
+			tmp := new(c1G2XPCW2)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+
+			p.C1G2XPCW2 = append(p.C1G2XPCW2, *tmp)
+			data = data[3:]
+		case ParamC1G2CRC:
+			tmp := new(c1G2CRC)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+
+			p.C1G2CRC = append(p.C1G2CRC, *tmp)
+			data = data[3:]
+		default:
+			break group2
+		}
+
+	}
+	if subType := ParamType(data[0]); subType == ParamAccessSpecID {
+		p.AccessSpecID = new(accessSpecID)
+		*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[4:]))
+	}
+
+	if data[0]&0x80 == 1 {
+		// TV parameter
+		if subType := ParamType(data[0]); subType == ParamClientRequestOpSpecResult {
+			tmp := new(clientRequestOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+
+			p.ClientRequestOpSpecResult = append(p.ClientRequestOpSpecResult, *tmp)
+		}
+
+	} else {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		switch pt {
+		case ParamC1G2ReadOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2ReadOpSpecResult
+			tmp := new(c1G2ReadOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.C1G2ReadOpSpecResult = append(p.C1G2ReadOpSpecResult, tmp)
+			p.C1G2ReadOpSpecResult = append(p.C1G2ReadOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2WriteOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2WriteOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2WriteOpSpecResult {
-				break
-			}
-
+		case ParamC1G2WriteOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2WriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2WriteOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
 				return err
 			}
 
-			p.C1G2WriteOpSpecResult = append(p.C1G2WriteOpSpecResult, tmp)
+			p.C1G2WriteOpSpecResult = append(p.C1G2WriteOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2KillOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2KillOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2KillOpSpecResult {
-				break
-			}
-
+		case ParamC1G2KillOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2KillOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2KillOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.C1G2KillOpSpecResult = append(p.C1G2KillOpSpecResult, tmp)
+			p.C1G2KillOpSpecResult = append(p.C1G2KillOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2LockOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2LockOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2LockOpSpecResult {
-				break
-			}
-
+		case ParamC1G2LockOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2LockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2LockOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.C1G2LockOpSpecResult = append(p.C1G2LockOpSpecResult, tmp)
+			p.C1G2LockOpSpecResult = append(p.C1G2LockOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockEraseOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockEraseOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2BlockEraseOpSpecResult {
-				break
-			}
-
+		case ParamC1G2BlockEraseOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2BlockEraseOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2BlockEraseOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.C1G2BlockEraseOpSpecResult = append(p.C1G2BlockEraseOpSpecResult, tmp)
+			p.C1G2BlockEraseOpSpecResult = append(p.C1G2BlockEraseOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockWriteOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockWriteOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2BlockWriteOpSpecResult {
-				break
-			}
-
+		case ParamC1G2BlockWriteOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2BlockWriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2BlockWriteOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
 				return err
 			}
 
-			p.C1G2BlockWriteOpSpecResult = append(p.C1G2BlockWriteOpSpecResult, tmp)
+			p.C1G2BlockWriteOpSpecResult = append(p.C1G2BlockWriteOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2RecommissionOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2RecommissionOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2RecommissionOpSpecResult {
-				break
-			}
-
+		case ParamC1G2RecommissionOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2RecommissionOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2RecommissionOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.C1G2RecommissionOpSpecResult = append(p.C1G2RecommissionOpSpecResult, tmp)
+			p.C1G2RecommissionOpSpecResult = append(p.C1G2RecommissionOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2BlockPermalockOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2BlockPermalockOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2BlockPermalockOpSpecResult {
-				break
-			}
-
+		case ParamC1G2BlockPermalockOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2BlockPermalockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			tmp := new(c1G2BlockPermalockOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.C1G2BlockPermalockOpSpecResult = append(p.C1G2BlockPermalockOpSpecResult, tmp)
+			p.C1G2BlockPermalockOpSpecResult = append(p.C1G2BlockPermalockOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2GetBlockPermalockStatusOpSpecResult needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2GetBlockPermalockStatusOpSpecResult {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2GetBlockPermalockStatusOpSpecResult {
-				break
-			}
-
+		case ParamC1G2GetBlockPermalockStatusOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp c1G2GetBlockPermalockStatusOpSpecResult
+			tmp := new(c1G2GetBlockPermalockStatusOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.C1G2GetBlockPermalockStatusOpSpecResult = append(p.C1G2GetBlockPermalockStatusOpSpecResult, tmp)
+			p.C1G2GetBlockPermalockStatusOpSpecResult = append(p.C1G2GetBlockPermalockStatusOpSpecResult, *tmp)
 			data = data[subLen:]
-		}
-
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamClientRequestOpSpecResult {
-		return errors.Errorf("expected ParamClientRequestOpSpecResult, but found %v", ParamType(data[0]))
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
+		case ParamClientRequestOpSpecResult:
+			tmp := new(clientRequestOpSpecResult)
+			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
+				return err
 			}
 
+			p.ClientRequestOpSpecResult = append(p.ClientRequestOpSpecResult, *tmp)
+			data = data[3:]
+		case ParamCustom:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamCustom says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
 
-			var tmp custom
+			tmp := new(custom)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
-			p.Custom = append(p.Custom, tmp)
+			p.Custom = append(p.Custom, *tmp)
 			data = data[subLen:]
 		}
 
@@ -6127,77 +4461,55 @@ func (p *rfSurveyReportData) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-	if ParamType(data[0]) != ParamROSpecID {
-		return errors.Errorf("expected ParamROSpecID, but found %v", ParamType(data[0]))
-	}
+group0:
+	for len(data) > 1 {
+		pt := ParamType(data[0])
+		switch pt {
+		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
+			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
+			data = data[5:]
+		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
+			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		default:
+			break group0
+		}
 
-	if ParamType(data[0]) != ParamSpecIndex {
-		return errors.Errorf("expected ParamSpecIndex, but found %v", ParamType(data[0]))
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFrequencyRSSILevelEntry needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamFrequencyRSSILevelEntry {
 		return errors.Errorf("expected ParamFrequencyRSSILevelEntry, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamFrequencyRSSILevelEntry {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamFrequencyRSSILevelEntry says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp frequencyRSSILevelEntry
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.FrequencyRSSILevelEntry = append(p.FrequencyRSSILevelEntry, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamFrequencyRSSILevelEntry says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
-	}
+		tmp := new(frequencyRSSILevelEntry)
+		if err := tmp.UnmarshalBinary(data[4:26]); err != nil {
+			return err
+		}
 
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
+		p.FrequencyRSSILevelEntry = append(p.FrequencyRSSILevelEntry, *tmp)
+		data = data[subLen:]
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -6210,14 +4522,14 @@ type frequencyRSSILevelEntry struct {
 	AverageRSSI  dBm8
 	PeakRSSI     dBm8
 	UTCTimestamp utcTimestamp
-	Uptime       *uptime
+	Uptime       uptime
 }
 
 // UnmarshalBinary Parameter 243, FrequencyRSSILevelEntry.
 func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
-	if len(data) < 22 {
-		return errors.Errorf("ParamFrequencyRSSILevelEntry requires at least 22 bytes "+
-			"but only %d are available", len(data))
+	if len(data) != 22 {
+		return errors.Errorf("ParamFrequencyRSSILevelEntry requires exactly 22 bytes "+
+			"but received %d", len(data))
 	}
 
 	p.Frequency = binary.BigEndian.Uint32(data)
@@ -6225,12 +4537,26 @@ func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	p.AverageRSSI = dBm8(data[8])
 	p.PeakRSSI = dBm8(data[9])
 	data = data[10:]
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUTCTimestamp {
-		// TODO
-	} else if subType == ParamUptime {
-		// TODO
-	}
 
+	// sub-parameters
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
+
+		switch pt {
+		case ParamUTCTimestamp:
+			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
+		case ParamUptime:
+			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
+		default:
+			return errors.Errorf("found %v when needed either UTCTimestamp or Uptime", pt)
+		}
+
+	}
 	return nil
 }
 
@@ -6250,27 +4576,19 @@ func (p *readerEventNotificationSpec) UnmarshalBinary(data []byte) error {
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEventNotificationState {
 		return errors.Errorf("expected ParamEventNotificationState, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamEventNotificationState {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamEventNotificationState says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp eventNotificationState
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.EventNotificationState = append(p.EventNotificationState, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamEventNotificationState says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(eventNotificationState)
+		if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
+			return err
+		}
+
+		p.EventNotificationState = append(p.EventNotificationState, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -6297,7 +4615,7 @@ func (p *eventNotificationState) UnmarshalBinary(data []byte) error {
 // readerEventNotificationData is Parameter 246, ReaderEventNotificationData.
 type readerEventNotificationData struct {
 	UTCTimestamp                   utcTimestamp
-	Uptime                         *uptime
+	Uptime                         uptime
 	HoppingEvent                   *hoppingEvent
 	GPIEvent                       *gpiEvent
 	ROSpecEvent                    *roSpecEvent
@@ -6321,364 +4639,116 @@ func (p *readerEventNotificationData) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamUTCTimestamp {
-		return errors.Errorf("expected ParamUTCTimestamp, but found %v", subType)
-	} else {
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamUTCTimestamp says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
-		data = data[subLen:]
-	}
+		switch pt {
+		case ParamUTCTimestamp:
+			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
+		case ParamUptime:
+			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
+		default:
+			return errors.Errorf("found %v when needed either UTCTimestamp or Uptime", pt)
+		}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
 	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamUptime needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUptime {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamUptime says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.Uptime = new(uptime)
-		*p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamHoppingEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamHoppingEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamHoppingEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.HoppingEvent = new(hoppingEvent)
-		*p.HoppingEvent = hoppingEvent(binary.BigEndian.Uint16(data[4:]))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamGPIEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPIEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamGPIEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.GPIEvent = new(gpiEvent)
-		if err := p.GPIEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamROSpecEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROSpecEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamROSpecEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ROSpecEvent = new(roSpecEvent)
-		if err := p.ROSpecEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReportBufferLevelWarningEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReportBufferLevelWarningEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamReportBufferLevelWarningEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ReportBufferLevelWarningEvent = new(reportBufferLevelWarningEvent)
-		*p.ReportBufferLevelWarningEvent = reportBufferLevelWarningEvent(data[4])
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReportBufferOverflowErrorEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReportBufferOverflowErrorEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamReportBufferOverflowErrorEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ReportBufferOverflowErrorEvent = new(reportBufferOverflowErrorEvent)
-		if err := p.ReportBufferOverflowErrorEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamReaderExceptionEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReaderExceptionEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamReaderExceptionEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ReaderExceptionEvent = new(readerExceptionEvent)
-		if err := p.ReaderExceptionEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamRFSurveyEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRFSurveyEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamRFSurveyEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.RFSurveyEvent = new(rfSurveyEvent)
-		if err := p.RFSurveyEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAISpecEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAISpecEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamAISpecEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.AISpecEvent = new(aiSpecEvent)
-		if err := p.AISpecEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamAntennaEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAntennaEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamAntennaEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.AntennaEvent = new(antennaEvent)
-		if err := p.AntennaEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamConnectionAttemptEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamConnectionAttemptEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamConnectionAttemptEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ConnectionAttemptEvent = new(connectionAttemptEvent)
-		*p.ConnectionAttemptEvent = connectionAttemptEvent(ConnectionAttemptEventType(binary.BigEndian.Uint16(data[4:])))
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamConnectionCloseEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamConnectionCloseEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamConnectionCloseEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ConnectionCloseEvent = new(connectionCloseEvent)
-		if err := p.ConnectionCloseEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamSpecLoopEvent needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamSpecLoopEvent {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamSpecLoopEvent says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.SpecLoopEvent = new(specLoopEvent)
-		if err := p.SpecLoopEvent.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		switch pt {
+		case ParamHoppingEvent:
+			p.HoppingEvent = new(hoppingEvent)
+			*p.HoppingEvent = hoppingEvent(binary.BigEndian.Uint16(data[4:]))
+		case ParamGPIEvent:
+			p.GPIEvent = new(gpiEvent)
+			if err := p.GPIEvent.UnmarshalBinary(data[4:7]); err != nil {
 				return err
 			}
 
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		case ParamROSpecEvent:
+			p.ROSpecEvent = new(roSpecEvent)
+			if err := p.ROSpecEvent.UnmarshalBinary(data[4:13]); err != nil {
+				return err
+			}
+
+		case ParamReportBufferLevelWarningEvent:
+			p.ReportBufferLevelWarningEvent = new(reportBufferLevelWarningEvent)
+			*p.ReportBufferLevelWarningEvent = reportBufferLevelWarningEvent(data[4])
+		case ParamReportBufferOverflowErrorEvent:
+			p.ReportBufferOverflowErrorEvent = new(reportBufferOverflowErrorEvent)
+			if err := p.ReportBufferOverflowErrorEvent.UnmarshalBinary(data[4:4]); err != nil {
+				return err
+			}
+
+		case ParamReaderExceptionEvent:
+			p.ReaderExceptionEvent = new(readerExceptionEvent)
+			if err := p.ReaderExceptionEvent.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamRFSurveyEvent:
+			p.RFSurveyEvent = new(rfSurveyEvent)
+			if err := p.RFSurveyEvent.UnmarshalBinary(data[4:9]); err != nil {
+				return err
+			}
+
+		case ParamAISpecEvent:
+			p.AISpecEvent = new(aiSpecEvent)
+			if err := p.AISpecEvent.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamAntennaEvent:
+			p.AntennaEvent = new(antennaEvent)
+			if err := p.AntennaEvent.UnmarshalBinary(data[4:7]); err != nil {
+				return err
+			}
+
+		case ParamConnectionAttemptEvent:
+			p.ConnectionAttemptEvent = new(connectionAttemptEvent)
+			*p.ConnectionAttemptEvent = connectionAttemptEvent(ConnectionAttemptEventType(binary.BigEndian.Uint16(data[4:])))
+		case ParamConnectionCloseEvent:
+			p.ConnectionCloseEvent = new(connectionCloseEvent)
+			if err := p.ConnectionCloseEvent.UnmarshalBinary(data[4:4]); err != nil {
+				return err
+			}
+
+		case ParamSpecLoopEvent:
+			p.SpecLoopEvent = new(specLoopEvent)
+			if err := p.SpecLoopEvent.UnmarshalBinary(data[4:12]); err != nil {
+				return err
+			}
+
+		default:
+			break group1
 		}
 
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
+		}
+
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -6756,8 +4826,7 @@ type reportBufferOverflowErrorEvent struct{}
 // UnmarshalBinary Parameter 251, ReportBufferOverflowErrorEvent.
 func (p *reportBufferOverflowErrorEvent) UnmarshalBinary(data []byte) error {
 	if len(data) != 0 {
-		return errors.Errorf("ParamReportBufferOverflowErrorEvent requires exactly 0 bytes "+
-			"but received %d", len(data))
+		return errors.Errorf("ParamReportBufferOverflowErrorEvent must be empty, but has %d bytes", len(data))
 	}
 
 	return nil
@@ -6790,93 +4859,53 @@ func (p *readerExceptionEvent) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamROSpecID {
-		return errors.Errorf("expected ParamROSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamSpecIndex {
-		return errors.Errorf("expected ParamSpecIndex, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamInventoryParameterSpecID {
-		return errors.Errorf("expected ParamInventoryParameterSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamAntennaID {
-		return errors.Errorf("expected ParamAntennaID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamAccessSpecID {
-		return errors.Errorf("expected ParamAccessSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamOpSpecID {
-		return errors.Errorf("expected ParamOpSpecID, but found %v", ParamType(data[0]))
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+group0:
+	for len(data) > 1 {
+		pt := ParamType(data[0])
+		switch pt {
+		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
+			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
+			data = data[5:]
+		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
+			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamInventoryParameterSpecID:
+			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
+			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamAntennaID:
+			p.AntennaID = new(antennaID)
+			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		case ParamAccessSpecID:
+			p.AccessSpecID = new(accessSpecID)
+			*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[4:]))
+			data = data[5:]
+		case ParamOpSpecID:
+			p.OpSpecID = new(opSpecID)
+			*p.OpSpecID = opSpecID(binary.BigEndian.Uint16(data[4:]))
+			data = data[3:]
+		default:
+			break group0
 		}
 
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
+		}
+
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -6921,14 +4950,12 @@ func (p *aiSpecEvent) UnmarshalBinary(data []byte) error {
 	data = data[7:]
 
 	// sub-parameters
+	if subType := ParamType(data[0]); subType == ParamC1G2SingulationDetails {
+		p.C1G2SingulationDetails = new(c1G2SingulationDetails)
+		if err := p.C1G2SingulationDetails.UnmarshalBinary(data[1:5]); err != nil {
+			return err
+		}
 
-	// C1G2SingulationDetails is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if ParamType(data[0]) != ParamC1G2SingulationDetails {
-		return errors.Errorf("expected ParamC1G2SingulationDetails, but found %v", ParamType(data[0]))
 	}
 
 	return nil
@@ -6972,8 +4999,7 @@ type connectionCloseEvent struct{}
 // UnmarshalBinary Parameter 257, ConnectionCloseEvent.
 func (p *connectionCloseEvent) UnmarshalBinary(data []byte) error {
 	if len(data) != 0 {
-		return errors.Errorf("ParamConnectionCloseEvent requires exactly 0 bytes "+
-			"but received %d", len(data))
+		return errors.Errorf("ParamConnectionCloseEvent must be empty, but has %d bytes", len(data))
 	}
 
 	return nil
@@ -7003,57 +5029,33 @@ func (p *llrpStatus) UnmarshalBinary(data []byte) error {
 	}
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFieldError needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFieldError {
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamFieldError says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.FieldError = new(fieldError)
-		if err := p.FieldError.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamFieldError:
+			p.FieldError = new(fieldError)
+			if err := p.FieldError.UnmarshalBinary(data[4:8]); err != nil {
+				return err
+			}
+
+		case ParamParameterError:
+			p.ParameterError = new(parameterError)
+			if err := p.ParameterError.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		default:
+			break group0
 		}
 
-		data = data[subLen:]
 	}
-
-	// ParameterError is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamParameterError needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamParameterError {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamParameterError says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.ParameterError = new(parameterError)
-		if err := p.ParameterError.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -7095,57 +5097,33 @@ func (p *parameterError) UnmarshalBinary(data []byte) error {
 	data = data[4:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamParameterError needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamParameterError {
+group0:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamParameterError says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.ParameterError = new(parameterError)
-		if err := p.ParameterError.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamParameterError:
+			p.ParameterError = new(parameterError)
+			if err := p.ParameterError.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		case ParamFieldError:
+			p.FieldError = new(fieldError)
+			if err := p.FieldError.UnmarshalBinary(data[4:8]); err != nil {
+				return err
+			}
+
+		default:
+			break group0
 		}
 
-		data = data[subLen:]
 	}
-
-	// FieldError is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamFieldError needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFieldError {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamFieldError says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.FieldError = new(fieldError)
-		if err := p.FieldError.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -7183,27 +5161,19 @@ func (p *uhfc1G2RFModeTable) UnmarshalBinary(data []byte) error {
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamUHFC1G2RFModeTableEntry {
 		return errors.Errorf("expected ParamUHFC1G2RFModeTableEntry, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamUHFC1G2RFModeTableEntry {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamUHFC1G2RFModeTableEntry says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp uhfc1G2RFModeTableEntry
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.UHFC1G2RFModeTableEntry = append(p.UHFC1G2RFModeTableEntry, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamUHFC1G2RFModeTableEntry says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(uhfc1G2RFModeTableEntry)
+		if err := tmp.UnmarshalBinary(data[4:32]); err != nil {
+			return err
+		}
+
+		p.UHFC1G2RFModeTableEntry = append(p.UHFC1G2RFModeTableEntry, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -7263,123 +5233,63 @@ func (p *c1G2InventoryCommand) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2Filter needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Filter {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2Filter {
-				break
-			}
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamC1G2Filter says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
+		}
 
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2Filter says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
+		tmp := new(c1G2Filter)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
 
-			var tmp c1G2Filter
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+		p.C1G2Filter = append(p.C1G2Filter, *tmp)
+		data = data[subLen:]
+	}
+
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
+		}
+
+		switch pt {
+		case ParamC1G2RFControl:
+			p.C1G2RFControl = new(c1G2RFControl)
+			if err := p.C1G2RFControl.UnmarshalBinary(data[4:8]); err != nil {
 				return err
 			}
 
-			p.C1G2Filter = append(p.C1G2Filter, tmp)
-			data = data[subLen:]
+		case ParamC1G2SingulationControl:
+			p.C1G2SingulationControl = new(c1G2SingulationControl)
+			if err := p.C1G2SingulationControl.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+
+		default:
+			break group1
 		}
 
 	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2RFControl needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2RFControl {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2RFControl says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2RFControl = new(c1G2RFControl)
-		if err := p.C1G2RFControl.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2SingulationControl needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2SingulationControl {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2SingulationControl says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2SingulationControl = new(c1G2SingulationControl)
-		if err := p.C1G2SingulationControl.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
-		}
-
-		data = data[subLen:]
-	}
-
-	// Custom is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamCustom needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamCustom {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp custom
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamCustom says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(custom)
+		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+
+		p.Custom = append(p.Custom, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil
@@ -7404,11 +5314,6 @@ func (p *c1G2Filter) UnmarshalBinary(data []byte) error {
 	data = data[1:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2TagInventoryMask needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamC1G2TagInventoryMask {
 		return errors.Errorf("expected ParamC1G2TagInventoryMask, but found %v", subType)
 	} else {
@@ -7425,53 +5330,30 @@ func (p *c1G2Filter) UnmarshalBinary(data []byte) error {
 		data = data[subLen:]
 	}
 
-	// only optional parameters remain; return if no more data
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2TagInventoryStateAwareFilterAction needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TagInventoryStateAwareFilterAction {
+group1:
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2TagInventoryStateAwareFilterAction says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
+			return errors.Errorf("%v says it has %d bytes,"+
+				" but only %d bytes remain", pt, subLen, len(data))
 		}
 
-		p.C1G2TagInventoryStateAwareFilterAction = new(c1G2TagInventoryStateAwareFilterAction)
-		if err := p.C1G2TagInventoryStateAwareFilterAction.UnmarshalBinary(data[4:subLen]); err != nil {
-			return err
+		switch pt {
+		case ParamC1G2TagInventoryStateAwareFilterAction:
+			p.C1G2TagInventoryStateAwareFilterAction = new(c1G2TagInventoryStateAwareFilterAction)
+			if err := p.C1G2TagInventoryStateAwareFilterAction.UnmarshalBinary(data[4:6]); err != nil {
+				return err
+			}
+
+		case ParamC1G2TagInventoryStateUnawareFilterAction:
+			p.C1G2TagInventoryStateUnawareFilterAction = new(c1G2TagInventoryStateUnawareFilterAction)
+			*p.C1G2TagInventoryStateUnawareFilterAction = c1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
+		default:
+			break group1
 		}
 
-		data = data[subLen:]
 	}
-
-	// C1G2TagInventoryStateUnawareFilterAction is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2TagInventoryStateUnawareFilterAction needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
-	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TagInventoryStateUnawareFilterAction {
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("ParamC1G2TagInventoryStateUnawareFilterAction says it has %d bytes,"+
-				" but only %d bytes remain", subLen, len(data))
-		}
-
-		p.C1G2TagInventoryStateUnawareFilterAction = new(c1G2TagInventoryStateUnawareFilterAction)
-		*p.C1G2TagInventoryStateUnawareFilterAction = c1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
-		data = data[subLen:]
-	}
-
 	return nil
 }
 
@@ -7580,17 +5462,6 @@ func (p *c1G2SingulationControl) UnmarshalBinary(data []byte) error {
 	data = data[7:]
 
 	// sub-parameters
-
-	// C1G2TagInventoryStateAwareSingulationAction is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2TagInventoryStateAwareSingulationAction needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TagInventoryStateAwareSingulationAction {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -7648,16 +5519,6 @@ func (p *c1G2TagSpec) UnmarshalBinary(data []byte) error {
 		}
 
 		data = data[subLen:]
-	}
-
-	// TagPattern2 is optional
-	if len(data) == 0 {
-		return nil
-	}
-
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2TargetTag needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TargetTag {
@@ -7825,35 +5686,22 @@ func (p *c1G2Lock) UnmarshalBinary(data []byte) error {
 	data = data[6:]
 
 	// sub-parameters
-	if len(data) < 4 {
-		return errors.Errorf("parameter ParamC1G2LockPayload needs 4 bytes for a TLV header, "+
-			"but only %d bytes remain", len(data))
-	}
-
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamC1G2LockPayload {
 		return errors.Errorf("expected ParamC1G2LockPayload, but found %v", subType)
 	} else {
-		for len(data) >= 4 {
-			subType := ParamType(binary.BigEndian.Uint16(data))
-			if subType != ParamC1G2LockPayload {
-				break
-			}
-
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2LockPayload says it has %d bytes,"+
-					" but only %d bytes remain", subLen, len(data))
-			}
-
-			var tmp c1G2LockPayload
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-
-			p.C1G2LockPayload = append(p.C1G2LockPayload, tmp)
-			data = data[subLen:]
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamC1G2LockPayload says it has %d bytes,"+
+				" but only %d bytes remain", subLen, len(data))
 		}
 
+		tmp := new(c1G2LockPayload)
+		if err := tmp.UnmarshalBinary(data[4:6]); err != nil {
+			return err
+		}
+
+		p.C1G2LockPayload = append(p.C1G2LockPayload, *tmp)
+		data = data[subLen:]
 	}
 
 	return nil

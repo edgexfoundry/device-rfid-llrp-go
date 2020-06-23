@@ -10,6 +10,7 @@ package llrp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/pkg/errors"
 	"strconv"
@@ -179,33 +180,37 @@ const (
 	maxParamSz  = uint16(1<<16 - 1)
 )
 
-// tvLengths to byte lengths (not including the 1-byte type itself)
+// tvLengths to byte lengths (including the 1-byte type header)
 var tvLengths = map[ParamType]int{
-	ParamEPC96:                     12,
-	ParamROSpecID:                  4,
-	ParamSpecIndex:                 2,
-	ParamInventoryParameterSpecID:  2,
-	ParamAntennaID:                 2,
-	ParamPeakRSSI:                  1,
-	ParamChannelIndex:              2,
-	ParamFirstSeenUTC:              8,
-	ParamFirstSeenUptime:           8,
-	ParamLastSeenUTC:               8,
-	ParamLastSeenUptime:            8,
-	ParamTagSeenCount:              2,
-	ParamClientRequestOpSpecResult: 2,
-	ParamAccessSpecID:              4,
-	ParamOpSpecID:                  4,
-	ParamC1G2PC:                    2,
-	ParamC1G2XPCW1:                 2,
-	ParamC1G2XPCW2:                 2,
-	ParamC1G2CRC:                   2,
-	ParamC1G2SingulationDetails:    4,
+	ParamEPC96:                     13,
+	ParamROSpecID:                  5,
+	ParamSpecIndex:                 3,
+	ParamInventoryParameterSpecID:  3,
+	ParamAntennaID:                 3,
+	ParamPeakRSSI:                  2,
+	ParamChannelIndex:              3,
+	ParamFirstSeenUTC:              9,
+	ParamFirstSeenUptime:           9,
+	ParamLastSeenUTC:               9,
+	ParamLastSeenUptime:            9,
+	ParamTagSeenCount:              3,
+	ParamClientRequestOpSpecResult: 3,
+	ParamAccessSpecID:              5,
+	ParamOpSpecID:                  5,
+	ParamC1G2PC:                    3,
+	ParamC1G2XPCW1:                 3,
+	ParamC1G2XPCW2:                 3,
+	ParamC1G2CRC:                   3,
+	ParamC1G2SingulationDetails:    5,
 }
 
 func (gcf *GeneralCapabilityFlags) MarshalJSON() ([]byte, error) {
 	if *gcf == 0 {
 		return []byte(`{}`), nil
+	}
+
+	switch ParamType(binary.BigEndian.Uint16([]byte{0, 1})) {
+
 	}
 
 	b := &bytes.Buffer{}
