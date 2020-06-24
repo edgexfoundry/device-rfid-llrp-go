@@ -9,9 +9,6 @@
 package llrp
 
 import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
 	"github.com/pkg/errors"
 	"strconv"
 	"time"
@@ -175,64 +172,7 @@ const (
 
 	paramResvStart = ParamType(900)
 	paramResvEnd   = ParamType(999)
-
-	tlvHeaderSz = 4
-	maxParamSz  = uint16(1<<16 - 1)
 )
-
-// tvLengths to byte lengths (including the 1-byte type header)
-var tvLengths = map[ParamType]int{
-	ParamEPC96:                     13,
-	ParamROSpecID:                  5,
-	ParamSpecIndex:                 3,
-	ParamInventoryParameterSpecID:  3,
-	ParamAntennaID:                 3,
-	ParamPeakRSSI:                  2,
-	ParamChannelIndex:              3,
-	ParamFirstSeenUTC:              9,
-	ParamFirstSeenUptime:           9,
-	ParamLastSeenUTC:               9,
-	ParamLastSeenUptime:            9,
-	ParamTagSeenCount:              3,
-	ParamClientRequestOpSpecResult: 3,
-	ParamAccessSpecID:              5,
-	ParamOpSpecID:                  5,
-	ParamC1G2PC:                    3,
-	ParamC1G2XPCW1:                 3,
-	ParamC1G2XPCW2:                 3,
-	ParamC1G2CRC:                   3,
-	ParamC1G2SingulationDetails:    5,
-}
-
-func (gcf *GeneralCapabilityFlags) MarshalJSON() ([]byte, error) {
-	if *gcf == 0 {
-		return []byte(`{}`), nil
-	}
-
-	switch ParamType(binary.BigEndian.Uint16([]byte{0, 1})) {
-
-	}
-
-	b := &bytes.Buffer{}
-	b.WriteByte('{')
-
-	needsComma := false
-	if *gcf&CanSetAntennaProperties != 0 {
-		b.WriteString(`"CanSetAntennaProperties":true`)
-		needsComma = true
-	}
-
-	if *gcf&HasUTCClock != 0 {
-		if needsComma {
-			b.WriteByte(',')
-		}
-		b.WriteString(`"CanSetAntennaProperties":true`)
-		needsComma = true
-	}
-
-	b.WriteByte('}')
-	return b.Bytes(), nil
-}
 
 // isTV returns true if the ParamType is TV-encoded.
 // TV-encoded parameters have specific lengths which must be looked up.
@@ -250,31 +190,6 @@ func (pt ParamType) isTLV() bool {
 // and not one of the reserved parameter types (900-999)
 func (pt ParamType) isValid() bool {
 	return 0 < pt && pt <= 2047 && !(paramResvStart <= pt && pt <= paramResvEnd)
-}
-
-// parameter keeps track of basic parameter data within this package.
-// This does not necessarily map directly to an LLRP header.
-//
-// Parameters are fields which "declare" themselves within an LLRP message,
-// in the sense that they start with some type information
-// rather than just existing at a certain offset with a certain size.
-// They typically include their length, but sometimes length must be known apriori.
-//
-// This struct is used when reading or building a parameter,
-// usually to track its length and allow for better error messages.
-type parameter struct {
-	typ    ParamType // TVs are 1-127; TLVs are 128-2047
-	length uint16
-}
-
-func (ph parameter) String() string {
-	if ph.typ.isTLV() {
-		return fmt.Sprintf("%v (TLV %[1]d/%#02x, %d bytes)",
-			ph.typ, uint16(ph.typ), ph.length)
-	} else {
-		return fmt.Sprintf("%v (TV %[1]d/%#02x, %d bytes)",
-			ph.typ, uint16(ph.typ), ph.length)
-	}
 }
 
 const (
