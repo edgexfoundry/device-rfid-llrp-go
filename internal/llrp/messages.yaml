@@ -804,7 +804,7 @@ parameters:
     typeID: 246
     parameters:
       - type: UTCTimestamp
-        group: timestamp
+        group: timestamp  # group the timestamps: they're mutually-exclusive
       - type: Uptime
         group: timestamp
 
@@ -1296,7 +1296,7 @@ parameters:
         type: uint32
       - name: Subtype
         type: uint32
-      - name: VendorParameterValue
+      - name: Data
         type: '[]byte'
         length: -1  # all remaining data
 
@@ -2078,7 +2078,7 @@ messages:
         type: uint32
       - name: MessageSubtype
         type: uint8
-      - name: VendorPayload
+      - name: Data
         type: '[]byte'
         length: -1  # all remaining data
 

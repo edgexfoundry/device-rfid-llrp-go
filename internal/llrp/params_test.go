@@ -43,7 +43,7 @@ func TestMsgReader_readerEventNotification(t *testing.T) {
 	}
 	if nd.ConnectionAttemptEvent == nil ||
 		ConnectionAttemptEventType(*nd.ConnectionAttemptEvent) != ConnAttemptedAgain {
-		t.Errorf("expected ConnAttemptedAgain, but got %+v", nd)
+		t.Errorf("expected ConnAttemptedAgain, but got %+v", nd.ConnectionAttemptEvent)
 	}
 }
 

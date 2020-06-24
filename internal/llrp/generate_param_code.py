@@ -17,6 +17,10 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
+#
+#
+#  SPDX-License-Identifier: Apache-2.0
+
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -56,7 +60,7 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import groupby
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union, Any, Callable
 
 YML = Dict[str, Any]  # just for type checking; otherwise does nothing
 
@@ -221,7 +225,7 @@ class GoWriter:
                 myNum2 = 1<<2
             )
         """
-        if before_start is not None:
+        if before_start:
             self.write(before_start, end=' ')
         self.write('(')
         self.indent()
@@ -233,7 +237,7 @@ class GoWriter:
     def block(self, before_start: Optional[str] = None):
         """Returns a context within which writes are indented inside curly braces.
         See paren for more information."""
-        if before_start is not None:
+        if before_start:
             self.write(before_start, end=' ')
         self.write('{')
         self.indent()
@@ -251,12 +255,12 @@ class GoWriter:
         self.indent()
         yield
         self.dedent()
-        self.write('}\n')
+        self.write('}')
 
     def ifelse(self, cond: Optional[str] = None):
         """Write the '} else {' or '} else if (condition) {' in an if...else block."""
         self.dedent()
-        if cond is not None:
+        if cond:
             self.write(f'}} else if {cond} {{')
         else:
             self.write('} else {')
@@ -296,6 +300,9 @@ class GoWriter:
     def reterr(self, msg: Optional[str], params: Optional[List[str]] = None, wrap: bool = False):
         """Writes code to return an error, using 'return err' or one of
         New, Errorf, Wrap, or Wrapf if there are params and/or wrap is True."""
+        if msg.count('%') != (len(params) if params else 0):
+            raise Error(f'got "{params}", but need {msg.count("%")} params for this error: "{msg}"')
+
         if not msg:
             assert params is None and wrap is False
             self.write('return err')
@@ -303,12 +310,10 @@ class GoWriter:
 
         msg = msg.replace('\n', '" +\n"')
         if wrap and params:
-            assert msg.count('%') == len(params)
             self.write(f'return errors.Wrapf(err, "{msg}", {", ".join(params)})')
         elif wrap and not params:
             self.write(f'return errors.Wrap(err, "{msg}")')
         elif params:
-            assert msg.count('%') == len(params)
             self.write(f'return errors.Errorf("{msg}", {", ".join(params)})')
         else:
             self.write(f'return errors.New("{msg}")')
@@ -326,7 +331,7 @@ class DataType:
 
     bits: int = 8  # number of bits in the final byte; usually should be 8, but occasionally not
 
-    description: Optional[str] = None  # for outputting doc comments; currently unused
+    description: Optional[str] = None  # for outputting doc comments
     min: Optional[int] = None  # currently unused
     max: Optional[int] = None  # currently unused
 
@@ -656,7 +661,7 @@ class ParamSpec:
 
     def is_fixed_size(self) -> bool:
         """Returns true if this parameter is always a fixed size."""
-        return not (self.optional or self.repeatable) and self.p_def.fixed_size
+        return self.p_def.fixed_size and not (self.optional or self.repeatable)
 
     @classmethod
     def from_yaml(cls, y: YML) -> 'ParamSpec':
@@ -815,30 +820,30 @@ class Container:
         """Returns True if this doesn't have any fields or parameters."""
         return not (any(self.fields) or any(self.parameters))
 
-    def write_unmarshal_body(self, w):
-        sz = self.min_size - self.header_size
-        szb = f'{sz} byte' if sz == 1 else f'{sz} bytes'
+    @property
+    def const_name(self) -> str:
+        return f'Param{self.name}'
 
-        # byte length check
+    def len_check(self, w) -> int:
+        sz = self.min_size - self.header_size
+        fx = str(self.fixed_size).lower()
         if sz == 0:
             if self.empty():
-                with w.condition(f'len(data) != 0'):
-                    w.reterr(f'Param{self.name} must be empty, but has %d bytes', ['len(data)'])
-                return
-
-            w.write(f'// Param{self.name} can be empty')
-        elif self.fixed_size:
-            with w.condition(f'len(data) != {sz}'):
-                w.reterr(f'Param{self.name} requires exactly {szb} '
-                         '\nbut received %d', ['len(data)'])
+                w.err_check(f'hasEnoughBytes({self.const_name}, {sz}, len(data), {fx})')
+            else:
+                w.comment(f'{self.const_name} can be empty')
         else:
-            with w.condition(f'len(data) < {sz}'):
-                w.reterr(f'Param{self.name} requires at least {szb} '
-                         '\nbut only %d are available', ['len(data)'])
+            w.err_check(f'hasEnoughBytes({self.const_name}, {sz}, len(data), {fx})')
+        return sz
+
+    def write_unmarshal_body(self, w):
+        # byte length check
+        known_data_len = self.len_check(w)
 
         # field unmarshaling
         pos = 0
         if self.can_inline():
+            assert len(self.fields) == 1
             f = self.fields[0]
             w.write(f'*{self.short} = {self.type_name}({f.value()})')
         elif any(self.fields):
@@ -853,169 +858,112 @@ class Container:
                 elif not f.partial:
                     pos += f.min_size
 
+                if not f.is_fixed_size():
+                    known_data_len = 0
+                elif not f.partial:
+                    known_data_len -= f.min_size
+
         if not any(self.parameters):
             return
 
         # parameters/sub-parameters
-        w.write('\n// sub-parameters')
+        w.comment('sub-parameters')
 
-        for i, ((optional, repeatable, g_name), p_group) in enumerate(groupby(
-                self.parameters, lambda x: (x.optional, x.repeatable, x.group))):
-            p_group = list(p_group)
-            if len(p_group) == 1:
-                p = p_group[0]
-                if p.p_def.header_size == 1:
-                    self.unmarshal_tv(w, p)
-                else:
-                    self.unmarshal_tlv(w, p)
-                continue
+        required = {p.name for p in self.parameters if not p.optional}
 
-            if g_name is None and not optional and not repeatable:
+        groups = groupby(self.parameters, lambda x: (x.optional, x.repeatable, x.group))
+        for i, ((optional, repeatable, g_name), p_group) in enumerate(groups):
+            # w.comment(f'known data length: {known_data_len}')
+            p_group: List[ParamSpec] = list(p_group)
+
+            req_len = 0 if optional else min(p.p_def.min_size for p in p_group)
+            if optional and not any(required):
+                with w.condition(f'len(data) == 0'):
+                    w.write('return nil')
+            elif known_data_len < req_len:
+                w.err_check(f'hasEnoughBytes({self.const_name}, {req_len}, len(data), false)')
+                known_data_len = req_len
+
+            required.difference_update(p.name for p in p_group)
+
+            # simple path: there's only a single parameter, or all in p_group are required
+            if len(p_group) == 1 or (g_name is None and not (optional or repeatable)):
                 for p in p_group:
-                    if p.p_def.header_size == 1:
+                    sub: 'Container' = p.p_def
+                    if self.fixed_size:
+                        assert sub.min_size <= known_data_len, f'{self.name}.{sub.name}: {sub.min_size} > {known_data_len}'
+
+                    known_data_len = sub.header_len_check(w, known_data_len)
+
+                    if sub.header_size == 1:
                         self.unmarshal_tv(w, p)
                     else:
                         self.unmarshal_tlv(w, p)
+
+                    if sub.fixed_size:
+                        known_data_len -= sub.min_size
+                    else:
+                        known_data_len = 0
                 continue
 
-            if len(p_group) == 1:
-                names = p_group[0].name
-            elif len(p_group) == 2:
-                names = f'either {p_group[0].param_name + " or " + p_group[1].param_name}'
-            else:
-                names = "one of " + ", ".join(p.param_name for p in p_group[:-1]) + ", or " + p_group[-1].param_name
-
-            # if optional:
-            #     w.comment(f'The next param could be {names}')
-            # else:
-            #    w.comment(f'The next param must be {names}')
+            # otherwise, the next parameter is one of a collection of
+            # repeatable, optional, intermixed, or mutually-exclusive parameters
+            mut_excl = not (optional or repeatable)
 
             tvs = [p for p in p_group if p.p_def.header_size == 1]
             tlvs = [p for p in p_group if p.p_def.header_size == 4]
+            mixed = bool(tvs and tlvs)
 
-            if any(tvs) and any(tlvs):
-                with w.condition('data[0]&0x80 == 1'):
-                    w.write('// TV parameter')
-                    if len(tvs) == 1:
-                        self.unmarshal_tv(w, tvs[0])
-                    else:
-                        w.write('pt := ParamType(data[0])')
-                        with w.switch('pt'):
-                            self.write_cases(w, p_group, adv=True)
-                    w.ifelse()
-                    if len(tlvs) == 1:
-                        self.unmarshal_tlv(w, tlvs[0])
-                    else:
-                        w.write('pt := ParamType(binary.BigEndian.Uint16(data))')
-                        with w.switch('pt'):
-                            self.write_cases(w, p_group, adv=True)
-                continue
+            blk = ''
+            if not mut_excl:
+                w.noindent(f'\nparamGroup{i}:')
+                blk = f'for len(data) > {1 if any(tvs) else 4}'
 
-            must_loop = optional or repeatable or g_name is not None
-            if g_name is None:
-                g_name = f'group{i}'
-            else:
-                g_name = 'group'+g_name
-            if must_loop and (optional or repeatable):
-                w.noindent(f'{g_name}:')
-
-            if any(tvs):
-                if must_loop:
-                    w.write('for len(data) > 1 {')
-                    w.indent()
-                    w.write(f'pt := ParamType(data[0])')
-                    sw = 'pt'
+            def default_case(w: GoWriter):
+                if optional or repeatable:
+                    w.write(f'break paramGroup{i}')
                 else:
-                    sw = 'pt := ParamType(data[0])'
+                    w.reterr('unexpected parameter %v when unmarshaling '
+                             f'Param{self.name}', ['pt'])
 
-                adv = True
-            else:
-                if must_loop:
-                    w.write('for len(data) > 4 {')
-                    w.indent()
+            with w.block(blk):
+                if mixed:
+                    # special weirdness: the next param could be a single byte TV
+                    # or it could be a TLV with a 4 byte header,
+                    # so we have to check how much data is available
+                    w.write('var pt ParamType')
+                    with w.condition('data[0]&0x80 == 1'):
+                        w.write('// TV parameter')
+                        w.write('pt = ParamType(data[0])')
+                        w.ifelse('len(data) < 4')
+                        w.reterr('expecting a TLV header, but %d < 4 byte remain', ['len(data)'])
+                        w.ifelse()
+                        w.write('pt = ParamType(binary.BigEndian.Uint16(data))')
+                elif tvs:
+                    w.write('pt := ParamType(data[0])')
+                else:
                     w.write(f'pt := ParamType(binary.BigEndian.Uint16(data))')
-                    w.write('subLen := binary.BigEndian.Uint16(data[2:])')
-                    with w.condition('int(subLen) > len(data)'):
-                        w.reterr(f'%v says it has %d bytes,\n but only %d bytes remain',
-                                 ['pt', 'subLen', 'len(data)'])
-                    sw = 'pt'
-                    adv = False
-                else:
-                    sw = f'pt := ParamType(binary.BigEndian.Uint16(data))'
-                    adv = True
+                    if not mut_excl:
+                        w.write('subLen := binary.BigEndian.Uint16(data[2:])')
+                        with w.condition('int(subLen) > len(data)'):
+                            w.reterr(f'%v says it has %d bytes,\n but only %d bytes remain',
+                                     ['pt', 'subLen', 'len(data)'])
 
-            with w.switch(sw):
-                self.write_cases(w, p_group, adv)
+                with w.switch('pt'):
+                    self.write_cases(w, p_group, check_len=mixed, default=default_case)
 
-                with w.case('default'):
-                    if optional or repeatable:
-                        w.write(f'break {g_name}')
-                    else:
-                        w.reterr(f'found %v when needed {names}', ['pt'])
-
-            if must_loop:
-                w.dedent()
-                w.write('}')
+                if blk == '':
+                    w.write(f'data = data[{req_len}:]')
+                    known_data_len -= req_len
+                    continue
+                if tlvs and not tvs:
+                    w.write(f'data = data[subLen:]')
+                    known_data_len = 0
+                if tvs and not tlvs:
+                    w.write(f'data = data[{req_len}:]')
+                    known_data_len -= req_len
 
         return
-
-        for i, p in enumerate(self.parameters):
-            sub = p.p_def
-
-            if p.optional and all(pp.optional for pp in self.parameters[i:]):
-                if len(self.parameters) > i + 1:
-                    w.write('\n// only optional parameters remain; return if no more data')
-                else:
-                    w.write(f'\n// {p.name} is optional')
-                with w.condition('len(data) == 0'):
-                    w.write('return nil')
-
-            # add the header type check
-            if sub.header_size == 1:  # TV parameter
-                # TODO: handle optional and repeatable TV parameters
-                with w.condition(f'ParamType(data[0]) != Param{sub.name}'):
-                    w.reterr(f'expected Param{sub.name}, but found %v', ['ParamType(data[0])'])
-
-            elif sub.header_size == 4:  # TLV
-                if i > 0 or any(self.fields):
-                    with w.condition(f'len(data) < 4'):
-                        w.reterr(f'parameter Param{sub.name} needs 4 bytes for a TLV header, '
-                                 f'\nbut only %d bytes remain', ['len(data)'])
-
-                if p.optional:
-                    blk = w.condition(f'subType := ParamType(binary.BigEndian.Uint16(data)); '
-                                      f'subType == Param{sub.name}')
-                else:
-                    blk = w.condition(f'subType := ParamType(binary.BigEndian.Uint16(data)); '
-                                      f'subType != Param{sub.name}')
-
-                with blk:
-                    if not p.optional:
-                        w.reterr(f'expected Param{sub.name}, but found %v', ['subType'])
-                        w.ifelse()
-
-                    if p.repeatable:
-                        with w.block(f'for len(data) >= 4'):
-                            w.write('subType := ParamType(binary.BigEndian.Uint16(data))')
-                            with w.condition(f'subType != Param{sub.name}'):
-                                w.write('break')
-                            w.write('subLen := binary.BigEndian.Uint16(data[2:])')
-                            with w.condition('int(subLen) > len(data)'):
-                                w.reterr(f'Param{sub.name} '
-                                         'says it has %d bytes,\n but only %d bytes remain',
-                                         ['subLen', 'len(data)'])
-
-                            w.write(f'var tmp {sub.type_name}')
-                            w.err_check(f'tmp.UnmarshalBinary(data[4:subLen])')
-                            w.write(f'{self.short}.{p.name} = append({self.short}.{p.name}, tmp)')
-                            w.write('data = data[subLen:]')
-                    else:
-                        sub.len_check(w)
-                        self.alloc(w, p)
-                        self.write_unmarshal_sub(w, p)
-                        w.write('data = data[subLen:]')
-            else:
-                assert False
 
     def unmarshal_tv(self, w: GoWriter, p: ParamSpec):
         sub = p.p_def
@@ -1044,21 +992,33 @@ class Container:
             if not p.optional:
                 w.reterr(f'expected Param{sub.name}, but found %v', ['subType'])
                 w.ifelse()
-            sub.len_check(w)
+            sub.sublen_check(w)
             self.alloc(w, p)
             self.write_unmarshal_sub(w, p)
             w.write(f'data = data[subLen:]')
 
-    def write_cases(self, w: GoWriter, p_group: List[ParamSpec], adv=False):
+    def write_cases(self, w: GoWriter, p_group: List[ParamSpec], check_len: bool = False,
+                    default: Optional[Callable[[GoWriter], None]] = None):
         for p in p_group:
             sub = p.p_def
             with w.case(f'Param{sub.name}'):
-                if adv and sub.header_size == 4:
-                    sub.len_check(w)
+                if check_len:
+                    sub.sublen_check(w)
+
                 self.alloc(w, p)
                 self.write_unmarshal_sub(w, p)
-                if adv:
-                    sub.len_adv(w)
+
+                if check_len:
+                    if sub.header_size == 4:
+                        w.write(f'data = data[subLen:]')
+                    if sub.header_size == 1 and sub.fixed_size:
+                        w.write(f'data = data[{sub.min_size}:]')
+
+        if not default:
+            return
+
+        with w.case('default'):
+            default(w)
 
     def write_unmarshal_sub(self, w: GoWriter, p: ParamSpec):
         sub = p.p_def
@@ -1085,16 +1045,32 @@ class Container:
             w.write(f'{self.short}.{p.name} = new({p.p_def.type_name})')
 
     def len_adv(self, w: GoWriter):
+        """Write the code to reslice the data array past this parameter.
+        If it's a TLV, subLen must be in scope and equal to it's header's claimed length.
+        If it's a TV, it must be fixed size."""
         if self.header_size == 1:
             assert self.fixed_size
             w.write(f'data = data[{self.min_size}:]')
         else:
             w.write(f'data = data[subLen:]')
 
-    def len_check(self, w: GoWriter):
+    def header_len_check(self, w: GoWriter, known_len: int = 0) -> int:
+        if self.fixed_size and self.min_size > known_len:
+            w.err_check(f'hasEnoughBytes({self.const_name}, {self.min_size}, len(data), false)')
+            return self.min_size
+        elif self.header_size > known_len:
+            w.err_check(f'hasEnoughBytes({self.const_name}, {self.header_size}, len(data), false)')
+            return self.header_size
+        return known_len
+
+    def sublen_check(self, w: GoWriter):
+        """Write a check that ensures there's at least as many bytes as the header claims.
+        Only applies to TLVs; TVs simply return without writing anything."""
+        if self.header_size == 1:
+            return
         w.write('subLen := binary.BigEndian.Uint16(data[2:])')
         with w.condition('int(subLen) > len(data)'):
-            w.reterr(f'Param{self.name} '
+            w.reterr(f'{self.const_name} '
                      'says it has %d bytes,\n but only %d bytes remain',
                      ['subLen', 'len(data)'])
 
@@ -1121,16 +1097,37 @@ class Message(Container):
     def can_inline(self) -> bool:
         return False  # never inline messages
 
+    @property
+    def const_name(self) -> str:
+        return self.name
+
+    def len_check(self, w) -> int:
+        if self.empty():
+            w.comment(f'{self.const_name} is a header-only message')
+            with w.condition('len(data) > 0'):
+                w.reterr(f'{self.const_name} should be empty, but has %d bytes', ['len(data)'])
+            w.write('return nil')
+            return 0
+
+        if self.fixed_size:
+            with w.condition(f'len(data) == {self.min_size}'):
+                w.reterr(f'{self.const_name} should length should be exactly {self.min_size}, '
+                         f'but is %d', ['len(data)'])
+        else:
+            with w.condition(f'len(data) < {self.min_size}'):
+                w.reterr(f'{self.const_name} length should be at least {self.min_size}, '
+                         f'but is %d', ['len(data)'])
+        return self.min_size if self.min_size is not None else 0
+
     def write_unmarshal(self, w):
         if any(self.fields) or any(self.parameters):
             super().write_unmarshal(w)
             return
 
         with w.block(f'func ({self.short} *{self.type_name}) UnmarshalBinary(data []byte) error'):
-            w.write(f'// {self.name} is a header-only message')
+            w.comment(f'{self.name} is a header-only message')
             with w.condition('len(data) > 0'):
-                w.write(f'return errors.Errorf('
-                        f'"{self.name} should be empty, but has %d bytes", len(data))')
+                w.reterr(f'{self.name} should be empty, but has %d bytes', ['len(data)'])
             w.write('return nil')
 
 
@@ -1194,26 +1191,27 @@ def set_param_sizes(params: Dict[str, Container]):
     def get_param_size(p: Container) -> int:
         if p.name in param_sizes:
             return param_sizes[p.name]
-        p.header_size = 1 if p.type_id < 128 else 4
-        param_sizes[p.name] = 0
+        param_sizes[p.name] = p.header_size
 
         p.min_size = (p.header_size +
                       sum(f.min_size for f in p.fields) -
                       sum(f.min_size for f in p.fields if f.partial))
         for (opt, g), p_group in groupby(p.parameters, key=lambda x: (x.optional, x.group)):
             if opt:  # skip optional groups
+                for sp in p_group:
+                    get_param_size(sp.p_def)
                 continue
-            else:
-                p.min_size += min(get_param_size(sp.p_def) for sp in p_group)
+            p.min_size += min(get_param_size(sp.p_def) for sp in p_group)
 
         # because of the get_param_size call above, sub-parameter's fixed_size is set
-        p.fixed_size = not (any(f for f in p.fields if not f.is_fixed_size()) or
-                            any(sub for sub in p.parameters if not sub.is_fixed_size()))
+        p.fixed_size = (all(f.is_fixed_size() for f in p.fields) and
+                        all(sub.is_fixed_size() for sub in p.parameters))
 
         param_sizes[p.name] = p.min_size
         return p.min_size
 
     for p in params.values():
+        p.header_size = 1 if p.type_id < 128 else 4
         for sub in p.parameters:
             try:
                 sub.p_def = params[sub.param_name]
@@ -1240,7 +1238,9 @@ def set_msg_sizes(msgs: Dict[str, Message], params: Dict[str, Container]):
         m.min_size = (sum(f.min_size for f in m.fields) -
                       sum(f.min_size for f in m.fields if f.partial) +
                       sum(p.p_def.min_size for p in m.parameters if not p.optional))
-        m.has_required = any(sp for sp in m.parameters if not sp.optional)
+        m.fixed_size = (all(f.is_fixed_size() for f in m.fields) and
+                        all(sub.is_fixed_size() for sub in m.parameters))
+        m.has_required = any(sp.optional for sp in m.parameters)
 
 
 def write_unmarshal_code(w, types, parameters, messages):
@@ -1254,13 +1254,23 @@ def write_unmarshal_code(w, types, parameters, messages):
     for t in types.values():
         t.write_type_def(w)
 
+    w.comment("hasEnoughBytes returns an error if there aren't "
+              "enough bytes to read the parameter.")
+    with w.block('func hasEnoughBytes(pt ParamType, needed, got int, exact bool) error'):
+        with w.condition('needed <= got'):
+            w.write('return nil')
+        with w.condition('exact && needed == 0'):
+            w.reterr('%v must be empty, but received %d byte(s)', ['pt', 'got'])
+            w.ifelse('exact')
+            w.reterr('%v requires exactly %d byte(s), but received %d', ['pt', 'needed', 'got'])
+        w.reterr('%v requires at least %d byte(s), but received %d', ['pt', 'needed', 'got'])
+
     w.write('')
     for m in messages.values():
         w.write(f'// {m.type_name} is Message {m.type_id}, {m.name}.')
         if m.description:
             w.write('//')
-            for line in m.description.splitlines():
-                w.write(f'// {line.strip()}')
+            w.comment(m.description)
 
         m.write_struct(w)
 
@@ -1274,8 +1284,7 @@ def write_unmarshal_code(w, types, parameters, messages):
         w.write(f'// {p.type_name} is Parameter {p.type_id}, {p.name}.')
         if p.description:
             w.write('//')
-            for line in p.description.splitlines():
-                w.write(f'// {line.strip()}')
+            w.comment(p.description)
 
         p.write_struct(w)
 
@@ -1311,7 +1320,7 @@ def main():
 
     if args.parameter:
         for p_name in args.parameter:
-            parameters[p_name].split_groups(w)
+            parameters[p_name].write_unmarshal(w)
         return
 
     write_unmarshal_code(w, types, parameters, messages)

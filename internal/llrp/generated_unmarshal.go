@@ -325,6 +325,19 @@ const (
 	SupportsEventsAndReportHolding
 )
 
+// hasEnoughBytes returns an error if there aren't enough bytes to read the parameter.
+func hasEnoughBytes(pt ParamType, needed, got int, exact bool) error {
+	if needed <= got {
+		return nil
+	}
+	if exact && needed == 0 {
+		return errors.Errorf("%v must be empty, but received %d byte(s)", pt, got)
+	} else if exact {
+		return errors.Errorf("%v requires exactly %d byte(s), but received %d", pt, needed, got)
+	}
+	return errors.Errorf("%v requires at least %d byte(s), but received %d", pt, needed, got)
+}
+
 // getSupportedVersion is Message 46, GetSupportedVersion.
 type getSupportedVersion struct{}
 
@@ -334,7 +347,6 @@ func (m *getSupportedVersion) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("GetSupportedVersion should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -348,14 +360,11 @@ type getSupportedVersionResponse struct {
 // UnmarshalBinary Message 56, GetSupportedVersionResponse.
 func (m *getSupportedVersionResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 10 {
-		return errors.Errorf("ParamGetSupportedVersionResponse requires at least 10 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetSupportedVersionResponse length should be at least 10, but is %d", len(data))
 	}
-
 	m.CurrentVersion = VersionNum(data[0])
 	m.MaxSupportedVersion = VersionNum(data[1])
 	data = data[2:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -365,14 +374,12 @@ func (m *getSupportedVersionResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -383,16 +390,10 @@ type setProtocolVersion struct {
 
 // UnmarshalBinary Message 47, SetProtocolVersion.
 func (m *setProtocolVersion) UnmarshalBinary(data []byte) error {
-	if len(data) < 1 {
-		return errors.Errorf("ParamSetProtocolVersion requires at least 1 byte "+
-			"but only %d are available", len(data))
+	if len(data) == 1 {
+		return errors.Errorf("SetProtocolVersion should length should be exactly 1, but is %d", len(data))
 	}
-
 	m.TargetVersion = VersionNum(data[0])
-	if len(data) > 0 {
-		return errors.Errorf("finished reading SetProtocolVersion, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -404,10 +405,8 @@ type setProtocolVersionResponse struct {
 // UnmarshalBinary Message 57, SetProtocolVersionResponse.
 func (m *setProtocolVersionResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamSetProtocolVersionResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("SetProtocolVersionResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -417,14 +416,12 @@ func (m *setProtocolVersionResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -437,21 +434,24 @@ type getReaderCapabilities struct {
 // UnmarshalBinary Message 1, GetReaderCapabilities.
 func (m *getReaderCapabilities) UnmarshalBinary(data []byte) error {
 	if len(data) < 1 {
-		return errors.Errorf("ParamGetReaderCapabilities requires at least 1 byte "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetReaderCapabilities length should be at least 1, but is %d", len(data))
 	}
-
 	m.ReaderCapabilitiesRequestedData = ReaderCapabilitiesRequestedDataType(data[0])
 	data = data[1:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -460,7 +460,6 @@ func (m *getReaderCapabilities) UnmarshalBinary(data []byte) error {
 		m.Custom = append(m.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -477,10 +476,8 @@ type getReaderCapabilitiesResponse struct {
 // UnmarshalBinary Message 11, GetReaderCapabilitiesResponse.
 func (m *getReaderCapabilitiesResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamGetReaderCapabilitiesResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetReaderCapabilitiesResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -490,15 +487,17 @@ func (m *getReaderCapabilitiesResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -506,7 +505,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamGeneralDeviceCapabilities:
 			m.GeneralDeviceCapabilities = new(generalDeviceCapabilities)
@@ -533,17 +531,25 @@ group1:
 			}
 
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -552,7 +558,6 @@ group1:
 		m.Custom = append(m.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -564,10 +569,8 @@ type addROSpecs struct {
 // UnmarshalBinary Message 20, AddROSpecs.
 func (m *addROSpecs) UnmarshalBinary(data []byte) error {
 	if len(data) < 19 {
-		return errors.Errorf("ParamAddROSpecs requires at least 19 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("AddROSpecs length should be at least 19, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamROSpec {
 		return errors.Errorf("expected ParamROSpec, but found %v", subType)
@@ -577,14 +580,12 @@ func (m *addROSpecs) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.ROSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -596,10 +597,8 @@ type addROSpecsResponse struct {
 // UnmarshalBinary Message 30, AddROSpecsResponse.
 func (m *addROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamAddROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("AddROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -609,14 +608,12 @@ func (m *addROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -627,16 +624,10 @@ type deleteROSpecs struct {
 
 // UnmarshalBinary Message 21, DeleteROSpecs.
 func (m *deleteROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamDeleteROSpecs requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("DeleteROSpecs should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.ROSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading DeleteROSpecs, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -648,10 +639,8 @@ type deleteROSpecsResponse struct {
 // UnmarshalBinary Message 31, DeleteROSpecsResponse.
 func (m *deleteROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamDeleteROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("DeleteROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -661,14 +650,12 @@ func (m *deleteROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -679,16 +666,10 @@ type startROSpecs struct {
 
 // UnmarshalBinary Message 22, StartROSpecs.
 func (m *startROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamStartROSpecs requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("StartROSpecs should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.ROSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading StartROSpecs, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -700,10 +681,8 @@ type startROSpecsResponse struct {
 // UnmarshalBinary Message 32, StartROSpecsResponse.
 func (m *startROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamStartROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("StartROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -713,14 +692,12 @@ func (m *startROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -731,16 +708,10 @@ type stopROSpecs struct {
 
 // UnmarshalBinary Message 23, StopROSpecs.
 func (m *stopROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamStopROSpecs requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("StopROSpecs should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.ROSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading StopROSpecs, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -752,10 +723,8 @@ type stopROSpecsResponse struct {
 // UnmarshalBinary Message 33, StopROSpecsResponse.
 func (m *stopROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamStopROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("StopROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -765,14 +734,12 @@ func (m *stopROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -783,16 +750,10 @@ type enableROSpecs struct {
 
 // UnmarshalBinary Message 24, EnableROSpecs.
 func (m *enableROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamEnableROSpecs requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("EnableROSpecs should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.ROSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading EnableROSpecs, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -804,10 +765,8 @@ type enableROSpecsResponse struct {
 // UnmarshalBinary Message 34, EnableROSpecsResponse.
 func (m *enableROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamEnableROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("EnableROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -817,14 +776,12 @@ func (m *enableROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -835,16 +792,10 @@ type disableROSpecs struct {
 
 // UnmarshalBinary Message 25, DisableROSpecs.
 func (m *disableROSpecs) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamDisableROSpecs requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("DisableROSpecs should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.ROSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading DisableROSpecs, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -856,10 +807,8 @@ type disableROSpecsResponse struct {
 // UnmarshalBinary Message 35, DisableROSpecsResponse.
 func (m *disableROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamDisableROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("DisableROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -869,14 +818,12 @@ func (m *disableROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -889,7 +836,6 @@ func (m *getROSpecs) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("GetROSpecs should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -902,10 +848,8 @@ type getROSpecsResponse struct {
 // UnmarshalBinary Message 36, GetROSpecsResponse.
 func (m *getROSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamGetROSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetROSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -915,12 +859,17 @@ func (m *getROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamROSpec, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamROSpec {
@@ -929,7 +878,6 @@ func (m *getROSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(roSpec)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -938,7 +886,6 @@ func (m *getROSpecsResponse) UnmarshalBinary(data []byte) error {
 		m.ROSpec = append(m.ROSpec, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -950,10 +897,8 @@ type addAccessSpec struct {
 // UnmarshalBinary Message 40, AddAccessSpec.
 func (m *addAccessSpec) UnmarshalBinary(data []byte) error {
 	if len(data) < 23 {
-		return errors.Errorf("ParamAddAccessSpec requires at least 23 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("AddAccessSpec length should be at least 23, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAccessSpec {
 		return errors.Errorf("expected ParamAccessSpec, but found %v", subType)
@@ -963,14 +908,12 @@ func (m *addAccessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.AccessSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -982,10 +925,8 @@ type addAccessSpecResponse struct {
 // UnmarshalBinary Message 50, AddAccessSpecResponse.
 func (m *addAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamAddAccessSpecResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("AddAccessSpecResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -995,14 +936,12 @@ func (m *addAccessSpecResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1013,16 +952,10 @@ type deleteAccessSpec struct {
 
 // UnmarshalBinary Message 41, DeleteAccessSpec.
 func (m *deleteAccessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamDeleteAccessSpec requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("DeleteAccessSpec should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading DeleteAccessSpec, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -1034,10 +967,8 @@ type deleteAccessSpecResponse struct {
 // UnmarshalBinary Message 51, DeleteAccessSpecResponse.
 func (m *deleteAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamDeleteAccessSpecResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("DeleteAccessSpecResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1047,14 +978,12 @@ func (m *deleteAccessSpecResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1065,16 +994,10 @@ type enableAccessSpec struct {
 
 // UnmarshalBinary Message 42, EnableAccessSpec.
 func (m *enableAccessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamEnableAccessSpec requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("EnableAccessSpec should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading EnableAccessSpec, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -1086,10 +1009,8 @@ type enableAccessSpecResponse struct {
 // UnmarshalBinary Message 52, EnableAccessSpecResponse.
 func (m *enableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamEnableAccessSpecResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("EnableAccessSpecResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1099,14 +1020,12 @@ func (m *enableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1117,16 +1036,10 @@ type disableAccessSpec struct {
 
 // UnmarshalBinary Message 43, DisableAccessSpec.
 func (m *disableAccessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamDisableAccessSpec requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if len(data) == 4 {
+		return errors.Errorf("DisableAccessSpec should length should be exactly 4, but is %d", len(data))
 	}
-
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
-	if len(data) > 0 {
-		return errors.Errorf("finished reading DisableAccessSpec, but an unexpected %d bytes remain", len(data))
-	}
-
 	return nil
 }
 
@@ -1138,10 +1051,8 @@ type disableAccessSpecResponse struct {
 // UnmarshalBinary Message 53, DisableAccessSpecResponse.
 func (m *disableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamDisableAccessSpecResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("DisableAccessSpecResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1151,14 +1062,12 @@ func (m *disableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1171,7 +1080,6 @@ func (m *getAccessSpecs) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("GetAccessSpecs should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1184,10 +1092,8 @@ type getAccessSpecsResponse struct {
 // UnmarshalBinary Message 54, GetAccessSpecsResponse.
 func (m *getAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamGetAccessSpecsResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetAccessSpecsResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1197,12 +1103,17 @@ func (m *getAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamAccessSpec, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessSpec {
@@ -1211,7 +1122,6 @@ func (m *getAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(accessSpec)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1220,7 +1130,6 @@ func (m *getAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 		m.AccessSpec = append(m.AccessSpec, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1232,10 +1141,8 @@ type clientRequestOp struct {
 // UnmarshalBinary Message 45, ClientRequestOp.
 func (m *clientRequestOp) UnmarshalBinary(data []byte) error {
 	if len(data) < 10 {
-		return errors.Errorf("ParamClientRequestOp requires at least 10 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("ClientRequestOp length should be at least 10, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamTagReportData {
 		return errors.Errorf("expected ParamTagReportData, but found %v", subType)
@@ -1245,14 +1152,12 @@ func (m *clientRequestOp) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamTagReportData says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.TagReportData.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1264,10 +1169,8 @@ type clientRequestOpResponse struct {
 // UnmarshalBinary Message 55, ClientRequestOpResponse.
 func (m *clientRequestOpResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 14 {
-		return errors.Errorf("ParamClientRequestOpResponse requires at least 14 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("ClientRequestOpResponse length should be at least 14, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamClientRequestResponse {
 		return errors.Errorf("expected ParamClientRequestResponse, but found %v", subType)
@@ -1277,14 +1180,12 @@ func (m *clientRequestOpResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamClientRequestResponse says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.ClientRequestResponse.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1297,7 +1198,6 @@ func (m *getReport) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("GetReport should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1310,10 +1210,15 @@ type roAccessReport struct {
 
 // UnmarshalBinary Message 61, ROAccessReport.
 func (m *roAccessReport) UnmarshalBinary(data []byte) error {
-	// ParamROAccessReport can be empty
-
+	if len(data) < 0 {
+		return errors.Errorf("ROAccessReport length should be at least 0, but is %d", len(data))
+	}
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1321,7 +1226,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamTagReportData:
 			tmp := new(tagReportData)
@@ -1345,10 +1249,12 @@ group0:
 
 			m.Custom = append(m.Custom, *tmp)
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -1361,7 +1267,6 @@ func (m *keepAlive) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("KeepAlive should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1374,7 +1279,6 @@ func (m *keepAliveACK) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("KeepAliveACK should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1386,10 +1290,8 @@ type readerEventNotification struct {
 // UnmarshalBinary Message 63, ReaderEventNotification.
 func (m *readerEventNotification) UnmarshalBinary(data []byte) error {
 	if len(data) < 16 {
-		return errors.Errorf("ParamReaderEventNotification requires at least 16 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("ReaderEventNotification length should be at least 16, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamReaderEventNotificationData {
 		return errors.Errorf("expected ParamReaderEventNotificationData, but found %v", subType)
@@ -1399,14 +1301,12 @@ func (m *readerEventNotification) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamReaderEventNotificationData says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.ReaderEventNotificationData.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1419,7 +1319,6 @@ func (m *enableEventsAndReports) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("EnableEventsAndReports should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1431,10 +1330,8 @@ type errorMessage struct {
 // UnmarshalBinary Message 100, ErrorMessage.
 func (m *errorMessage) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamErrorMessage requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("ErrorMessage length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1444,14 +1341,12 @@ func (m *errorMessage) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1467,24 +1362,27 @@ type getReaderConfig struct {
 // UnmarshalBinary Message 2, GetReaderConfig.
 func (m *getReaderConfig) UnmarshalBinary(data []byte) error {
 	if len(data) < 7 {
-		return errors.Errorf("ParamGetReaderConfig requires at least 7 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetReaderConfig length should be at least 7, but is %d", len(data))
 	}
-
 	m.AntennaID = binary.BigEndian.Uint16(data)
 	m.ReaderConfigRequestedData = ReaderConfigRequestedDataType(data[2])
 	m.GPIPortNum = binary.BigEndian.Uint16(data[3:])
 	m.GPOPortNum = binary.BigEndian.Uint16(data[5:])
 	data = data[7:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1493,7 +1391,6 @@ func (m *getReaderConfig) UnmarshalBinary(data []byte) error {
 		m.Custom = append(m.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1517,10 +1414,8 @@ type getReaderConfigResponse struct {
 // UnmarshalBinary Message 12, GetReaderConfigResponse.
 func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamGetReaderConfigResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("GetReaderConfigResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1530,12 +1425,17 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamIdentification, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamIdentification {
@@ -1544,7 +1444,6 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamIdentification says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		m.Identification = new(identification)
 		if err := m.Identification.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1552,8 +1451,11 @@ func (m *getReaderConfigResponse) UnmarshalBinary(data []byte) error {
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group2:
+paramGroup2:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1561,7 +1463,6 @@ group2:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamAntennaProperties:
 			tmp := new(antennaProperties)
@@ -1578,11 +1479,17 @@ group2:
 
 			m.AntennaConfiguration = append(m.AntennaConfiguration, *tmp)
 		default:
-			break group2
+			break paramGroup2
 		}
 
+		data = data[subLen:]
 	}
-group3:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup3:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1590,7 +1497,6 @@ group3:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamReaderEventNotificationSpec:
 			m.ReaderEventNotificationSpec = new(readerEventNotificationSpec)
@@ -1617,11 +1523,17 @@ group3:
 			}
 
 		default:
-			break group3
+			break paramGroup3
 		}
 
+		data = data[subLen:]
 	}
-group4:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup4:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1629,7 +1541,6 @@ group4:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamGPIPortCurrentState:
 			tmp := new(gpiPortCurrentState)
@@ -1646,20 +1557,34 @@ group4:
 
 			m.GPOWriteData = append(m.GPOWriteData, *tmp)
 		default:
-			break group4
+			break paramGroup4
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamEventsAndReports, 5, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamEventsAndReports {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamEventsAndReports says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		m.EventsAndReports = new(eventsAndReports)
 		*m.EventsAndReports = eventsAndReports(data[4]&0x80 != 0)
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -1668,7 +1593,6 @@ group4:
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1677,7 +1601,6 @@ group4:
 		m.Custom = append(m.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1699,21 +1622,24 @@ type setReaderConfig struct {
 // UnmarshalBinary Message 3, SetReaderConfig.
 func (m *setReaderConfig) UnmarshalBinary(data []byte) error {
 	if len(data) < 1 {
-		return errors.Errorf("ParamSetReaderConfig requires at least 1 byte "+
-			"but only %d are available", len(data))
+		return errors.Errorf("SetReaderConfig length should be at least 1, but is %d", len(data))
 	}
-
 	m.ResetToFactoryDefaults = data[0]&0x80 != 0
 	data = data[1:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamReaderEventNotificationSpec, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamReaderEventNotificationSpec {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamReaderEventNotificationSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		m.ReaderEventNotificationSpec = new(readerEventNotificationSpec)
 		if err := m.ReaderEventNotificationSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1721,8 +1647,11 @@ func (m *setReaderConfig) UnmarshalBinary(data []byte) error {
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1730,7 +1659,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamAntennaProperties:
 			tmp := new(antennaProperties)
@@ -1747,11 +1675,17 @@ group1:
 
 			m.AntennaConfiguration = append(m.AntennaConfiguration, *tmp)
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
-group2:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup2:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1759,7 +1693,6 @@ group2:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamROReportSpec:
 			m.ROReportSpec = new(roReportSpec)
@@ -1777,11 +1710,17 @@ group2:
 			}
 
 		default:
-			break group2
+			break paramGroup2
 		}
 
+		data = data[subLen:]
 	}
-group3:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup3:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -1789,7 +1728,6 @@ group3:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamGPOWriteData:
 			tmp := new(gpoWriteData)
@@ -1806,20 +1744,34 @@ group3:
 
 			m.GPIPortCurrentState = append(m.GPIPortCurrentState, *tmp)
 		default:
-			break group3
+			break paramGroup3
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamEventsAndReports, 5, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamEventsAndReports {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamEventsAndReports says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		m.EventsAndReports = new(eventsAndReports)
 		*m.EventsAndReports = eventsAndReports(data[4]&0x80 != 0)
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -1828,7 +1780,6 @@ group3:
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -1837,7 +1788,6 @@ group3:
 		m.Custom = append(m.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1849,10 +1799,8 @@ type setReaderConfigResponse struct {
 // UnmarshalBinary Message 13, SetReaderConfigResponse.
 func (m *setReaderConfigResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamSetReaderConfigResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("SetReaderConfigResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1862,14 +1810,12 @@ func (m *setReaderConfigResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1882,7 +1828,6 @@ func (m *closeConnection) UnmarshalBinary(data []byte) error {
 	if len(data) > 0 {
 		return errors.Errorf("CloseConnection should be empty, but has %d bytes", len(data))
 	}
-
 	return nil
 }
 
@@ -1894,10 +1839,8 @@ type closeConnectionResponse struct {
 // UnmarshalBinary Message 4, CloseConnectionResponse.
 func (m *closeConnectionResponse) UnmarshalBinary(data []byte) error {
 	if len(data) < 8 {
-		return errors.Errorf("ParamCloseConnectionResponse requires at least 8 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("CloseConnectionResponse length should be at least 8, but is %d", len(data))
 	}
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamLLRPStatus {
 		return errors.Errorf("expected ParamLLRPStatus, but found %v", subType)
@@ -1907,14 +1850,12 @@ func (m *closeConnectionResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamLLRPStatus says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := m.LLRPStatus.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -1922,24 +1863,21 @@ func (m *closeConnectionResponse) UnmarshalBinary(data []byte) error {
 type customMessage struct {
 	VendorID       uint32
 	MessageSubtype uint8
-	VendorPayload  []byte
+	Data           []byte
 }
 
 // UnmarshalBinary Message 1023, CustomMessage.
 func (m *customMessage) UnmarshalBinary(data []byte) error {
 	if len(data) < 5 {
-		return errors.Errorf("ParamCustomMessage requires at least 5 bytes "+
-			"but only %d are available", len(data))
+		return errors.Errorf("CustomMessage length should be at least 5, but is %d", len(data))
 	}
-
 	m.VendorID = binary.BigEndian.Uint32(data)
 	m.MessageSubtype = data[4]
 	if len(data)-5 == 0 {
 		return nil
 	}
-
-	m.VendorPayload = make([]byte, len(data)-5)
-	copy(m.VendorPayload, data[5:])
+	m.Data = make([]byte, len(data)-5)
+	copy(m.Data, data[5:])
 
 	data = data[5:]
 	return nil
@@ -1950,9 +1888,8 @@ type antennaID uint16
 
 // UnmarshalBinary Parameter 1, AntennaID.
 func (p *antennaID) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamAntennaID requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAntennaID, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = antennaID(binary.BigEndian.Uint16(data))
@@ -1964,9 +1901,8 @@ type firstSeenUTC microSecs64
 
 // UnmarshalBinary Parameter 2, FirstSeenUTC.
 func (p *firstSeenUTC) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamFirstSeenUTC requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamFirstSeenUTC, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = firstSeenUTC(binary.BigEndian.Uint64(data))
@@ -1978,9 +1914,8 @@ type firstSeenUptime microSecs64
 
 // UnmarshalBinary Parameter 3, FirstSeenUptime.
 func (p *firstSeenUptime) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamFirstSeenUptime requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamFirstSeenUptime, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = firstSeenUptime(binary.BigEndian.Uint64(data))
@@ -1992,9 +1927,8 @@ type lastSeenUTC microSecs64
 
 // UnmarshalBinary Parameter 4, LastSeenUTC.
 func (p *lastSeenUTC) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamLastSeenUTC requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamLastSeenUTC, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = lastSeenUTC(binary.BigEndian.Uint64(data))
@@ -2006,9 +1940,8 @@ type lastSeenUptime microSecs64
 
 // UnmarshalBinary Parameter 5, LastSeenUptime.
 func (p *lastSeenUptime) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamLastSeenUptime requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamLastSeenUptime, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = lastSeenUptime(binary.BigEndian.Uint64(data))
@@ -2020,9 +1953,8 @@ type peakRSSI dBm8
 
 // UnmarshalBinary Parameter 6, PeakRSSI.
 func (p *peakRSSI) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamPeakRSSI requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamPeakRSSI, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = peakRSSI(dBm8(data[0]))
@@ -2034,9 +1966,8 @@ type channelIndex uint16
 
 // UnmarshalBinary Parameter 7, ChannelIndex.
 func (p *channelIndex) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamChannelIndex requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamChannelIndex, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = channelIndex(binary.BigEndian.Uint16(data))
@@ -2048,9 +1979,8 @@ type tagSeenCount uint16
 
 // UnmarshalBinary Parameter 8, TagSeenCount.
 func (p *tagSeenCount) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamTagSeenCount requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamTagSeenCount, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = tagSeenCount(binary.BigEndian.Uint16(data))
@@ -2062,9 +1992,8 @@ type roSpecID uint32
 
 // UnmarshalBinary Parameter 9, ROSpecID.
 func (p *roSpecID) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamROSpecID requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamROSpecID, 4, len(data), true); err != nil {
+		return err
 	}
 
 	*p = roSpecID(binary.BigEndian.Uint32(data))
@@ -2076,9 +2005,8 @@ type inventoryParameterSpecID uint16
 
 // UnmarshalBinary Parameter 10, InventoryParameterSpecID.
 func (p *inventoryParameterSpecID) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamInventoryParameterSpecID requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamInventoryParameterSpecID, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = inventoryParameterSpecID(binary.BigEndian.Uint16(data))
@@ -2090,9 +2018,8 @@ type c1G2CRC uint16
 
 // UnmarshalBinary Parameter 11, C1G2CRC.
 func (p *c1G2CRC) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2CRC requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2CRC, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2CRC(binary.BigEndian.Uint16(data))
@@ -2104,9 +2031,8 @@ type c1G2PC uint16
 
 // UnmarshalBinary Parameter 12, C1G2PC.
 func (p *c1G2PC) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2PC requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2PC, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2PC(binary.BigEndian.Uint16(data))
@@ -2120,9 +2046,8 @@ type epc96 struct {
 
 // UnmarshalBinary Parameter 13, EPC96.
 func (p *epc96) UnmarshalBinary(data []byte) error {
-	if len(data) != 12 {
-		return errors.Errorf("ParamEPC96 requires exactly 12 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamEPC96, 12, len(data), true); err != nil {
+		return err
 	}
 
 	p.EPC = make([]byte, 12)
@@ -2135,9 +2060,8 @@ type specIndex uint16
 
 // UnmarshalBinary Parameter 14, SpecIndex.
 func (p *specIndex) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamSpecIndex requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamSpecIndex, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = specIndex(binary.BigEndian.Uint16(data))
@@ -2149,9 +2073,8 @@ type clientRequestOpSpecResult uint16
 
 // UnmarshalBinary Parameter 15, ClientRequestOpSpecResult.
 func (p *clientRequestOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamClientRequestOpSpecResult requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamClientRequestOpSpecResult, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = clientRequestOpSpecResult(binary.BigEndian.Uint16(data))
@@ -2163,9 +2086,8 @@ type accessSpecID uint32
 
 // UnmarshalBinary Parameter 16, AccessSpecID.
 func (p *accessSpecID) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamAccessSpecID requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAccessSpecID, 4, len(data), true); err != nil {
+		return err
 	}
 
 	*p = accessSpecID(binary.BigEndian.Uint32(data))
@@ -2177,9 +2099,8 @@ type opSpecID uint16
 
 // UnmarshalBinary Parameter 17, OpSpecID.
 func (p *opSpecID) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamOpSpecID requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamOpSpecID, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = opSpecID(binary.BigEndian.Uint16(data))
@@ -2194,9 +2115,8 @@ type c1G2SingulationDetails struct {
 
 // UnmarshalBinary Parameter 18, C1G2SingulationDetails.
 func (p *c1G2SingulationDetails) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamC1G2SingulationDetails requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2SingulationDetails, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.NumCollisionSlots = binary.BigEndian.Uint16(data)
@@ -2209,9 +2129,8 @@ type c1G2XPCW1 uint16
 
 // UnmarshalBinary Parameter 19, C1G2XPCW1.
 func (p *c1G2XPCW1) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2XPCW1 requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2XPCW1, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2XPCW1(binary.BigEndian.Uint16(data))
@@ -2223,9 +2142,8 @@ type c1G2XPCW2 uint16
 
 // UnmarshalBinary Parameter 20, C1G2XPCW2.
 func (p *c1G2XPCW2) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2XPCW2 requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2XPCW2, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2XPCW2(binary.BigEndian.Uint16(data))
@@ -2237,9 +2155,8 @@ type utcTimestamp microSecs64
 
 // UnmarshalBinary Parameter 128, UTCTimestamp.
 func (p *utcTimestamp) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamUTCTimestamp requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamUTCTimestamp, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = utcTimestamp(binary.BigEndian.Uint64(data))
@@ -2251,9 +2168,8 @@ type uptime microSecs64
 
 // UnmarshalBinary Parameter 129, Uptime.
 func (p *uptime) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamUptime requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamUptime, 8, len(data), true); err != nil {
+		return err
 	}
 
 	*p = uptime(binary.BigEndian.Uint64(data))
@@ -2276,9 +2192,8 @@ type generalDeviceCapabilities struct {
 
 // UnmarshalBinary Parameter 137, GeneralDeviceCapabilities.
 func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) < 29 {
-		return errors.Errorf("ParamGeneralDeviceCapabilities requires at least 29 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 29, len(data), false); err != nil {
+		return err
 	}
 
 	p.MaxSupportedAntennas = binary.BigEndian.Uint16(data)
@@ -2291,8 +2206,11 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 		p.ReaderFirmwareVersion = string(data[13 : arrLen+13])
 		data = data[arrLen+13:]
 	}
-
 	// sub-parameters
+	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 8, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamReceiveSensitivityTableEntry {
 		return errors.Errorf("expected ParamReceiveSensitivityTableEntry, but found %v", subType)
 	} else {
@@ -2301,7 +2219,6 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamReceiveSensitivityTableEntry says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(receiveSensitivityTableEntry)
 		if err := tmp.UnmarshalBinary(data[4:8]); err != nil {
 			return err
@@ -2310,6 +2227,9 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 		p.ReceiveSensitivityTableEntries = append(p.ReceiveSensitivityTableEntries, *tmp)
 		data = data[subLen:]
 	}
+	if err := hasEnoughBytes(ParamPerAntennaReceiveSensitivityRange, 10, len(data), false); err != nil {
+		return err
+	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamPerAntennaReceiveSensitivityRange {
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2317,7 +2237,6 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamPerAntennaReceiveSensitivityRange says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(perAntennaReceiveSensitivityRange)
 		if err := tmp.UnmarshalBinary(data[4:10]); err != nil {
 			return err
@@ -2325,6 +2244,9 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 
 		p.PerAntennaReceiveSensitivityRanges = append(p.PerAntennaReceiveSensitivityRanges, *tmp)
 		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 8, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamGPIOCapabilities {
@@ -2335,12 +2257,14 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamGPIOCapabilities says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.GPIOCapabilities.UnmarshalBinary(data[4:8]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 8, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamPerAntennaAirProtocol {
@@ -2351,7 +2275,6 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamPerAntennaAirProtocol says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(perAntennaAirProtocol)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -2360,6 +2283,12 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 		p.PerAntennaAirProtocols = append(p.PerAntennaAirProtocols, *tmp)
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamMaximumReceiveSensitivity, 6, len(data), false); err != nil {
+		return err
+	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamMaximumReceiveSensitivity {
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2367,12 +2296,10 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamMaximumReceiveSensitivity says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.MaximumReceiveSensitivity = new(maximumReceiveSensitivity)
 		*p.MaximumReceiveSensitivity = maximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data[4:])))
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2385,9 +2312,8 @@ type receiveSensitivityTableEntry struct {
 
 // UnmarshalBinary Parameter 139, ReceiveSensitivityTableEntry.
 func (p *receiveSensitivityTableEntry) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamReceiveSensitivityTableEntry requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamReceiveSensitivityTableEntry, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.TableIndex = binary.BigEndian.Uint16(data)
@@ -2403,9 +2329,8 @@ type perAntennaAirProtocol struct {
 
 // UnmarshalBinary Parameter 140, PerAntennaAirProtocol.
 func (p *perAntennaAirProtocol) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamPerAntennaAirProtocol requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamPerAntennaAirProtocol, 4, len(data), false); err != nil {
+		return err
 	}
 
 	p.AntennaID = binary.BigEndian.Uint16(data)
@@ -2419,11 +2344,9 @@ func (p *perAntennaAirProtocol) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen+4:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading PerAntennaAirProtocol, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -2435,9 +2358,8 @@ type gpioCapabilities struct {
 
 // UnmarshalBinary Parameter 141, GPIOCapabilities.
 func (p *gpioCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamGPIOCapabilities requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamGPIOCapabilities, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.NumGPIs = binary.BigEndian.Uint16(data)
@@ -2459,9 +2381,8 @@ type llrpCapabilities struct {
 
 // UnmarshalBinary Parameter 142, LLRPCapabilities.
 func (p *llrpCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) != 24 {
-		return errors.Errorf("ParamLLRPCapabilities requires exactly 24 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamLLRPCapabilities, 24, len(data), true); err != nil {
+		return err
 	}
 
 	p.LLRPCapabilitiesFlags = LLRPCapabilitiesFlags(data[0])
@@ -2485,29 +2406,39 @@ type regulatoryCapabilities struct {
 
 // UnmarshalBinary Parameter 143, RegulatoryCapabilities.
 func (p *regulatoryCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamRegulatoryCapabilities requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamRegulatoryCapabilities, 4, len(data), false); err != nil {
+		return err
 	}
 
 	p.CountryCode = CountryCodeType(binary.BigEndian.Uint16(data))
 	p.CommunicationsStandard = binary.BigEndian.Uint16(data[2:])
 	data = data[4:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamUHFBandCapabilities, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUHFBandCapabilities {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamUHFBandCapabilities says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.UHFBandCapabilities = new(uhfBandCapabilities)
 		if err := p.UHFBandCapabilities.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -2516,7 +2447,6 @@ func (p *regulatoryCapabilities) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -2525,7 +2455,6 @@ func (p *regulatoryCapabilities) UnmarshalBinary(data []byte) error {
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2539,13 +2468,13 @@ type uhfBandCapabilities struct {
 
 // UnmarshalBinary Parameter 144, UHFBandCapabilities.
 func (p *uhfBandCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamUHFBandCapabilities requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamUHFBandCapabilities, 5, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
-group0:
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2553,7 +2482,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamTransmitPowerLevelTableEntry:
 			tmp := new(transmitPowerLevelTableEntry)
@@ -2577,17 +2505,25 @@ group0:
 
 			p.UHFC1G2RFModeTable = append(p.UHFC1G2RFModeTable, *tmp)
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamRFSurveyFrequencyCapabilities, 12, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamRFSurveyFrequencyCapabilities {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamRFSurveyFrequencyCapabilities says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.RFSurveyFrequencyCapabilities = new(rfSurveyFrequencyCapabilities)
 		if err := p.RFSurveyFrequencyCapabilities.UnmarshalBinary(data[4:12]); err != nil {
 			return err
@@ -2595,7 +2531,6 @@ group0:
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2607,9 +2542,8 @@ type transmitPowerLevelTableEntry struct {
 
 // UnmarshalBinary Parameter 145, TransmitPowerLevelTableEntry.
 func (p *transmitPowerLevelTableEntry) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamTransmitPowerLevelTableEntry requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamTransmitPowerLevelTableEntry, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.Index = binary.BigEndian.Uint16(data)
@@ -2626,22 +2560,26 @@ type frequencyInformation struct {
 
 // UnmarshalBinary Parameter 146, FrequencyInformation.
 func (p *frequencyInformation) UnmarshalBinary(data []byte) error {
-	if len(data) < 1 {
-		return errors.Errorf("ParamFrequencyInformation requires at least 1 byte "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamFrequencyInformation, 1, len(data), false); err != nil {
+		return err
 	}
 
 	p.HoppingFlags = HoppingFlags(data[0])
 	data = data[1:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamFrequencyHopTable, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFrequencyHopTable {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamFrequencyHopTable says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(frequencyHopTable)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -2650,6 +2588,12 @@ func (p *frequencyInformation) UnmarshalBinary(data []byte) error {
 		p.FrequencyHopTable = append(p.FrequencyHopTable, *tmp)
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamFixedFrequencyTable, 4, len(data), false); err != nil {
+		return err
+	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamFixedFrequencyTable {
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2657,7 +2601,6 @@ func (p *frequencyInformation) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamFixedFrequencyTable says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.FixedFrequencyTable = new(fixedFrequencyTable)
 		if err := p.FixedFrequencyTable.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -2665,7 +2608,6 @@ func (p *frequencyInformation) UnmarshalBinary(data []byte) error {
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2677,9 +2619,8 @@ type frequencyHopTable struct {
 
 // UnmarshalBinary Parameter 147, FrequencyHopTable.
 func (p *frequencyHopTable) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamFrequencyHopTable requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamFrequencyHopTable, 4, len(data), false); err != nil {
+		return err
 	}
 
 	p.HopTableID = data[0]
@@ -2693,11 +2634,9 @@ func (p *frequencyHopTable) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*4+4:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading FrequencyHopTable, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -2708,9 +2647,8 @@ type fixedFrequencyTable struct {
 
 // UnmarshalBinary Parameter 148, FixedFrequencyTable.
 func (p *fixedFrequencyTable) UnmarshalBinary(data []byte) error {
-	if len(data) < 2 {
-		return errors.Errorf("ParamFixedFrequencyTable requires at least 2 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamFixedFrequencyTable, 2, len(data), false); err != nil {
+		return err
 	}
 
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen)*4 > int64(len(data[2:])) {
@@ -2723,11 +2661,9 @@ func (p *fixedFrequencyTable) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*4+2:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading FixedFrequencyTable, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -2740,9 +2676,8 @@ type perAntennaReceiveSensitivityRange struct {
 
 // UnmarshalBinary Parameter 149, PerAntennaReceiveSensitivityRange.
 func (p *perAntennaReceiveSensitivityRange) UnmarshalBinary(data []byte) error {
-	if len(data) != 6 {
-		return errors.Errorf("ParamPerAntennaReceiveSensitivityRange requires exactly 6 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamPerAntennaReceiveSensitivityRange, 6, len(data), true); err != nil {
+		return err
 	}
 
 	p.AntennaID = binary.BigEndian.Uint16(data)
@@ -2766,16 +2701,14 @@ type roSpec struct {
 
 // UnmarshalBinary Parameter 177, ROSpec.
 func (p *roSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 15 {
-		return errors.Errorf("ParamROSpec requires at least 15 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamROSpec, 15, len(data), false); err != nil {
+		return err
 	}
 
 	p.ROSpecID = binary.BigEndian.Uint32(data)
 	p.Priority = data[4]
 	p.ROSpecCurrentState = ROSpecCurrentStateType(data[5])
 	data = data[6:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamROBoundarySpec {
 		return errors.Errorf("expected ParamROBoundarySpec, but found %v", subType)
@@ -2785,15 +2718,17 @@ func (p *roSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROBoundarySpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.ROBoundarySpec.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-groupspecs:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2801,7 +2736,6 @@ groupspecs:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamAISpec:
 			tmp := new(aiSpec)
@@ -2825,11 +2759,17 @@ groupspecs:
 
 			p.Custom = append(p.Custom, *tmp)
 		default:
-			break groupspecs
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
-group2:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup2:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2837,7 +2777,6 @@ group2:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamLoopSpec:
 			p.LoopSpec = new(loopSpec)
@@ -2849,10 +2788,12 @@ group2:
 			}
 
 		default:
-			break group2
+			break paramGroup2
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -2864,9 +2805,8 @@ type roBoundarySpec struct {
 
 // UnmarshalBinary Parameter 178, ROBoundarySpec.
 func (p *roBoundarySpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamROBoundarySpec requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamROBoundarySpec, 5, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
@@ -2878,12 +2818,14 @@ func (p *roBoundarySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpecStartTrigger says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.ROSpecStartTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamROSpecStopTrigger, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamROSpecStopTrigger {
@@ -2894,14 +2836,12 @@ func (p *roBoundarySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpecStopTrigger says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.ROSpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2914,16 +2854,18 @@ type roSpecStartTrigger struct {
 
 // UnmarshalBinary Parameter 179, ROSpecStartTrigger.
 func (p *roSpecStartTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) < 1 {
-		return errors.Errorf("ParamROSpecStartTrigger requires at least 1 byte "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamROSpecStartTrigger, 1, len(data), false); err != nil {
+		return err
 	}
 
 	p.ROSpecStartTriggerType = ROSpecStartTriggerType(data[0])
 	data = data[1:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -2931,7 +2873,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamPeriodicTriggerValue:
 			p.PeriodicTriggerValue = new(periodicTriggerValue)
@@ -2946,10 +2887,12 @@ group0:
 			}
 
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -2962,28 +2905,31 @@ type periodicTriggerValue struct {
 
 // UnmarshalBinary Parameter 180, PeriodicTriggerValue.
 func (p *periodicTriggerValue) UnmarshalBinary(data []byte) error {
-	if len(data) < 8 {
-		return errors.Errorf("ParamPeriodicTriggerValue requires at least 8 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamPeriodicTriggerValue, 8, len(data), false); err != nil {
+		return err
 	}
 
 	p.Offset = binary.BigEndian.Uint32(data)
 	p.Period = binary.BigEndian.Uint32(data[4:])
 	data = data[8:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamUTCTimestamp, 12, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamUTCTimestamp {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamUTCTimestamp says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.UTCTimestamp = new(utcTimestamp)
 		*p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -2996,9 +2942,8 @@ type gpiTriggerValue struct {
 
 // UnmarshalBinary Parameter 181, GPITriggerValue.
 func (p *gpiTriggerValue) UnmarshalBinary(data []byte) error {
-	if len(data) != 7 {
-		return errors.Errorf("ParamGPITriggerValue requires exactly 7 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamGPITriggerValue, 7, len(data), true); err != nil {
+		return err
 	}
 
 	p.GPIPortNum = binary.BigEndian.Uint16(data)
@@ -3016,23 +2961,27 @@ type roSpecStopTrigger struct {
 
 // UnmarshalBinary Parameter 182, ROSpecStopTrigger.
 func (p *roSpecStopTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamROSpecStopTrigger requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamROSpecStopTrigger, 5, len(data), false); err != nil {
+		return err
 	}
 
 	p.ROSpecStopTriggerType = ROSpecStopTriggerType(data[0])
 	p.DurationTriggerValue = binary.BigEndian.Uint32(data[1:])
 	data = data[5:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamGPITriggerValue, 11, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamGPITriggerValue {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamGPITriggerValue says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.GPITriggerValue = new(gpiTriggerValue)
 		if err := p.GPITriggerValue.UnmarshalBinary(data[4:11]); err != nil {
 			return err
@@ -3040,7 +2989,6 @@ func (p *roSpecStopTrigger) UnmarshalBinary(data []byte) error {
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -3054,9 +3002,8 @@ type aiSpec struct {
 
 // UnmarshalBinary Parameter 183, AISpec.
 func (p *aiSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 9 {
-		return errors.Errorf("ParamAISpec requires at least 9 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAISpec, 9, len(data), false); err != nil {
+		return err
 	}
 
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen)*2 > int64(len(data[2:])) {
@@ -3069,8 +3016,11 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*2+2:]
 	}
-
 	// sub-parameters
+	if err := hasEnoughBytes(ParamAISpec, 9, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAISpecStopTrigger {
 		return errors.Errorf("expected ParamAISpecStopTrigger, but found %v", subType)
 	} else {
@@ -3079,12 +3029,14 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAISpecStopTrigger says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.AISpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamAISpec, 7, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamInventoryParameterSpec {
@@ -3095,7 +3047,6 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamInventoryParameterSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(inventoryParameterSpec)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -3104,6 +3055,12 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 		p.InventoryParameterSpec = append(p.InventoryParameterSpec, *tmp)
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3111,7 +3068,6 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -3120,7 +3076,6 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -3134,17 +3089,19 @@ type aiSpecStopTrigger struct {
 
 // UnmarshalBinary Parameter 184, AISpecStopTrigger.
 func (p *aiSpecStopTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamAISpecStopTrigger requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAISpecStopTrigger, 5, len(data), false); err != nil {
+		return err
 	}
 
 	p.AISpecStopTriggerType = AISpecStopTriggerType(data[0])
 	p.DurationTriggerValue = binary.BigEndian.Uint32(data[1:])
 	data = data[5:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3152,7 +3109,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamGPITriggerValue:
 			p.GPITriggerValue = new(gpiTriggerValue)
@@ -3167,10 +3123,12 @@ group0:
 			}
 
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -3185,9 +3143,8 @@ type tagObservationTrigger struct {
 
 // UnmarshalBinary Parameter 185, TagObservationTrigger.
 func (p *tagObservationTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) != 12 {
-		return errors.Errorf("ParamTagObservationTrigger requires exactly 12 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamTagObservationTrigger, 12, len(data), true); err != nil {
+		return err
 	}
 
 	p.TagObservationTriggerType = TagObservationTriggerType(data[0])
@@ -3208,17 +3165,19 @@ type inventoryParameterSpec struct {
 
 // UnmarshalBinary Parameter 186, InventoryParameterSpec.
 func (p *inventoryParameterSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 3 {
-		return errors.Errorf("ParamInventoryParameterSpec requires at least 3 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamInventoryParameterSpec, 3, len(data), false); err != nil {
+		return err
 	}
 
 	p.InventoryParameterSpecID = binary.BigEndian.Uint16(data)
 	p.AirProtocolID = AirProtocolIDType(data[2])
 	data = data[3:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3226,7 +3185,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamAntennaConfiguration:
 			tmp := new(antennaConfiguration)
@@ -3243,10 +3201,12 @@ group0:
 
 			p.Custom = append(p.Custom, *tmp)
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -3261,16 +3221,14 @@ type rfSurveySpec struct {
 
 // UnmarshalBinary Parameter 187, RFSurveySpec.
 func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 23 {
-		return errors.Errorf("ParamRFSurveySpec requires at least 23 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamRFSurveySpec, 23, len(data), false); err != nil {
+		return err
 	}
 
 	p.AntennaID = binary.BigEndian.Uint16(data)
 	p.StartFrequency = binary.BigEndian.Uint32(data[2:])
 	p.EndFrequency = binary.BigEndian.Uint32(data[6:])
 	data = data[10:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamRFSurveySpecStopTrigger {
 		return errors.Errorf("expected ParamRFSurveySpecStopTrigger, but found %v", subType)
@@ -3280,12 +3238,17 @@ func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamRFSurveySpecStopTrigger says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.RFSurveySpecStopTrigger.UnmarshalBinary(data[4:13]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -3294,7 +3257,6 @@ func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -3303,7 +3265,6 @@ func (p *rfSurveySpec) UnmarshalBinary(data []byte) error {
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -3316,9 +3277,8 @@ type rfSurveySpecStopTrigger struct {
 
 // UnmarshalBinary Parameter 188, RFSurveySpecStopTrigger.
 func (p *rfSurveySpecStopTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) != 9 {
-		return errors.Errorf("ParamRFSurveySpecStopTrigger requires exactly 9 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamRFSurveySpecStopTrigger, 9, len(data), true); err != nil {
+		return err
 	}
 
 	p.RFSurveySpecStopTriggerType = RFSurveySpecStopTriggerType(data[0])
@@ -3342,9 +3302,8 @@ type accessSpec struct {
 
 // UnmarshalBinary Parameter 207, AccessSpec.
 func (p *accessSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 19 {
-		return errors.Errorf("ParamAccessSpec requires at least 19 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAccessSpec, 19, len(data), false); err != nil {
+		return err
 	}
 
 	p.AccessSpecID = binary.BigEndian.Uint32(data)
@@ -3353,7 +3312,6 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 	p.AccessSpecFlags = AccessSpecFlags(data[7])
 	p.ROSpecID = binary.BigEndian.Uint32(data[8:])
 	data = data[12:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAccessSpecStopTrigger {
 		return errors.Errorf("expected ParamAccessSpecStopTrigger, but found %v", subType)
@@ -3363,12 +3321,14 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessSpecStopTrigger says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.AccessSpecStopTrigger.UnmarshalBinary(data[4:7]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamAccessCommand, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamAccessCommand {
@@ -3379,12 +3339,17 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessCommand says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.AccessCommand.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamAccessReportSpec, 5, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamAccessReportSpec {
@@ -3393,10 +3358,15 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessReportSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.AccessReportSpec = new(accessReportSpec)
 		*p.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -3405,7 +3375,6 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -3414,7 +3383,6 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -3426,9 +3394,8 @@ type accessSpecStopTrigger struct {
 
 // UnmarshalBinary Parameter 208, AccessSpecStopTrigger.
 func (p *accessSpecStopTrigger) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamAccessSpecStopTrigger requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAccessSpecStopTrigger, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.AccessSpecStopTriggerType = AccessSpecStopTriggerType(data[0])
@@ -3454,9 +3421,8 @@ type accessCommand struct {
 
 // UnmarshalBinary Parameter 209, AccessCommand.
 func (p *accessCommand) UnmarshalBinary(data []byte) error {
-	if len(data) < 15 {
-		return errors.Errorf("ParamAccessCommand requires at least 15 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAccessCommand, 15, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
@@ -3468,15 +3434,17 @@ func (p *accessCommand) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TagSpec says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.C1G2TagSpec.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3484,7 +3452,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2Read:
 			p.C1G2Read = new(c1G2Read)
@@ -3550,10 +3517,12 @@ group1:
 			}
 
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -3562,9 +3531,8 @@ type clientRequestOpSpec uint16
 
 // UnmarshalBinary Parameter 210, ClientRequestOpSpec.
 func (p *clientRequestOpSpec) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamClientRequestOpSpec requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamClientRequestOpSpec, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = clientRequestOpSpec(binary.BigEndian.Uint16(data))
@@ -3590,14 +3558,12 @@ type clientRequestResponse struct {
 
 // UnmarshalBinary Parameter 211, ClientRequestResponse.
 func (p *clientRequestResponse) UnmarshalBinary(data []byte) error {
-	if len(data) < 10 {
-		return errors.Errorf("ParamClientRequestResponse requires at least 10 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamClientRequestResponse, 10, len(data), false); err != nil {
+		return err
 	}
 
 	p.AccessSpecID = binary.BigEndian.Uint32(data)
 	data = data[4:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEPCData {
 		return errors.Errorf("expected ParamEPCData, but found %v", subType)
@@ -3607,15 +3573,17 @@ func (p *clientRequestResponse) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamEPCData says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.EPCData.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3623,7 +3591,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2Read:
 			p.C1G2Read = new(c1G2Read)
@@ -3689,10 +3656,12 @@ group1:
 			}
 
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -3701,9 +3670,8 @@ type llrpConfigurationStateValue uint32
 
 // UnmarshalBinary Parameter 217, LLRPConfigurationStateValue.
 func (p *llrpConfigurationStateValue) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamLLRPConfigurationStateValue requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamLLRPConfigurationStateValue, 4, len(data), true); err != nil {
+		return err
 	}
 
 	*p = llrpConfigurationStateValue(binary.BigEndian.Uint32(data))
@@ -3718,9 +3686,8 @@ type identification struct {
 
 // UnmarshalBinary Parameter 218, Identification.
 func (p *identification) UnmarshalBinary(data []byte) error {
-	if len(data) < 3 {
-		return errors.Errorf("ParamIdentification requires at least 3 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamIdentification, 3, len(data), false); err != nil {
+		return err
 	}
 
 	p.IDType = IDType(data[0])
@@ -3731,11 +3698,9 @@ func (p *identification) UnmarshalBinary(data []byte) error {
 		copy(p.ReaderID, data[3:])
 		data = data[arrLen+3:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading Identification, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -3747,9 +3712,8 @@ type gpoWriteData struct {
 
 // UnmarshalBinary Parameter 219, GPOWriteData.
 func (p *gpoWriteData) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamGPOWriteData requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamGPOWriteData, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.GPOPort = binary.BigEndian.Uint16(data)
@@ -3765,9 +3729,8 @@ type keepAliveSpec struct {
 
 // UnmarshalBinary Parameter 220, KeepAliveSpec.
 func (p *keepAliveSpec) UnmarshalBinary(data []byte) error {
-	if len(data) != 5 {
-		return errors.Errorf("ParamKeepAliveSpec requires exactly 5 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamKeepAliveSpec, 5, len(data), true); err != nil {
+		return err
 	}
 
 	p.KeepAliveTriggerType = KeepAliveTriggerType(data[0])
@@ -3784,9 +3747,8 @@ type antennaProperties struct {
 
 // UnmarshalBinary Parameter 221, AntennaProperties.
 func (p *antennaProperties) UnmarshalBinary(data []byte) error {
-	if len(data) != 5 {
-		return errors.Errorf("ParamAntennaProperties requires exactly 5 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAntennaProperties, 5, len(data), true); err != nil {
+		return err
 	}
 
 	p.AntennaConnected = data[0]&0x80 != 0
@@ -3806,16 +3768,18 @@ type antennaConfiguration struct {
 
 // UnmarshalBinary Parameter 222, AntennaConfiguration.
 func (p *antennaConfiguration) UnmarshalBinary(data []byte) error {
-	if len(data) < 2 {
-		return errors.Errorf("ParamAntennaConfiguration requires at least 2 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAntennaConfiguration, 2, len(data), false); err != nil {
+		return err
 	}
 
 	p.AntennaID = binary.BigEndian.Uint16(data)
 	data = data[2:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3823,7 +3787,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamRFReceiver:
 			p.RFReceiver = new(rfReceiver)
@@ -3835,11 +3798,17 @@ group0:
 			}
 
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
-group1:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -3847,7 +3816,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2InventoryCommand:
 			tmp := new(c1G2InventoryCommand)
@@ -3864,10 +3832,12 @@ group1:
 
 			p.Custom = append(p.Custom, *tmp)
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -3876,9 +3846,8 @@ type rfReceiver uint16
 
 // UnmarshalBinary Parameter 223, RFReceiver.
 func (p *rfReceiver) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamRFReceiver requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamRFReceiver, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = rfReceiver(binary.BigEndian.Uint16(data))
@@ -3894,9 +3863,8 @@ type rfTransmitter struct {
 
 // UnmarshalBinary Parameter 224, RFTransmitter.
 func (p *rfTransmitter) UnmarshalBinary(data []byte) error {
-	if len(data) != 6 {
-		return errors.Errorf("ParamRFTransmitter requires exactly 6 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamRFTransmitter, 6, len(data), true); err != nil {
+		return err
 	}
 
 	p.HopTableID = binary.BigEndian.Uint16(data)
@@ -3914,9 +3882,8 @@ type gpiPortCurrentState struct {
 
 // UnmarshalBinary Parameter 225, GPIPortCurrentState.
 func (p *gpiPortCurrentState) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamGPIPortCurrentState requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamGPIPortCurrentState, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.GPIPort = binary.BigEndian.Uint16(data)
@@ -3930,9 +3897,8 @@ type eventsAndReports bool
 
 // UnmarshalBinary Parameter 226, EventsAndReports.
 func (p *eventsAndReports) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamEventsAndReports requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamEventsAndReports, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = eventsAndReports(data[0]&0x80 != 0)
@@ -3949,15 +3915,13 @@ type roReportSpec struct {
 
 // UnmarshalBinary Parameter 237, ROReportSpec.
 func (p *roReportSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 9 {
-		return errors.Errorf("ParamROReportSpec requires at least 9 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamROReportSpec, 9, len(data), false); err != nil {
+		return err
 	}
 
 	p.ROReportTriggerType = ROReportTriggerType(data[0])
 	p.N = binary.BigEndian.Uint16(data[1:])
 	data = data[3:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamTagReportContentSelector {
 		return errors.Errorf("expected ParamTagReportContentSelector, but found %v", subType)
@@ -3967,12 +3931,17 @@ func (p *roReportSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamTagReportContentSelector says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.TagReportContentSelector.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
@@ -3981,7 +3950,6 @@ func (p *roReportSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -3990,7 +3958,6 @@ func (p *roReportSpec) UnmarshalBinary(data []byte) error {
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -4012,9 +3979,8 @@ type tagReportContentSelector struct {
 
 // UnmarshalBinary Parameter 238, TagReportContentSelector.
 func (p *tagReportContentSelector) UnmarshalBinary(data []byte) error {
-	if len(data) < 2 {
-		return errors.Errorf("ParamTagReportContentSelector requires at least 2 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamTagReportContentSelector, 2, len(data), false); err != nil {
+		return err
 	}
 
 	p.EnableROSpecID = data[0]&0x80 != 0
@@ -4028,9 +3994,12 @@ func (p *tagReportContentSelector) UnmarshalBinary(data []byte) error {
 	p.EnableTagSeenCount = data[1]&0x80 != 0
 	p.EnableAccessSpecID = data[1]&0x40 != 0
 	data = data[2:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -4038,7 +4007,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2EPCMemorySelector:
 			tmp := new(c1G2EPCMemorySelector)
@@ -4055,10 +4023,12 @@ group0:
 
 			p.Custom = append(p.Custom, *tmp)
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -4067,9 +4037,8 @@ type accessReportSpec AccessReportTriggerType
 
 // UnmarshalBinary Parameter 239, AccessReportSpec.
 func (p *accessReportSpec) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamAccessReportSpec requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAccessReportSpec, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = accessReportSpec(AccessReportTriggerType(data[0]))
@@ -4111,96 +4080,99 @@ type tagReportData struct {
 
 // UnmarshalBinary Parameter 240, TagReportData.
 func (p *tagReportData) UnmarshalBinary(data []byte) error {
-	if len(data) < 6 {
-		return errors.Errorf("ParamTagReportData requires at least 6 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamTagReportData, 6, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
-	if data[0]&0x80 == 1 {
-		// TV parameter
-		if subType := ParamType(data[0]); subType != ParamEPC96 {
-			return errors.Errorf("expected ParamEPC96, but found %v", subType)
+	{
+		var pt ParamType
+		if data[0]&0x80 == 1 {
+			// TV parameter
+			pt = ParamType(data[0])
+		} else if len(data) < 4 {
+			return errors.Errorf("expecting a TLV header, but %d < 4 byte remain", len(data))
 		} else {
-			if err := p.EPC96.UnmarshalBinary(data[1:13]); err != nil {
-				return err
-			}
-
+			pt = ParamType(binary.BigEndian.Uint16(data))
 		}
-
-	} else {
-		if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamEPCData {
-			return errors.Errorf("expected ParamEPCData, but found %v", subType)
-		} else {
+		switch pt {
+		case ParamEPCData:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
 				return errors.Errorf("ParamEPCData says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			if err := p.EPCData.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 
 			data = data[subLen:]
+		case ParamEPC96:
+			if err := p.EPC96.UnmarshalBinary(data[1:13]); err != nil {
+				return err
+			}
+
+			data = data[13:]
+		default:
+			return errors.Errorf("unexpected parameter %v when unmarshaling ParamTagReportData", pt)
 		}
 
+		data = data[6:]
 	}
 
-group1:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup1:
 	for len(data) > 1 {
 		pt := ParamType(data[0])
 		switch pt {
 		case ParamROSpecID:
 			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
-			data = data[5:]
 		case ParamSpecIndex:
 			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamInventoryParameterSpecID:
 			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
 			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamAntennaID:
 			p.AntennaID = new(antennaID)
 			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamPeakRSSI:
 			p.PeakRSSI = new(peakRSSI)
 			*p.PeakRSSI = peakRSSI(dBm8(data[4]))
-			data = data[2:]
 		case ParamChannelIndex:
 			p.ChannelIndex = new(channelIndex)
 			*p.ChannelIndex = channelIndex(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamFirstSeenUTC:
 			p.FirstSeenUTC = new(firstSeenUTC)
 			*p.FirstSeenUTC = firstSeenUTC(binary.BigEndian.Uint64(data[4:]))
-			data = data[9:]
 		case ParamFirstSeenUptime:
 			p.FirstSeenUptime = new(firstSeenUptime)
 			*p.FirstSeenUptime = firstSeenUptime(binary.BigEndian.Uint64(data[4:]))
-			data = data[9:]
 		case ParamLastSeenUTC:
 			p.LastSeenUTC = new(lastSeenUTC)
 			*p.LastSeenUTC = lastSeenUTC(binary.BigEndian.Uint64(data[4:]))
-			data = data[9:]
 		case ParamLastSeenUptime:
 			p.LastSeenUptime = new(lastSeenUptime)
 			*p.LastSeenUptime = lastSeenUptime(binary.BigEndian.Uint64(data[4:]))
-			data = data[9:]
 		case ParamTagSeenCount:
 			p.TagSeenCount = new(tagSeenCount)
 			*p.TagSeenCount = tagSeenCount(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[0:]
 	}
-group2:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup2:
 	for len(data) > 1 {
 		pt := ParamType(data[0])
 		switch pt {
@@ -4211,7 +4183,6 @@ group2:
 			}
 
 			p.C1G2PC = append(p.C1G2PC, *tmp)
-			data = data[3:]
 		case ParamC1G2XPCW1:
 			tmp := new(c1G2XPCW1)
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
@@ -4219,7 +4190,6 @@ group2:
 			}
 
 			p.C1G2XPCW1 = append(p.C1G2XPCW1, *tmp)
-			data = data[3:]
 		case ParamC1G2XPCW2:
 			tmp := new(c1G2XPCW2)
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
@@ -4227,7 +4197,6 @@ group2:
 			}
 
 			p.C1G2XPCW2 = append(p.C1G2XPCW2, *tmp)
-			data = data[3:]
 		case ParamC1G2CRC:
 			tmp := new(c1G2CRC)
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
@@ -4235,30 +4204,39 @@ group2:
 			}
 
 			p.C1G2CRC = append(p.C1G2CRC, *tmp)
-			data = data[3:]
 		default:
-			break group2
+			break paramGroup2
 		}
 
+		data = data[0:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamAccessSpecID, 5, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(data[0]); subType == ParamAccessSpecID {
 		p.AccessSpecID = new(accessSpecID)
 		*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[4:]))
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-	if data[0]&0x80 == 1 {
-		// TV parameter
-		if subType := ParamType(data[0]); subType == ParamClientRequestOpSpecResult {
-			tmp := new(clientRequestOpSpecResult)
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-
-			p.ClientRequestOpSpecResult = append(p.ClientRequestOpSpecResult, *tmp)
+paramGroup4:
+	for len(data) > 1 {
+		var pt ParamType
+		if data[0]&0x80 == 1 {
+			// TV parameter
+			pt = ParamType(data[0])
+		} else if len(data) < 4 {
+			return errors.Errorf("expecting a TLV header, but %d < 4 byte remain", len(data))
+		} else {
+			pt = ParamType(binary.BigEndian.Uint16(data))
 		}
-
-	} else {
-		pt := ParamType(binary.BigEndian.Uint16(data))
 		switch pt {
 		case ParamC1G2ReadOpSpecResult:
 			subLen := binary.BigEndian.Uint16(data[2:])
@@ -4266,7 +4244,6 @@ group2:
 				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2ReadOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
@@ -4280,7 +4257,6 @@ group2:
 				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2WriteOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
 				return err
@@ -4294,7 +4270,6 @@ group2:
 				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2KillOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
@@ -4308,7 +4283,6 @@ group2:
 				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2LockOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
@@ -4322,7 +4296,6 @@ group2:
 				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2BlockEraseOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
@@ -4336,7 +4309,6 @@ group2:
 				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2BlockWriteOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:9]); err != nil {
 				return err
@@ -4350,7 +4322,6 @@ group2:
 				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2RecommissionOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
@@ -4364,7 +4335,6 @@ group2:
 				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2BlockPermalockOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 				return err
@@ -4378,7 +4348,6 @@ group2:
 				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(c1G2GetBlockPermalockStatusOpSpecResult)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
@@ -4400,7 +4369,6 @@ group2:
 				return errors.Errorf("ParamCustom says it has %d bytes,"+
 					" but only %d bytes remain", subLen, len(data))
 			}
-
 			tmp := new(custom)
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
@@ -4408,6 +4376,8 @@ group2:
 
 			p.Custom = append(p.Custom, *tmp)
 			data = data[subLen:]
+		default:
+			break paramGroup4
 		}
 
 	}
@@ -4422,9 +4392,8 @@ type epcData struct {
 
 // UnmarshalBinary Parameter 241, EPCData.
 func (p *epcData) UnmarshalBinary(data []byte) error {
-	if len(data) < 2 {
-		return errors.Errorf("ParamEPCData requires at least 2 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamEPCData, 2, len(data), false); err != nil {
+		return err
 	}
 
 	if arrLen := int(binary.BigEndian.Uint16(data)) & 7; int64(arrLen) > int64(len(data[2:])) {
@@ -4437,11 +4406,9 @@ func (p *epcData) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen+2:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading EPCData, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -4455,29 +4422,29 @@ type rfSurveyReportData struct {
 
 // UnmarshalBinary Parameter 242, RFSurveyReportData.
 func (p *rfSurveyReportData) UnmarshalBinary(data []byte) error {
-	if len(data) < 26 {
-		return errors.Errorf("ParamRFSurveyReportData requires at least 26 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamRFSurveyReportData, 26, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
-group0:
+
+paramGroup0:
 	for len(data) > 1 {
 		pt := ParamType(data[0])
 		switch pt {
 		case ParamROSpecID:
 			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
-			data = data[5:]
 		case ParamSpecIndex:
 			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[0:]
 	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamFrequencyRSSILevelEntry {
 		return errors.Errorf("expected ParamFrequencyRSSILevelEntry, but found %v", subType)
 	} else {
@@ -4486,7 +4453,6 @@ group0:
 			return errors.Errorf("ParamFrequencyRSSILevelEntry says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(frequencyRSSILevelEntry)
 		if err := tmp.UnmarshalBinary(data[4:26]); err != nil {
 			return err
@@ -4495,6 +4461,12 @@ group0:
 		p.FrequencyRSSILevelEntry = append(p.FrequencyRSSILevelEntry, *tmp)
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -4502,7 +4474,6 @@ group0:
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -4511,7 +4482,6 @@ group0:
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -4527,9 +4497,8 @@ type frequencyRSSILevelEntry struct {
 
 // UnmarshalBinary Parameter 243, FrequencyRSSILevelEntry.
 func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
-	if len(data) != 22 {
-		return errors.Errorf("ParamFrequencyRSSILevelEntry requires exactly 22 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamFrequencyRSSILevelEntry, 22, len(data), true); err != nil {
+		return err
 	}
 
 	p.Frequency = binary.BigEndian.Uint32(data)
@@ -4537,26 +4506,21 @@ func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	p.AverageRSSI = dBm8(data[8])
 	p.PeakRSSI = dBm8(data[9])
 	data = data[10:]
-
 	// sub-parameters
-	for len(data) > 4 {
+	{
 		pt := ParamType(binary.BigEndian.Uint16(data))
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("%v says it has %d bytes,"+
-				" but only %d bytes remain", pt, subLen, len(data))
-		}
-
 		switch pt {
 		case ParamUTCTimestamp:
 			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
 		case ParamUptime:
 			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
 		default:
-			return errors.Errorf("found %v when needed either UTCTimestamp or Uptime", pt)
+			return errors.Errorf("unexpected parameter %v when unmarshaling ParamFrequencyRSSILevelEntry", pt)
 		}
 
+		data = data[12:]
 	}
+
 	return nil
 }
 
@@ -4567,9 +4531,8 @@ type readerEventNotificationSpec struct {
 
 // UnmarshalBinary Parameter 244, ReaderEventNotificationSpec.
 func (p *readerEventNotificationSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 7 {
-		return errors.Errorf("ParamReaderEventNotificationSpec requires at least 7 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamReaderEventNotificationSpec, 7, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
@@ -4581,7 +4544,6 @@ func (p *readerEventNotificationSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamEventNotificationState says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(eventNotificationState)
 		if err := tmp.UnmarshalBinary(data[4:7]); err != nil {
 			return err
@@ -4590,7 +4552,6 @@ func (p *readerEventNotificationSpec) UnmarshalBinary(data []byte) error {
 		p.EventNotificationState = append(p.EventNotificationState, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -4602,9 +4563,8 @@ type eventNotificationState struct {
 
 // UnmarshalBinary Parameter 245, EventNotificationState.
 func (p *eventNotificationState) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamEventNotificationState requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamEventNotificationState, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.ReaderEventType = ReaderEventType(binary.BigEndian.Uint16(data))
@@ -4633,31 +4593,30 @@ type readerEventNotificationData struct {
 
 // UnmarshalBinary Parameter 246, ReaderEventNotificationData.
 func (p *readerEventNotificationData) UnmarshalBinary(data []byte) error {
-	if len(data) < 12 {
-		return errors.Errorf("ParamReaderEventNotificationData requires at least 12 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamReaderEventNotificationData, 12, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
-	for len(data) > 4 {
+	{
 		pt := ParamType(binary.BigEndian.Uint16(data))
-		subLen := binary.BigEndian.Uint16(data[2:])
-		if int(subLen) > len(data) {
-			return errors.Errorf("%v says it has %d bytes,"+
-				" but only %d bytes remain", pt, subLen, len(data))
-		}
-
 		switch pt {
 		case ParamUTCTimestamp:
 			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
 		case ParamUptime:
 			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
 		default:
-			return errors.Errorf("found %v when needed either UTCTimestamp or Uptime", pt)
+			return errors.Errorf("unexpected parameter %v when unmarshaling ParamReaderEventNotificationData", pt)
 		}
 
+		data = data[12:]
 	}
-group1:
+
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -4665,7 +4624,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamHoppingEvent:
 			p.HoppingEvent = new(hoppingEvent)
@@ -4731,17 +4689,25 @@ group1:
 			}
 
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -4750,7 +4716,6 @@ group1:
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -4759,9 +4724,8 @@ type hoppingEvent uint16
 
 // UnmarshalBinary Parameter 247, HoppingEvent.
 func (p *hoppingEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamHoppingEvent requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamHoppingEvent, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = hoppingEvent(binary.BigEndian.Uint16(data))
@@ -4776,9 +4740,8 @@ type gpiEvent struct {
 
 // UnmarshalBinary Parameter 248, GPIEvent.
 func (p *gpiEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamGPIEvent requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamGPIEvent, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.GPIPort = binary.BigEndian.Uint16(data)
@@ -4795,9 +4758,8 @@ type roSpecEvent struct {
 
 // UnmarshalBinary Parameter 249, ROSpecEvent.
 func (p *roSpecEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 9 {
-		return errors.Errorf("ParamROSpecEvent requires exactly 9 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamROSpecEvent, 9, len(data), true); err != nil {
+		return err
 	}
 
 	p.ROSpecEventType = ROSpecEventType(data[0])
@@ -4811,9 +4773,8 @@ type reportBufferLevelWarningEvent uint8
 
 // UnmarshalBinary Parameter 250, ReportBufferLevelWarningEvent.
 func (p *reportBufferLevelWarningEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamReportBufferLevelWarningEvent requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamReportBufferLevelWarningEvent, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = reportBufferLevelWarningEvent(data[0])
@@ -4825,8 +4786,8 @@ type reportBufferOverflowErrorEvent struct{}
 
 // UnmarshalBinary Parameter 251, ReportBufferOverflowErrorEvent.
 func (p *reportBufferOverflowErrorEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 0 {
-		return errors.Errorf("ParamReportBufferOverflowErrorEvent must be empty, but has %d bytes", len(data))
+	if err := hasEnoughBytes(ParamReportBufferOverflowErrorEvent, 0, len(data), true); err != nil {
+		return err
 	}
 
 	return nil
@@ -4846,9 +4807,8 @@ type readerExceptionEvent struct {
 
 // UnmarshalBinary Parameter 252, ReaderExceptionEvent.
 func (p *readerExceptionEvent) UnmarshalBinary(data []byte) error {
-	if len(data) < 2 {
-		return errors.Errorf("ParamReaderExceptionEvent requires at least 2 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamReaderExceptionEvent, 2, len(data), false); err != nil {
+		return err
 	}
 
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen) > int64(len(data[2:])) {
@@ -4857,48 +4817,53 @@ func (p *readerExceptionEvent) UnmarshalBinary(data []byte) error {
 		p.Message = string(data[2 : arrLen+2])
 		data = data[arrLen+2:]
 	}
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 1 {
 		pt := ParamType(data[0])
 		switch pt {
 		case ParamROSpecID:
 			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[4:]))
-			data = data[5:]
 		case ParamSpecIndex:
 			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamInventoryParameterSpecID:
 			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
 			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamAntennaID:
 			p.AntennaID = new(antennaID)
 			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		case ParamAccessSpecID:
 			p.AccessSpecID = new(accessSpecID)
 			*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[4:]))
-			data = data[5:]
 		case ParamOpSpecID:
 			p.OpSpecID = new(opSpecID)
 			*p.OpSpecID = opSpecID(binary.BigEndian.Uint16(data[4:]))
-			data = data[3:]
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[0:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -4907,7 +4872,6 @@ group0:
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -4919,9 +4883,8 @@ type rfSurveyEvent struct {
 
 // UnmarshalBinary Parameter 253, RFSurveyEvent.
 func (p *rfSurveyEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 5 {
-		return errors.Errorf("ParamRFSurveyEvent requires exactly 5 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamRFSurveyEvent, 5, len(data), true); err != nil {
+		return err
 	}
 
 	p.RFSurveyEventType = RFSurveyEventType(data[0])
@@ -4939,17 +4902,22 @@ type aiSpecEvent struct {
 
 // UnmarshalBinary Parameter 254, AISpecEvent.
 func (p *aiSpecEvent) UnmarshalBinary(data []byte) error {
-	if len(data) < 7 {
-		return errors.Errorf("ParamAISpecEvent requires at least 7 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamAISpecEvent, 7, len(data), false); err != nil {
+		return err
 	}
 
 	p.AISpecEventType = AISpecEventType(data[0])
 	p.ROSpecID = binary.BigEndian.Uint32(data[1:])
 	p.SpecIndex = binary.BigEndian.Uint16(data[5:])
 	data = data[7:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamC1G2SingulationDetails, 5, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(data[0]); subType == ParamC1G2SingulationDetails {
 		p.C1G2SingulationDetails = new(c1G2SingulationDetails)
 		if err := p.C1G2SingulationDetails.UnmarshalBinary(data[1:5]); err != nil {
@@ -4957,7 +4925,6 @@ func (p *aiSpecEvent) UnmarshalBinary(data []byte) error {
 		}
 
 	}
-
 	return nil
 }
 
@@ -4969,9 +4936,8 @@ type antennaEvent struct {
 
 // UnmarshalBinary Parameter 255, AntennaEvent.
 func (p *antennaEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamAntennaEvent requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamAntennaEvent, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.AntennaEventType = AntennaEventType(data[0])
@@ -4984,9 +4950,8 @@ type connectionAttemptEvent ConnectionAttemptEventType
 
 // UnmarshalBinary Parameter 256, ConnectionAttemptEvent.
 func (p *connectionAttemptEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamConnectionAttemptEvent requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamConnectionAttemptEvent, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = connectionAttemptEvent(ConnectionAttemptEventType(binary.BigEndian.Uint16(data)))
@@ -4998,8 +4963,8 @@ type connectionCloseEvent struct{}
 
 // UnmarshalBinary Parameter 257, ConnectionCloseEvent.
 func (p *connectionCloseEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 0 {
-		return errors.Errorf("ParamConnectionCloseEvent must be empty, but has %d bytes", len(data))
+	if err := hasEnoughBytes(ParamConnectionCloseEvent, 0, len(data), true); err != nil {
+		return err
 	}
 
 	return nil
@@ -5015,9 +4980,8 @@ type llrpStatus struct {
 
 // UnmarshalBinary Parameter 287, LLRPStatus.
 func (p *llrpStatus) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamLLRPStatus requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamLLRPStatus, 4, len(data), false); err != nil {
+		return err
 	}
 
 	p.Status = StatusCode(binary.BigEndian.Uint16(data))
@@ -5027,9 +4991,12 @@ func (p *llrpStatus) UnmarshalBinary(data []byte) error {
 		p.ErrorDescription = string(data[4 : arrLen+4])
 		data = data[arrLen+4:]
 	}
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -5037,7 +5004,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamFieldError:
 			p.FieldError = new(fieldError)
@@ -5052,10 +5018,12 @@ group0:
 			}
 
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -5067,9 +5035,8 @@ type fieldError struct {
 
 // UnmarshalBinary Parameter 288, FieldError.
 func (p *fieldError) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamFieldError requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamFieldError, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.FieldIndex = binary.BigEndian.Uint16(data)
@@ -5087,17 +5054,19 @@ type parameterError struct {
 
 // UnmarshalBinary Parameter 289, ParameterError.
 func (p *parameterError) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.Errorf("ParamParameterError requires at least 4 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamParameterError, 4, len(data), false); err != nil {
+		return err
 	}
 
 	p.ParameterType = ParamType(binary.BigEndian.Uint16(data))
 	p.ErrorCode = StatusCode(binary.BigEndian.Uint16(data[2:]))
 	data = data[4:]
-
 	// sub-parameters
-group0:
+	if len(data) == 0 {
+		return nil
+	}
+
+paramGroup0:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -5105,7 +5074,6 @@ group0:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamParameterError:
 			p.ParameterError = new(parameterError)
@@ -5120,10 +5088,12 @@ group0:
 			}
 
 		default:
-			break group0
+			break paramGroup0
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -5135,9 +5105,8 @@ type c1G2LLRPCapabilities struct {
 
 // UnmarshalBinary Parameter 327, C1G2LLRPCapabilities.
 func (p *c1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2LLRPCapabilities requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2LLRPCapabilities, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2CapabilitiesFlags = C1G2CapabilitiesFlags(data[0])
@@ -5152,9 +5121,8 @@ type uhfc1G2RFModeTable struct {
 
 // UnmarshalBinary Parameter 328, UHFC1G2RFModeTable.
 func (p *uhfc1G2RFModeTable) UnmarshalBinary(data []byte) error {
-	if len(data) < 32 {
-		return errors.Errorf("ParamUHFC1G2RFModeTable requires at least 32 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamUHFC1G2RFModeTable, 32, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
@@ -5166,7 +5134,6 @@ func (p *uhfc1G2RFModeTable) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamUHFC1G2RFModeTableEntry says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(uhfc1G2RFModeTableEntry)
 		if err := tmp.UnmarshalBinary(data[4:32]); err != nil {
 			return err
@@ -5175,7 +5142,6 @@ func (p *uhfc1G2RFModeTable) UnmarshalBinary(data []byte) error {
 		p.UHFC1G2RFModeTableEntry = append(p.UHFC1G2RFModeTableEntry, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -5195,9 +5161,8 @@ type uhfc1G2RFModeTableEntry struct {
 
 // UnmarshalBinary Parameter 329, UHFC1G2RFModeTableEntry.
 func (p *uhfc1G2RFModeTableEntry) UnmarshalBinary(data []byte) error {
-	if len(data) != 28 {
-		return errors.Errorf("ParamUHFC1G2RFModeTableEntry requires exactly 28 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamUHFC1G2RFModeTableEntry, 28, len(data), true); err != nil {
+		return err
 	}
 
 	p.ModeID = binary.BigEndian.Uint32(data)
@@ -5224,22 +5189,26 @@ type c1G2InventoryCommand struct {
 
 // UnmarshalBinary Parameter 330, C1G2InventoryCommand.
 func (p *c1G2InventoryCommand) UnmarshalBinary(data []byte) error {
-	if len(data) < 1 {
-		return errors.Errorf("ParamC1G2InventoryCommand requires at least 1 byte "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2InventoryCommand, 1, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2InventoryCommandFlags = C1G2InventoryCommandFlags(data[0])
 	data = data[1:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamC1G2Filter, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2Filter {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamC1G2Filter says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(c1G2Filter)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -5248,8 +5217,11 @@ func (p *c1G2InventoryCommand) UnmarshalBinary(data []byte) error {
 		p.C1G2Filter = append(p.C1G2Filter, *tmp)
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -5257,7 +5229,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2RFControl:
 			p.C1G2RFControl = new(c1G2RFControl)
@@ -5272,17 +5243,25 @@ group1:
 			}
 
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamCustom, 4, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamCustom {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamCustom says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(custom)
 		if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -5291,7 +5270,6 @@ group1:
 		p.Custom = append(p.Custom, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -5305,14 +5283,12 @@ type c1G2Filter struct {
 
 // UnmarshalBinary Parameter 331, C1G2Filter.
 func (p *c1G2Filter) UnmarshalBinary(data []byte) error {
-	if len(data) < 10 {
-		return errors.Errorf("ParamC1G2Filter requires at least 10 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2Filter, 10, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2FilterAction = C1G2FilterActionType(data[0])
 	data = data[1:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamC1G2TagInventoryMask {
 		return errors.Errorf("expected ParamC1G2TagInventoryMask, but found %v", subType)
@@ -5322,15 +5298,17 @@ func (p *c1G2Filter) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TagInventoryMask says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.C1G2TagInventoryMask.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
 	}
+	if len(data) == 0 {
+		return nil
+	}
 
-group1:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -5338,7 +5316,6 @@ group1:
 			return errors.Errorf("%v says it has %d bytes,"+
 				" but only %d bytes remain", pt, subLen, len(data))
 		}
-
 		switch pt {
 		case ParamC1G2TagInventoryStateAwareFilterAction:
 			p.C1G2TagInventoryStateAwareFilterAction = new(c1G2TagInventoryStateAwareFilterAction)
@@ -5350,10 +5327,12 @@ group1:
 			p.C1G2TagInventoryStateUnawareFilterAction = new(c1G2TagInventoryStateUnawareFilterAction)
 			*p.C1G2TagInventoryStateUnawareFilterAction = c1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
 		default:
-			break group1
+			break paramGroup1
 		}
 
+		data = data[subLen:]
 	}
+
 	return nil
 }
 
@@ -5366,9 +5345,8 @@ type c1G2TagInventoryMask struct {
 
 // UnmarshalBinary Parameter 332, C1G2TagInventoryMask.
 func (p *c1G2TagInventoryMask) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamC1G2TagInventoryMask requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2TagInventoryMask, 5, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2MemoryBank = data[0] >> 6
@@ -5383,11 +5361,9 @@ func (p *c1G2TagInventoryMask) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen+5:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2TagInventoryMask, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -5399,9 +5375,8 @@ type c1G2TagInventoryStateAwareFilterAction struct {
 
 // UnmarshalBinary Parameter 333, C1G2TagInventoryStateAwareFilterAction.
 func (p *c1G2TagInventoryStateAwareFilterAction) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2TagInventoryStateAwareFilterAction requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2TagInventoryStateAwareFilterAction, 2, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2TagInventoryTarget = C1G2TagInventoryTargetType(data[0])
@@ -5414,9 +5389,8 @@ type c1G2TagInventoryStateUnawareFilterAction C1G2TagInventoryStateUnawareFilter
 
 // UnmarshalBinary Parameter 334, C1G2TagInventoryStateUnawareFilterAction.
 func (p *c1G2TagInventoryStateUnawareFilterAction) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamC1G2TagInventoryStateUnawareFilterAction requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2TagInventoryStateUnawareFilterAction, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[0]))
@@ -5431,9 +5405,8 @@ type c1G2RFControl struct {
 
 // UnmarshalBinary Parameter 335, C1G2RFControl.
 func (p *c1G2RFControl) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamC1G2RFControl requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2RFControl, 4, len(data), true); err != nil {
+		return err
 	}
 
 	p.IndexIntoUHFC1G2RFModeTable = binary.BigEndian.Uint16(data)
@@ -5451,29 +5424,32 @@ type c1G2SingulationControl struct {
 
 // UnmarshalBinary Parameter 336, C1G2SingulationControl.
 func (p *c1G2SingulationControl) UnmarshalBinary(data []byte) error {
-	if len(data) < 7 {
-		return errors.Errorf("ParamC1G2SingulationControl requires at least 7 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2SingulationControl, 7, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2SingulationControlSession = C1G2SingulationControlSessionType(data[0])
 	p.TagPopulation = binary.BigEndian.Uint16(data[1:])
 	p.TagTransitTime = binary.BigEndian.Uint32(data[3:])
 	data = data[7:]
-
 	// sub-parameters
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamC1G2TagInventoryStateAwareSingulationAction, 5, len(data), false); err != nil {
+		return err
+	}
+
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TagInventoryStateAwareSingulationAction {
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
 			return errors.Errorf("ParamC1G2TagInventoryStateAwareSingulationAction says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.C1G2TagInventoryStateAwareSingulationAction = new(c1G2TagInventoryStateAwareSingulationAction)
 		*p.C1G2TagInventoryStateAwareSingulationAction = c1G2TagInventoryStateAwareSingulationAction(C1G2TagInventoryStateAwareSingulationActionFlags(data[4]))
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -5482,9 +5458,8 @@ type c1G2TagInventoryStateAwareSingulationAction C1G2TagInventoryStateAwareSingu
 
 // UnmarshalBinary Parameter 337, C1G2TagInventoryStateAwareSingulationAction.
 func (p *c1G2TagInventoryStateAwareSingulationAction) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamC1G2TagInventoryStateAwareSingulationAction requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2TagInventoryStateAwareSingulationAction, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2TagInventoryStateAwareSingulationAction(C1G2TagInventoryStateAwareSingulationActionFlags(data[0]))
@@ -5499,9 +5474,8 @@ type c1G2TagSpec struct {
 
 // UnmarshalBinary Parameter 338, C1G2TagSpec.
 func (p *c1G2TagSpec) UnmarshalBinary(data []byte) error {
-	if len(data) < 11 {
-		return errors.Errorf("ParamC1G2TagSpec requires at least 11 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2TagSpec, 11, len(data), false); err != nil {
+		return err
 	}
 
 	// sub-parameters
@@ -5513,12 +5487,17 @@ func (p *c1G2TagSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TargetTag says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		if err := p.TagPattern1.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 
 		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if err := hasEnoughBytes(ParamC1G2TargetTag, 4, len(data), false); err != nil {
+		return err
 	}
 
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2TargetTag {
@@ -5527,7 +5506,6 @@ func (p *c1G2TagSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TargetTag says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		p.TagPattern2 = new(c1G2TargetTag)
 		if err := p.TagPattern2.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
@@ -5535,7 +5513,6 @@ func (p *c1G2TagSpec) UnmarshalBinary(data []byte) error {
 
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -5550,9 +5527,8 @@ type c1G2TargetTag struct {
 
 // UnmarshalBinary Parameter 339, C1G2TargetTag.
 func (p *c1G2TargetTag) UnmarshalBinary(data []byte) error {
-	if len(data) < 7 {
-		return errors.Errorf("ParamC1G2TargetTag requires at least 7 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2TargetTag, 7, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2MemoryBank = data[0] >> 6
@@ -5568,7 +5544,6 @@ func (p *c1G2TargetTag) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen+5:]
 	}
-
 	if arrLen := int(binary.BigEndian.Uint16(data)) & 7; int64(arrLen) > int64(len(data[2:])) {
 		return errors.Errorf("TagData (bit array) declares it has %d bytes, but only %d bytes are available", arrLen, len(data[2:]))
 	} else if arrLen != 0 {
@@ -5579,11 +5554,9 @@ func (p *c1G2TargetTag) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen+2:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2TargetTag, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -5598,9 +5571,8 @@ type c1G2Read struct {
 
 // UnmarshalBinary Parameter 341, C1G2Read.
 func (p *c1G2Read) UnmarshalBinary(data []byte) error {
-	if len(data) != 11 {
-		return errors.Errorf("ParamC1G2Read requires exactly 11 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2Read, 11, len(data), true); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5622,9 +5594,8 @@ type c1G2Write struct {
 
 // UnmarshalBinary Parameter 342, C1G2Write.
 func (p *c1G2Write) UnmarshalBinary(data []byte) error {
-	if len(data) < 11 {
-		return errors.Errorf("ParamC1G2Write requires at least 11 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2Write, 11, len(data), false); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5641,11 +5612,9 @@ func (p *c1G2Write) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*2+11:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2Write, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -5657,9 +5626,8 @@ type c1G2Kill struct {
 
 // UnmarshalBinary Parameter 343, C1G2Kill.
 func (p *c1G2Kill) UnmarshalBinary(data []byte) error {
-	if len(data) != 6 {
-		return errors.Errorf("ParamC1G2Kill requires exactly 6 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2Kill, 6, len(data), true); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5676,15 +5644,13 @@ type c1G2Lock struct {
 
 // UnmarshalBinary Parameter 344, C1G2Lock.
 func (p *c1G2Lock) UnmarshalBinary(data []byte) error {
-	if len(data) < 12 {
-		return errors.Errorf("ParamC1G2Lock requires at least 12 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2Lock, 12, len(data), false); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
 	p.AccessPassword = binary.BigEndian.Uint32(data[2:])
 	data = data[6:]
-
 	// sub-parameters
 	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamC1G2LockPayload {
 		return errors.Errorf("expected ParamC1G2LockPayload, but found %v", subType)
@@ -5694,7 +5660,6 @@ func (p *c1G2Lock) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2LockPayload says it has %d bytes,"+
 				" but only %d bytes remain", subLen, len(data))
 		}
-
 		tmp := new(c1G2LockPayload)
 		if err := tmp.UnmarshalBinary(data[4:6]); err != nil {
 			return err
@@ -5703,7 +5668,6 @@ func (p *c1G2Lock) UnmarshalBinary(data []byte) error {
 		p.C1G2LockPayload = append(p.C1G2LockPayload, *tmp)
 		data = data[subLen:]
 	}
-
 	return nil
 }
 
@@ -5715,9 +5679,8 @@ type c1G2LockPayload struct {
 
 // UnmarshalBinary Parameter 345, C1G2LockPayload.
 func (p *c1G2LockPayload) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamC1G2LockPayload requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2LockPayload, 2, len(data), true); err != nil {
+		return err
 	}
 
 	p.LockPrivilege = LockPrivilegeType(data[0])
@@ -5736,9 +5699,8 @@ type c1G2BlockErase struct {
 
 // UnmarshalBinary Parameter 346, C1G2BlockErase.
 func (p *c1G2BlockErase) UnmarshalBinary(data []byte) error {
-	if len(data) != 11 {
-		return errors.Errorf("ParamC1G2BlockErase requires exactly 11 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockErase, 11, len(data), true); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5760,9 +5722,8 @@ type c1G2BlockWrite struct {
 
 // UnmarshalBinary Parameter 347, C1G2BlockWrite.
 func (p *c1G2BlockWrite) UnmarshalBinary(data []byte) error {
-	if len(data) < 11 {
-		return errors.Errorf("ParamC1G2BlockWrite requires at least 11 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockWrite, 11, len(data), false); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5779,11 +5740,9 @@ func (p *c1G2BlockWrite) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*2+11:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2BlockWrite, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -5792,9 +5751,8 @@ type c1G2EPCMemorySelector C1G2EPCMemorySelectorFlags
 
 // UnmarshalBinary Parameter 348, C1G2EPCMemorySelector.
 func (p *c1G2EPCMemorySelector) UnmarshalBinary(data []byte) error {
-	if len(data) != 1 {
-		return errors.Errorf("ParamC1G2EPCMemorySelector requires exactly 1 byte "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2EPCMemorySelector, 1, len(data), true); err != nil {
+		return err
 	}
 
 	*p = c1G2EPCMemorySelector(C1G2EPCMemorySelectorFlags(data[0]))
@@ -5810,9 +5768,8 @@ type c1G2ReadOpSpecResult struct {
 
 // UnmarshalBinary Parameter 349, C1G2ReadOpSpecResult.
 func (p *c1G2ReadOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamC1G2ReadOpSpecResult requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2ReadOpSpecResult, 5, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2ReadOpSpecResultType = C1G2ReadOpSpecResultType(data[0])
@@ -5827,11 +5784,9 @@ func (p *c1G2ReadOpSpecResult) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*2+5:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2ReadOpSpecResult, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -5844,9 +5799,8 @@ type c1G2WriteOpSpecResult struct {
 
 // UnmarshalBinary Parameter 350, C1G2WriteOpSpecResult.
 func (p *c1G2WriteOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 5 {
-		return errors.Errorf("ParamC1G2WriteOpSpecResult requires exactly 5 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2WriteOpSpecResult, 5, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2WriteOpSpecResultType = C1G2WriteOpSpecResultType(data[0])
@@ -5863,9 +5817,8 @@ type c1G2KillOpSpecResult struct {
 
 // UnmarshalBinary Parameter 351, C1G2KillOpSpecResult.
 func (p *c1G2KillOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2KillOpSpecResult requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2KillOpSpecResult, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2KillResult = C1G2KillResultType(data[0])
@@ -5881,9 +5834,8 @@ type c1G2LockOpSpecResult struct {
 
 // UnmarshalBinary Parameter 352, C1G2LockOpSpecResult.
 func (p *c1G2LockOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2LockOpSpecResult requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2LockOpSpecResult, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2LockResult = C1G2LockResultType(data[0])
@@ -5899,9 +5851,8 @@ type c1G2BlockEraseOpSpecResult struct {
 
 // UnmarshalBinary Parameter 353, C1G2BlockEraseOpSpecResult.
 func (p *c1G2BlockEraseOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2BlockEraseOpSpecResult requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockEraseOpSpecResult, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2BlockEraseResult = C1G2BlockEraseResultType(data[0])
@@ -5918,9 +5869,8 @@ type c1G2BlockWriteOpSpecResult struct {
 
 // UnmarshalBinary Parameter 354, C1G2BlockWriteOpSpecResult.
 func (p *c1G2BlockWriteOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 5 {
-		return errors.Errorf("ParamC1G2BlockWriteOpSpecResult requires exactly 5 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockWriteOpSpecResult, 5, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2BlockWriteResult = C1G2BlockWriteResultType(data[0])
@@ -5934,9 +5884,8 @@ type loopSpec uint32
 
 // UnmarshalBinary Parameter 355, LoopSpec.
 func (p *loopSpec) UnmarshalBinary(data []byte) error {
-	if len(data) != 4 {
-		return errors.Errorf("ParamLoopSpec requires exactly 4 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamLoopSpec, 4, len(data), true); err != nil {
+		return err
 	}
 
 	*p = loopSpec(binary.BigEndian.Uint32(data))
@@ -5951,9 +5900,8 @@ type specLoopEvent struct {
 
 // UnmarshalBinary Parameter 356, SpecLoopEvent.
 func (p *specLoopEvent) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamSpecLoopEvent requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamSpecLoopEvent, 8, len(data), true); err != nil {
+		return err
 	}
 
 	p.ROSpecID = binary.BigEndian.Uint32(data)
@@ -5970,9 +5918,8 @@ type c1G2Recommission struct {
 
 // UnmarshalBinary Parameter 357, C1G2Recommission.
 func (p *c1G2Recommission) UnmarshalBinary(data []byte) error {
-	if len(data) != 7 {
-		return errors.Errorf("ParamC1G2Recommission requires exactly 7 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2Recommission, 7, len(data), true); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -5992,9 +5939,8 @@ type c1G2BlockPermalock struct {
 
 // UnmarshalBinary Parameter 358, C1G2BlockPermalock.
 func (p *c1G2BlockPermalock) UnmarshalBinary(data []byte) error {
-	if len(data) < 11 {
-		return errors.Errorf("ParamC1G2BlockPermalock requires at least 11 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockPermalock, 11, len(data), false); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -6011,11 +5957,9 @@ func (p *c1G2BlockPermalock) UnmarshalBinary(data []byte) error {
 
 		data = data[arrLen*2+11:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2BlockPermalock, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -6030,9 +5974,8 @@ type c1G2GetBlockPermalockStatus struct {
 
 // UnmarshalBinary Parameter 359, C1G2GetBlockPermalockStatus.
 func (p *c1G2GetBlockPermalockStatus) UnmarshalBinary(data []byte) error {
-	if len(data) != 11 {
-		return errors.Errorf("ParamC1G2GetBlockPermalockStatus requires exactly 11 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2GetBlockPermalockStatus, 11, len(data), true); err != nil {
+		return err
 	}
 
 	p.OpSpecID = binary.BigEndian.Uint16(data)
@@ -6051,9 +5994,8 @@ type c1G2RecommissionOpSpecResult struct {
 
 // UnmarshalBinary Parameter 360, C1G2RecommissionOpSpecResult.
 func (p *c1G2RecommissionOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2RecommissionOpSpecResult requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2RecommissionOpSpecResult, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2RecommissionResult = C1G2RecommissionResultType(data[0])
@@ -6069,9 +6011,8 @@ type c1G2BlockPermalockOpSpecResult struct {
 
 // UnmarshalBinary Parameter 361, C1G2BlockPermalockOpSpecResult.
 func (p *c1G2BlockPermalockOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) != 3 {
-		return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult requires exactly 3 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamC1G2BlockPermalockOpSpecResult, 3, len(data), true); err != nil {
+		return err
 	}
 
 	p.C1G2BlockPermalockResult = C1G2BlockPermalockResultType(data[0])
@@ -6088,9 +6029,8 @@ type c1G2GetBlockPermalockStatusOpSpecResult struct {
 
 // UnmarshalBinary Parameter 362, C1G2GetBlockPermalockStatusOpSpecResult.
 func (p *c1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) error {
-	if len(data) < 5 {
-		return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult requires at least 5 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamC1G2GetBlockPermalockStatusOpSpecResult, 5, len(data), false); err != nil {
+		return err
 	}
 
 	p.C1G2GetBlockPermalockStatusResult = C1G2GetBlockPermalockStatusResultType(data[0])
@@ -6105,11 +6045,9 @@ func (p *c1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 
 		data = data[arrLen*2+5:]
 	}
-
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2GetBlockPermalockStatusOpSpecResult, but an unexpected %d bytes remain", len(data))
 	}
-
 	return nil
 }
 
@@ -6118,9 +6056,8 @@ type maximumReceiveSensitivity dBm16
 
 // UnmarshalBinary Parameter 363, MaximumReceiveSensitivity.
 func (p *maximumReceiveSensitivity) UnmarshalBinary(data []byte) error {
-	if len(data) != 2 {
-		return errors.Errorf("ParamMaximumReceiveSensitivity requires exactly 2 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamMaximumReceiveSensitivity, 2, len(data), true); err != nil {
+		return err
 	}
 
 	*p = maximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data)))
@@ -6135,9 +6072,8 @@ type rfSurveyFrequencyCapabilities struct {
 
 // UnmarshalBinary Parameter 365, RFSurveyFrequencyCapabilities.
 func (p *rfSurveyFrequencyCapabilities) UnmarshalBinary(data []byte) error {
-	if len(data) != 8 {
-		return errors.Errorf("ParamRFSurveyFrequencyCapabilities requires exactly 8 bytes "+
-			"but received %d", len(data))
+	if err := hasEnoughBytes(ParamRFSurveyFrequencyCapabilities, 8, len(data), true); err != nil {
+		return err
 	}
 
 	p.MinFrequency = binary.BigEndian.Uint32(data)
@@ -6147,16 +6083,15 @@ func (p *rfSurveyFrequencyCapabilities) UnmarshalBinary(data []byte) error {
 
 // custom is Parameter 1023, Custom.
 type custom struct {
-	VendorID             uint32
-	Subtype              uint32
-	VendorParameterValue []byte
+	VendorID uint32
+	Subtype  uint32
+	Data     []byte
 }
 
 // UnmarshalBinary Parameter 1023, Custom.
 func (p *custom) UnmarshalBinary(data []byte) error {
-	if len(data) < 8 {
-		return errors.Errorf("ParamCustom requires at least 8 bytes "+
-			"but only %d are available", len(data))
+	if err := hasEnoughBytes(ParamCustom, 8, len(data), false); err != nil {
+		return err
 	}
 
 	p.VendorID = binary.BigEndian.Uint32(data)
@@ -6164,9 +6099,8 @@ func (p *custom) UnmarshalBinary(data []byte) error {
 	if len(data)-8 == 0 {
 		return nil
 	}
-
-	p.VendorParameterValue = make([]byte, len(data)-8)
-	copy(p.VendorParameterValue, data[8:])
+	p.Data = make([]byte, len(data)-8)
+	copy(p.Data, data[8:])
 
 	data = data[8:]
 	return nil
