@@ -9,18 +9,6 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
-#
-#
-#  SPDX-License-Identifier: Apache-2.0
-
-#
-#
-#  SPDX-License-Identifier: Apache-2.0
-
-#
-#
-#  SPDX-License-Identifier: Apache-2.0
-
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
