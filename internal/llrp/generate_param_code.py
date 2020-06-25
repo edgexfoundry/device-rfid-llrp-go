@@ -1,14 +1,12 @@
-#!python3
-
 #
 #  Copyright (C) 2020 Intel Corporation
 #
 #  SPDX-License-Identifier: Apache-2.0
 
 #
+#  Copyright (C) 2020 Intel Corporation
 #
-#  SPDX-License-Identifier: Apache-2.0
-
+#
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -45,7 +43,7 @@ except ImportError:
 import dataclasses
 import re
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from dataclasses import dataclass
 from itertools import groupby
 from typing import Dict, List, Optional, Union, Any, Callable
@@ -121,7 +119,11 @@ class GoWriter:
         'uint64': 8,
     }
 
+    PAREN = '()'
+    BRACE = '{}'
+
     def __init__(self, w=None):
+        import textwrap
         if w is None:
             self.w = sys.stdout
         else:
@@ -129,43 +131,36 @@ class GoWriter:
         self.i = 0
         self.begin = True
 
+        self.code = textwrap.TextWrapper(
+            width=70, break_long_words=False, break_on_hyphens=False,
+        )
+
     def noindent(self, text, end='\n'):
         self.w.write(text + end)
 
     def write(self, text, end='\n', pre='', auto_break=False):
-        lines = text.split('\n')
+        lines = text.splitlines()
+        if auto_break and end == '\n':
+            self.code.initial_indent = self.i * '\t' + pre
+            self.code.subsequent_indent = self.i * '\t' + pre
+            for line in lines:
+                for wrapped in self.code.wrap(line):
+                    self.w.write(wrapped + '\n')
+            return
+
         if self.begin:
             self.w.write(self.i * '\t' + pre)
 
-        if not auto_break or end != '\n':
-            for line in lines[:-1]:
-                self.w.write(line + end + self.i * '\t' + pre)
-            if len(lines) > 0:
-                line = lines[-1]
-                self.w.write(line + end)
-        else:
-            for line in lines:
-                remain = 120 - self.i * 4 - len(pre)
-
-                for word in line.split(' '):
-                    if len(word) + 1 < remain:
-                        self.w.write(' ')
-                        remain -= 1
-                    else:
-                        self.w.write('\n' + self.i * '\t' + pre + ' ')
-                        remain = 120 - self.i * 4 - len(pre) - 1
-
-                    self.w.write(word)
-                    remain -= len(word)
-                    if remain <= 0:
-                        self.w.write('\n' + self.i * '\t' + pre)
-                        remain = 120 - self.i * 4 - len(pre)
-            self.w.write('\n')
+        for line in lines[:-1]:
+            self.w.write(line + end + self.i * '\t' + pre)
+        if len(lines) > 0:
+            line = lines[-1]
+            self.w.write(line + end)
 
         self.begin = end == '\n'
 
-    def comment(self, text):
-        self.write(text, pre='//', auto_break=True)
+    def comment(self, text, auto_break=True):
+        self.write(text, pre='// ', auto_break=auto_break)
 
     @staticmethod
     def lower_camel(s: str) -> str:
@@ -195,15 +190,17 @@ class GoWriter:
         self.begin = True
 
     @contextmanager
-    def paren(self, before_start: Optional[str] = None):
-        """Returns a context within which writes are indented inside parentheses,
-        optionally with some before_start string written before the opening paren:
-            before_start (
+    def block(self, before_start: str = '', style=BRACE, after_end: str = '\n'):
+        """Returns a context within which writes are indented inside braces,
+        defined by the style. By default, this looks like:
+
+            {
                 <output written within context>
-            )
+            }
+            <next write goes here>
 
         Use like any other python context. E.g., this code:
-            with writer.paren('const'):
+            with writer.block('const', style='()'):
                 for i in range(3):
                     w.write(f'myNum{i} = 1<<{i}')
         has this output:
@@ -213,37 +210,25 @@ class GoWriter:
                 myNum2 = 1<<2
             )
         """
-        if before_start:
-            self.write(before_start, end=' ')
-        self.write('(')
+        if len(style) != 2:
+            raise Error('style must have length 2')
+        self.write(f'{before_start.strip()} {style[0]}'.strip())
         self.indent()
         yield
         self.dedent()
-        self.write(')\n')
+        self.write(f'{style[1]}{after_end}')
 
     @contextmanager
-    def block(self, before_start: Optional[str] = None):
-        """Returns a context within which writes are indented inside curly braces.
-        See paren for more information."""
-        if before_start:
-            self.write(before_start, end=' ')
-        self.write('{')
-        self.indent()
-        yield
-        self.dedent()
-        self.write('}\n')
+    def paren(self, before_start: Optional[str] = None):
+        """Returns a context within which writes are indented inside parentheses."""
+        with self.block(before_start, style=GoWriter.PAREN):
+            yield
 
     @contextmanager
     def condition(self, cond):
-        """Returns a context within which writes are indented inside an if (cond) block.
-        See paren for more information.
-        See elseif
-        """
-        self.write(f'if {cond} {{')
-        self.indent()
-        yield
-        self.dedent()
-        self.write('}')
+        """Returns a context within which writes are indented inside an if (cond) block."""
+        with self.block(before_start=f'if {cond}', style=GoWriter.BRACE):
+            yield
 
     def ifelse(self, cond: Optional[str] = None):
         """Write the '} else {' or '} else if (condition) {' in an if...else block."""
@@ -258,12 +243,8 @@ class GoWriter:
     def switch(self, before_start: Optional[str] = None):
         """Returns a context for writing switch cases inside curly braces.
         See paren for more information."""
-        self.write('switch', end=' ')
-        if before_start is not None:
-            self.write(before_start, end=' ')
-        self.write('{')
-        yield
-        self.write('}\n')
+        with self.block('switch'):
+            yield
 
     @contextmanager
     def case(self, case: str):
@@ -314,29 +295,51 @@ class DataType:
     storage: str  # underlying basic type (e.g., uint8)
     prefix: str = ''  # when generating code, prefix is attached to enum/flag names
     kind: str = 'alias'  # flag, enumeration, or alias, or external
-    values: Union[List[str], Optional[Dict[str, int]]] = None  # maps name -> value, or implicitly name -> iota
+    values: Optional[Dict[str, int]] = None  # maps name -> value, or implicitly name -> iota
     size: int = 0  # storage byte size; for arrays, the byte size of a single element
 
     bits: int = 8  # number of bits in the final byte; usually should be 8, but occasionally not
 
     description: Optional[str] = None  # for outputting doc comments
-    min: Optional[int] = None  # currently unused
-    max: Optional[int] = None  # currently unused
+
+    elem_type: Optional['DataType'] = None
+    # used for testing; set to reasonable values if not specified in YAML
+    min: Optional[int] = None
+    max: Optional[int] = None
 
     @classmethod
-    def from_yaml(cls, y: YML) -> 'DataType':
+    def from_yaml(cls, y: YML, types: Dict[str, 'DataType']) -> 'DataType':
         missing = [req for req in ('name', 'storage') if req not in y]
         if any(missing):
             raise MissingPropError(missing, y)
         d = cls(**y)
 
+        if d.storage.startswith('[]'):
+            try:
+                d.elem_type = types[d.storage[2:]]
+            except KeyError:
+                raise DefinitionError(y, f'unknown element type for {d.storage}')
+
         if 'size' not in y:
-            if d.storage.startswith('uint'):
+            if d.elem_type is not None:
+                d.size = d.elem_type.size
+            elif d.storage.startswith('uint'):
                 d.size = int(d.storage[4:]) // 8
             elif d.storage.startswith('int'):
                 d.size = int(d.storage[3:]) // 8
+            elif d.storage in ('bool' or 'byte'):
+                d.size = 1
             else:
-                raise DefinitionError(y, f'the size of {d.name} ({d.storage}) isn\'t known')
+                raise DefinitionError(y, f"the size of {d.name} ({d.storage}) isn't known")
+
+        bts = 8 * d.size - 8 + d.bits
+        if d.storage.startswith('int'):
+            d.min = d.min or -(1 << (bts - 1))
+            d.max = d.max or (1 << (bts - 1)) - 1
+        else:
+            d.min = d.min or 0
+            d.max = 1 << bts
+        assert d.min is not None and d.max is not None, d.name
 
         if d.kind in ('alias', 'external'):
             return d
@@ -354,6 +357,7 @@ class DataType:
                 vals[d.prefix + name] = value
             d.values = vals
         except AttributeError:
+            # allow the YAML value to use a list to map name -> position
             vals = {}
             for value, name in enumerate(d.values):
                 vals[d.prefix + name] = value
@@ -368,8 +372,7 @@ class DataType:
             return
 
         if self.description:
-            for line in self.description.splitlines():
-                w.write(f'// {line.strip()}')
+            w.comment(self.description)
 
         if self.kind == 'alias':
             w.write(f'type {self.name} = {self.storage}')
@@ -388,8 +391,6 @@ class DataType:
                 w.write(f'const {name} = {self.name}({value})')
             return
 
-        if not self.description:
-            w.write('')
         w.write(f'type {self.name} {self.storage}')
         if self.kind == 'enum':
             with w.paren('const'):
@@ -413,9 +414,6 @@ class DataType:
     def is_alias(self) -> bool:
         return self.kind == 'alias'
 
-    def is_field(self) -> bool:
-        return self.kind == 'field'
-
     def is_enum(self) -> bool:
         return self.kind == 'enum'
 
@@ -424,6 +422,36 @@ class DataType:
 
     def must_extract(self) -> bool:
         return self.size > 1 and not self.is_alias()
+
+    def test_instance(self, i: int) -> str:
+        """Returns valid Go code for an instance of the correct type,
+        possibly using i as a seed.
+        For a given positive value of i, this always returns the same value,
+        but different values of i won't necessarily result in different values.
+        """
+        if self.name == 'string':
+            return '"some arbitrary string"'
+        if self.name == 'bool':
+            return 'true' if i & 1 == 0 else 'false'
+
+        if self.is_enum():
+            if not any(self.values):
+                return str(self.min)
+            return list(self.values.keys())[i % len(self.values)]
+
+        assert self.max is not None and self.min is not None, self.name
+        dist = self.max - self.min
+
+        if self.is_fixed_size():
+            i = (i % dist) + self.min
+            if self.is_alias():
+                return f'{self.storage}({i})'
+            return str(i)
+
+        assert self.elem_type is not None, self.name
+        b_val = ",".join(f'({self.elem_type.test_instance(j % dist + self.min)})'
+                         for j in range(min(dist // 2, 4, self.max)))
+        return f'{self.storage}{{{b_val}}}'
 
 
 @dataclass
@@ -443,6 +471,9 @@ class FieldSpec:
     partial: Optional[bool] = False  # if the next field shares its bits with this one
     bit: Optional[int] = 0  # starting bit position, where 0=MSB ("leftmost")
 
+    # test values - set to sensible values after parsing YAML if not defined explicitly
+    test_length: Optional[int] = 0  # num items in generated arrays (if not fixed-size)
+
     @classmethod
     def from_yaml(cls, y: YML, types: Dict[str, DataType]) -> 'FieldSpec':
         if 'type' not in y:
@@ -461,8 +492,17 @@ class FieldSpec:
             raise DefinitionError(y, f'unknown type {typ} in field spec')
 
         fs = cls(**y)
+
         if fs.partial and fs.type.bits == 8:
             raise DefinitionError(y, f'fields with partial widths must have fewer than 8 final bits')
+
+        if fs.is_array and 'test_length' not in y:
+            if fs.length > 0:
+                fs.test_length = fs.length
+            elif fs.max and fs.max > 0:
+                fs.test_length = fs.max
+            else:
+                fs.test_length = 20 if fs.type.size == 1 else 4
 
         return fs
 
@@ -486,7 +526,8 @@ class FieldSpec:
 
     def var_name(self, struct_name: str = '') -> str:
         """Returns the variable name used to reference this field."""
-        assert not self.padding
+        if self.padding:
+            return '_'
         if struct_name.startswith('*'):
             return struct_name
         prefix = struct_name + '.' if struct_name else ''
@@ -499,6 +540,13 @@ class FieldSpec:
         if self.type.name == 'string':
             return f'{self.name} string'
         return f'{self.name} {"[]" if self.is_array else ""}{self.type.name}'
+
+    def test_field(self) -> str:
+        """Returns a string for a new instance of this type, for use in tests."""
+        if self.is_array:
+            items = ",".join(self.type.test_instance(i) for i in range(self.test_length))
+            return f'[]{self.type.name}{{{items}}}'
+        return f'{self.type.test_instance(self.test_length)}'
 
     def value(self, begin: Union[int, str] = 0, end: Union[int, str] = '') -> str:
         """Return an expression to extract data[begin:end] and cast to this type."""
@@ -530,11 +578,12 @@ class FieldSpec:
                 from_exp += f'& {1 << bit_size - 1}'
 
         # determine if we need to cast
-        if self.type.name.startswith('uint') or \
-                self.type.is_alias() and self.type.storage.startswith('uint'):
+        if (self.type.name.startswith('uint') or
+                (self.type.is_alias() or self.type.is_external())
+                and self.type.storage.startswith('uint')):
             return from_exp
-        if self.type.name == 'bitArray':
-            return from_exp
+        # if self.type.name == 'bitArray':
+        #   return from_exp
         if self.type.name == 'bool':
             return f'{from_exp} != 0'
         return f'{self.type.name}({from_exp})'
@@ -633,6 +682,35 @@ class FieldSpec:
         if reslice:
             w.write(f'data = data[{pos + self.min_size}:]')
 
+    def value_bytes(self, name: str) -> str:
+        if self.padding:
+            return ','.join(['0x00'] * self.type.size)
+
+        if self.is_array:
+            if self.length == 0:
+                # TODO: handle overflow checking; actually append bytes
+                return 'byte(len({name})>>8),byte(len({name}))'
+            elif self.length > 0:
+                return ','.join([f'{name}[{i}]' for i in range(self.length)])
+            else:
+                return ''
+
+        if self.is_fixed_size():
+            if self.type.name in ('byte', 'uint8'):
+                if name[0] == '*':
+                    return f'byte({name})'
+                return name
+            if self.type.name == 'bool':
+                if name[0] == '*':
+                    return f'b2b(bool({name}))'
+                return f'b2b({name})'
+            if self.type.size == 1:
+                return f'byte({name})'
+            return ', '.join([f'byte({name}{f">>{i - 1}" if i - 1 > 0 else ""})'
+                              for i in range(self.type.size, 0, -1)])
+
+        return ''
+
 
 @dataclass
 class ParamSpec:
@@ -657,9 +735,6 @@ class ParamSpec:
             raise MissingPropError(['type'], y)
         y['name'] = y.get('name', y['type'])
         y['param_name'] = y['type']
-        if 'airProtocol' in y:
-            y['air_protocol'] = y['airProtocol']
-            del y['airProtocol']
         del y['type']
         return ParamSpec(**y)
 
@@ -676,29 +751,13 @@ class ParamSpec:
                      ['subLen', 'len(data)'])
 
 
-def one_of(w: GoWriter, *params):
-    tvs = [p.p_def.header_size == 1 for p in params]
-    tlvs = [p.p_def.header_size == 4 for p in params]
-
-    with w.condition(f'len(data) < 4'):
-        w.reterr(f'need 4 bytes for a TLV header, but only %d bytes remain', ['len(data)'])
-
-    w.write('subLen := int(binary.BigEndian.Uint16(data[2:])')
-    w.write('switch subType := ParamType(binary.BigEndian.Uint16(data)) {')
-    for p in params:
-        w.write(f'case Param{p.param_name}:')
-        w.indent()
-
-        w.dedent()
-
-
 @dataclass
 class Container:
     """Container mostly represents Parameters, but Messages are nearly identical,
     so it serves double duty."""
     name: str
     type_id: int  # message or parameter number
-    short: str  # string to use as method receivers
+    short: str = 'p'  # string to use as method receivers
 
     fields: List[FieldSpec] = dataclasses.field(default_factory=list)
     parameters: List[ParamSpec] = dataclasses.field(default_factory=list)
@@ -713,27 +772,19 @@ class Container:
 
     @classmethod
     def from_yaml(cls, y, types: Dict[str, DataType]) -> 'Container':
-        missing = [req for req in ('name', 'typeID') if req not in y]
+        missing = [req for req in ('name', 'type_id') if req not in y]
         if any(missing):
             raise ValueError(f'definition missing {missing}: {y}')
 
-        y['short'] = y.get('short', 'p')
-        y['type_id'] = y['typeID']
-        del y['typeID']
-
         try:
-            fields = [FieldSpec.from_yaml(f, types) for f in y['fields']]
-            y['fields'] = fields
+            y['fields'] = [FieldSpec.from_yaml(f, types) for f in y['fields']]
         except KeyError:
             y['fields'] = []
-            pass
 
         try:
-            parameters = [ParamSpec.from_yaml(s) for s in y['parameters']]
-            y['parameters'] = parameters
+            y['parameters'] = [ParamSpec.from_yaml(s) for s in y['parameters']]
         except KeyError:
             y['parameters'] = []
-            pass
 
         return cls(**y)
 
@@ -741,6 +792,18 @@ class Container:
     def type_name(self) -> str:
         """Returns the Go type name."""
         return GoWriter.lower_camel(self.name)
+
+    @property
+    def is_tlv(self) -> bool:
+        return self.type_id >= 128
+
+    @property
+    def const_name(self) -> str:
+        return f'Param{self.name}'
+
+    def empty(self) -> bool:
+        """Returns True if this doesn't have any fields or parameters."""
+        return not (any(self.fields) or any(self.parameters))
 
     def can_inline(self) -> bool:
         """Returns False if this must be a struct."""
@@ -767,7 +830,7 @@ class Container:
                 if f.padding:
                     continue
                 if f.description:
-                    w.write(f'// {f.description.strip()}')
+                    w.comment(f.description)
                 w.write(f.struct_field())
 
             for p in self.parameters:
@@ -786,15 +849,7 @@ class Container:
             return True
         return False
 
-    def write_marshal(self, w):
-        with w.block(f'func ({self.short} *{self.type_name}) writeBinary(w io.Writer) error'):
-            self.write_marshal_body(w)
-            w.write('return nil')
-
-    def write_marshal_body(self, w):
-        pass
-
-    def write_unmarshal(self, w):
+    def write_unmarshal(self, w: GoWriter):
         with w.block(f'func ({self.short} *{self.type_name}) UnmarshalBinary(data []byte) error'):
             self.write_unmarshal_body(w)
 
@@ -804,13 +859,70 @@ class Container:
                              'but an unexpected %d bytes remain', ['len(data)'])
             w.write('return nil')
 
-    def empty(self) -> bool:
-        """Returns True if this doesn't have any fields or parameters."""
-        return not (any(self.fields) or any(self.parameters))
+    def write_marshal(self, w: GoWriter):
+        with w.block(f'func ({self.short} *{self.type_name}) MarshalBinary() ([]byte, error)'):
+            self.write_marshal_body(w)
 
-    @property
-    def const_name(self) -> str:
-        return f'Param{self.name}'
+    def write_tests(self, w: GoWriter):
+        with w.block(f'func Test{self.name}_roundTrip(t *testing.T)'):
+            self.write_round_trip_test(w)
+
+    def write_new_test_instance(self, w: GoWriter, name: str):
+        """Write a 'name := value' expression that assigns a new test instance of this type."""
+        if self.can_inline():
+            w.write(f'{name} := {self.type_name}({self.fields[0].type.test_instance(0)})', auto_break=True)
+            return
+
+        # write a struct literal
+        with w.block(f'{name} := {self.type_name}'):
+            for f in self.fields:
+                if f.padding:
+                    continue
+                w.write(f'{f.name}: {f.test_field()},')
+
+    def write_round_trip_test(self, w: GoWriter):
+        self.write_new_test_instance(w, self.short)
+
+        w.write(f'b, err := {self.short}.MarshalBinary()')
+        with w.condition('err != nil'):
+            w.write('t.Fatalf("%+v", err)')
+
+        w.write(f'var {self.short}2 {self.type_name}')
+        with w.condition(f'err := {self.short}2.UnmarshalBinary(b); err != nil'):
+            w.write('t.Fatalf("%+v", err)')
+
+        with w.condition(f'!reflect.DeepEqual({self.short}, {self.short}2)'):
+            w.write(f't.Errorf("mismatch:\\n%+v\\n%+v", {self.short}, {self.short}2)')
+
+    def write_marshal_body(self, w: GoWriter):
+        if self.fixed_size:
+            with w.block('return []byte', after_end=', nil'):
+                w.write(self.value_bytes(), auto_break=True)
+            return
+
+        w.write(f'return nil, nil')
+
+    def header_bytes(self) -> str:
+        if self.is_tlv:
+            return f'{self.type_id_bytes()},0x00,0x00'
+        else:
+            return f'{self.type_id_bytes()}'
+
+    def value_bytes(self) -> str:
+        s = self.short if not self.can_inline() else '*' + self.short
+        vb = [f'{f.value_bytes(f.var_name(s))},' for f in self.fields]
+        #  TODO append TLVs
+        return ''.join(vb)
+
+    def type_id_bytes(self) -> str:
+        if self.is_tlv:
+            return f'0x{self.type_id >> 8:02x}, 0x{self.type_id & 0xFF:02x}'
+        else:
+            return f'0x{self.type_id | 0x80:02x}'
+
+    def size_bytes(self) -> str:
+        assert self.is_tlv and self.fixed_size
+        return f'0x{self.min_size >> 8:02x}, 0x{self.min_size & 0xFF:02x}'
 
     def len_check(self, w) -> int:
         sz = self.min_size - self.header_size
@@ -921,7 +1033,7 @@ class Container:
                     # so we have to check how much data is available
                     w.write('var pt ParamType')
                     with w.condition('data[0]&0x80 == 1'):
-                        w.write('// TV parameter')
+                        w.comment('TV parameter')
                         w.write('pt = ParamType(data[0])')
                         w.ifelse('len(data) < 4')
                         w.reterr('expecting a TLV header, but %d < 4 byte remain', ['len(data)'])
@@ -1070,16 +1182,9 @@ class Message(Container):
 
     @classmethod
     def from_yaml(cls, y, types: Dict[str, DataType]) -> 'Message':
-        try:
-            response_to = y['responseTo']
-            del y['responseTo']
-        except KeyError:
-            response_to = None
-
         y['short'] = y.get('short', 'm')  # change the name of the method receiver
         # noinspection PyTypeChecker
         m: Message = super(Message, cls).from_yaml(y, types)
-        m.response_to = response_to
         return m
 
     def can_inline(self) -> bool:
@@ -1124,31 +1229,35 @@ def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], D
 
     # predefine some types
     types: Dict[str, DataType] = {
-        'string':   DataType('string', '[]byte', kind='external', size=1,
+        'bool':     DataType('bool', 'bool', kind='external', size=1, bits=1,
+                             min=0, max=1),
+        'uint8':    DataType('uint8', 'uint8', kind='external', size=1, min=0, max=255),
+        'byte':     DataType('byte', 'byte', kind='external', size=1, min=0, max=255),
+        'uint16':   DataType('uint16', 'uint16', kind='external', size=2, min=0, max=2 ** 16 - 1),
+        'uint32':   DataType('uint32', 'uint32', kind='external', size=4, min=0, max=2 ** 32 - 1),
+        'uint64':   DataType('uint64', 'uint64', kind='external', size=8, min=0, max=2 ** 64 - 1),
+        'int8':     DataType('int8', 'int8', kind='external', size=1, min=-128, max=127),
+        'int16':    DataType('int16', 'int16', kind='external', size=2, min=-(2 ** 15), max=2 ** 15 - 1),
+        'int32':    DataType('int32', 'int32', kind='external', size=4, min=-(2 ** 31), max=2 ** 31 - 1),
+        'int64':    DataType('int64', 'int64', kind='external', size=8, min=-(2 ** 63), max=2 ** 63 - 1),
+        'string':   DataType('string', '[]byte', kind='external',
                              description="strings in LLRP are UTF-8 values "
                                          "starting with uint16 byte-length header"),
-        'bitArray': DataType('bitArray', '[]byte', kind='external', size=1,
+        'bitArray': DataType('bitArray', '[]byte', kind='external',
+                             min=0, max=2 ** 16 - 1,
                              description="bitArrays in LLRP are a series of bits, "
                                          "starting with a uint16 indicating number of bits, "
                                          "padded with 0s (as LSBs) to an octet boundary."),
-        'bool':     DataType('bool', 'bool', kind='external', size=1, bits=1),
-        'uint8':    DataType('uint8', 'uint8', kind='external', size=1),
-        'byte':     DataType('byte', 'byte', kind='external', size=1),
-        'uint16':   DataType('uint16', 'uint16', kind='external', size=2),
-        'uint32':   DataType('uint32', 'uint32', kind='external', size=4),
-        'uint64':   DataType('uint64', 'uint64', kind='external', size=8),
-        'int8':     DataType('int8', 'int8', kind='external', size=1),
-        'int16':    DataType('int16', 'int16', kind='external', size=2),
-        'int32':    DataType('int32', 'int32', kind='external', size=4),
-        'int64':    DataType('int64', 'int64', kind='external', size=8),
     }
+    types['string'].elem_type = types['byte']
+    types['bitArray'].elem_type = types['byte']
 
     parameters: Dict[str, Container] = {}
 
     messages: Dict[str, Message] = {}
 
     for y in definitions['types']:
-        dt = DataType.from_yaml(y)
+        dt = DataType.from_yaml(y, types)
         if dt.name in types:
             raise DuplicateDefError('type', dt.name, dt, types[dt.name], y)
         types[dt.name] = dt
@@ -1199,7 +1308,7 @@ def set_param_sizes(params: Dict[str, Container]):
         return p.min_size
 
     for p in params.values():
-        p.header_size = 1 if p.type_id < 128 else 4
+        p.header_size = 4 if p.is_tlv else 1
         for sub in p.parameters:
             try:
                 sub.p_def = params[sub.param_name]
@@ -1231,13 +1340,14 @@ def set_msg_sizes(msgs: Dict[str, Message], params: Dict[str, Container]):
         m.has_required = any(sp.optional for sp in m.parameters)
 
 
-def write_unmarshal_code(w, types, parameters, messages):
-    w.write(f'// Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n')
-    w.write('package llrp\n\n')
+def write_unmarshal_code(w, types, parameters, messages, write_header=True):
+    if write_header:
+        w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
+        w.write('package llrp\n\n')
 
-    with w.paren('import'):
-        w.write('"encoding/binary"')
-        w.write('"github.com/pkg/errors"')
+        with w.paren('import'):
+            w.write('"encoding/binary"')
+            w.write('"github.com/pkg/errors"')
 
     for t in types.values():
         t.write_type_def(w)
@@ -1255,34 +1365,83 @@ def write_unmarshal_code(w, types, parameters, messages):
 
     w.write('')
     for m in messages.values():
-        w.write(f'// {m.type_name} is Message {m.type_id}, {m.name}.')
+        w.comment(f'{m.type_name} is Message {m.type_id}, {m.name}.')
         if m.description:
             w.write('//')
             w.comment(m.description)
 
         m.write_struct(w)
 
-        w.write(f'// UnmarshalBinary Message {m.type_id}, {m.name}.')
+        w.comment(f'UnmarshalBinary Message {m.type_id}, {m.name}.')
         m.write_unmarshal(w)
 
     for p in parameters.values():
         if p.type_id == 0:
             continue
 
-        w.write(f'// {p.type_name} is Parameter {p.type_id}, {p.name}.')
+        w.comment(f'{p.type_name} is Parameter {p.type_id}, {p.name}.')
         if p.description:
             w.write('//')
             w.comment(p.description)
 
         p.write_struct(w)
 
-        w.write(f'// UnmarshalBinary Parameter {p.type_id}, {p.name}.')
+        w.comment(f'UnmarshalBinary Parameter {p.type_id}, {p.name}.')
         p.write_unmarshal(w)
+
+
+def write_marshal_code(w, types, parameters, messages, write_header=False):
+    if write_header:
+        w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
+        w.write('package llrp\n\n')
+
+        # with w.paren('import'):
+        # w.write('"encoding/binary"')
+        # w.write('"github.com/pkg/errors"')
+
+        w.write('')
+
+    w.comment("b2b converts a bool to a byte, because Go doesn't have a built-in for it.")
+    with w.block('func b2b(b bool) byte'):
+        with w.condition('b'):
+            w.write('return 1')
+        w.write('return 0')
+
+    for m in messages.values():
+        w.comment(f'MarshalBinary Message {m.type_id}, {m.name}.')
+        m.write_marshal(w)
+
+    for p in parameters.values():
+        w.comment(f'MarshalBinary Parameter {p.type_id}, {p.name}.')
+        p.write_marshal(w)
+
+
+def write_test_code(w, types, parameters, messages, write_header=False):
+    if write_header:
+        w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
+        w.write('package llrp\n\n')
+
+        with w.paren('import'):
+            # w.write('"encoding/binary"')
+            w.write('"testing"')
+            w.write('"reflect"')
+            # w.write('"github.com/pkg/errors"')
+
+        w.write('')
+
+    # for m in messages.values():
+    #     w.comment(f'Test Message {m.type_id}, {m.name}.')
+    #     m.write_tests(w)
+
+    for p in parameters.values():
+        w.comment(f'Test Parameter {p.type_id}, {p.name}.')
+        p.write_tests(w)
 
 
 def main():
     import sys
     import argparse
+    import subprocess
 
     parser = argparse.ArgumentParser(
         description='A python script to read a YAML description '
@@ -1291,8 +1450,32 @@ def main():
     )
     parser.add_argument('-i', '--input', help='input file (default: STDIN)',
                         type=argparse.FileType('r'), default=sys.stdin)
-    parser.add_argument('-o', '--output', help='output file (default: STDOUT)',
-                        type=argparse.FileType('w'), default=sys.stdout)
+
+    parser.add_argument('-u', '--unmarshal-file', default='-',
+                        help='output file for unmarshaling code (by default, "-" for STDOUT)')
+    parser.add_argument('-m', '--marshal-file', default='-',
+                        help='output file for marshaling code (by default, "-" for STDOUT)')
+    parser.add_argument('-t', '--test-file', default='-',
+                        help='output file for test code (by default, "-" for STDOUT)')
+
+    parser.add_argument('--unmarshal', default=True, action='store_true',
+                        help='write unmarshaling code')
+    parser.add_argument('--marshal', default=True, action='store_true',
+                        help='write marshaling code')
+    parser.add_argument('--test', default=True, action='store_true',
+                        help='write testing code')
+
+    parser.add_argument('--gofmt', default=True, action='store_true',
+                        help='pipe output through gofmt')
+
+    parser.add_argument('--no-unmarshal', dest='unmarshal', action='store_false',
+                        help='skip writing unmarshaling code')
+    parser.add_argument('--no-marshal', dest='marshal', action='store_false',
+                        help='skip writing marshaling code')
+    parser.add_argument('--no-test', dest='test', action='store_false',
+                        help='skip writing testing code')
+    parser.add_argument('--no-gofmt', dest='gofmt', action='store_false',
+                        help='skip piping output through gofmt')
 
     parser.add_argument('--parameter', help='output only specific parameters',
                         action='append')
@@ -1304,14 +1487,55 @@ def main():
     set_param_sizes(parameters)
     set_msg_sizes(messages, parameters)
 
-    w = GoWriter(args.output)
+    @contextmanager
+    def gowrite(filename: str, gofmt: bool):
+        with ExitStack() as stack:
+            out_file = sys.stdout
+            if filename != '-':
+                out_file = stack.enter_context(open(filename, 'w'))
 
-    if args.parameter:
-        for p_name in args.parameter:
-            parameters[p_name].write_unmarshal(w)
-        return
+            if gofmt:
+                gofmt_proc = stack.enter_context(subprocess.Popen(
+                    ['gofmt'],
+                    stdin=subprocess.PIPE,
+                    stdout=out_file,
+                    stderr=subprocess.STDOUT,
+                    encoding='utf-8'))
+                out_file = gofmt_proc.stdin
 
-    write_unmarshal_code(w, types, parameters, messages)
+            yield GoWriter(out_file)
+
+    if args.unmarshal:
+        with gowrite(args.unmarshal_file, args.gofmt) as w:
+            if args.parameter:
+                for p_name in args.parameter:
+                    parameters[p_name].write_unmarshal(w)
+                return
+
+            write_unmarshal_code(w, types, parameters, messages)
+
+    if args.marshal:
+        with gowrite(args.marshal_file, args.gofmt) as w:
+            if args.parameter:
+                for p_name in args.parameter:
+                    parameters[p_name].write_marshal(w)
+                return
+
+            wh = args.marshal_file != '-' or not args.unmarshal
+            write_marshal_code(w, types, parameters, messages, write_header=wh)
+            w.write('\n')
+
+    if args.test:
+        with gowrite(args.test_file, args.gofmt) as w:
+            if args.parameter:
+                for p_name in args.parameter:
+                    parameters[p_name].write_tests(w)
+                return
+
+            wh = args.test_file != '-' or not (args.unmarshal or args.marshal)
+
+            write_test_code(w, types, parameters, messages, write_header=wh)
+            w.write('\n')
 
 
 if __name__ == '__main__':

@@ -1,122 +1,122 @@
 parameters:
   - name: AntennaID
-    typeID: 1
+    type_id: 1
     fields:
       - name: AntennaID
         type: uint16
   - name: FirstSeenUTC
-    typeID: 2
+    type_id: 2
     fields:
       - name: FirstSeen
         type: microSecs64
   - name: FirstSeenUptime
-    typeID: 3
+    type_id: 3
     fields:
       - name: FirstSeen
         type: microSecs64
   - name: LastSeenUTC
-    typeID: 4
+    type_id: 4
     fields:
       - name: LastSeen
         type: microSecs64
   - name: LastSeenUptime
-    typeID: 5
+    type_id: 5
     fields:
       - name: LastSeen
         type: microSecs64
   - name: PeakRSSI
-    typeID: 6
+    type_id: 6
     fields:
       - name: PeakRSSI
         type: dBm8
   - name: ChannelIndex
-    typeID: 7
+    type_id: 7
     fields:
       - name: ChannelIndex
         type: uint16
   - name: TagSeenCount
-    typeID: 8
+    type_id: 8
     fields:
       - name: TagSeenCount
         type: uint16
   - name: ROSpecID
-    typeID: 9
+    type_id: 9
     fields:
       - name: ROSpecID
         type: uint32
   - name: InventoryParameterSpecID
-    typeID: 10
+    type_id: 10
     fields:
       - name: InventoryParameterSpecID
         type: uint16
   - name: C1G2CRC
-    typeID: 11
+    type_id: 11
     fields:
       - name: C1G2CRC
         type: uint16
   - name: C1G2PC
-    typeID: 12
+    type_id: 12
     fields:
       - name: C1G2PC
         type: uint16
   - name: EPC96
-    typeID: 13
+    type_id: 13
     fields:
       - name: EPC
         type: '[]byte'
         length: 12
   - name: SpecIndex
-    typeID: 14
+    type_id: 14
     fields:
       - name: SpecIndex
         type: uint16
   - name: ClientRequestOpSpecResult
-    typeID: 15
+    type_id: 15
     fields:
       - name: ClientRequestOpSpecResult
         type: uint16
   - name: AccessSpecID
-    typeID: 16
+    type_id: 16
     fields:
       - name: AccessSpecID
         type: uint32
   - name: OpSpecID
-    typeID: 17
+    type_id: 17
     fields:
       - name: OpSpecID
         type: uint16
   - name: C1G2SingulationDetails
-    typeID: 18
+    type_id: 18
     fields:
       - name: NumCollisionSlots
         type: uint16
       - name: NumEmptySlots
         type: uint16
   - name: C1G2XPCW1
-    typeID: 19
+    type_id: 19
     fields:
       - name: C1G2XPCW1
         type: uint16
   - name: C1G2XPCW2
-    typeID: 20
+    type_id: 20
     fields:
       - name: C1G2XPCW2
         type: uint16
 
   - name: UTCTimestamp
-    typeID: 128
+    type_id: 128
     fields:
       - name: Microseconds
         type: microSecs64
 
   - name: Uptime
-    typeID: 129
+    type_id: 129
     fields:
       - name: Microseconds
         type: microSecs64
 
   - name: GeneralDeviceCapabilities
-    typeID: 137
+    type_id: 137
     fields:
       - name: MaxSupportedAntennas
         type: uint16
@@ -143,7 +143,7 @@ parameters:
         optional: true
         version: 2
   - name: ReceiveSensitivityTableEntry
-    typeID: 139
+    type_id: 139
     fields:
       - name: TableIndex
         type: uint16
@@ -153,21 +153,21 @@ parameters:
         min: 0
         max: 128
   - name: PerAntennaAirProtocol
-    typeID: 140
+    type_id: 140
     fields:
       - name: AntennaID
         type: uint16
       - name: AirProtocolIDs
         type: '[]AirProtocolIDType'
   - name: GPIOCapabilities
-    typeID: 141
+    type_id: 141
     fields:
       - name: NumGPIs
         type: uint16
       - name: NumGPOs
         type: uint16
   - name: LLRPCapabilities
-    typeID: 142
+    type_id: 142
     fields:
       - name: LLRPCapabilitiesFlags
         type: LLRPCapabilitiesFlags
@@ -186,7 +186,7 @@ parameters:
       - name: MaxNumOpSpecsPerAccessSpec
         type: uint32
   - name: RegulatoryCapabilities
-    typeID: 143
+    type_id: 143
     fields:
       - name: CountryCode
         type: CountryCodeType
@@ -199,26 +199,26 @@ parameters:
         optional: true
         repeatable: true
   - name: UHFBandCapabilities
-    typeID: 144
+    type_id: 144
     parameters:
       - type: TransmitPowerLevelTableEntry
         repeatable: true
       - type: FrequencyInformation
         repeatable: true
       - type: UHFC1G2RFModeTable
-        airProtocol: C1G2
+        air_protocol: C1G2
         repeatable: true
       - type: RFSurveyFrequencyCapabilities
         optional: true
   - name: TransmitPowerLevelTableEntry
-    typeID: 145
+    type_id: 145
     fields:
       - name: Index
         type: uint16
       - name: TransmitPowerValue
         type: dBmX100
   - name: FrequencyInformation
-    typeID: 146
+    type_id: 146
     fields:
       - name: HoppingFlags
         type: HoppingFlags
@@ -229,7 +229,7 @@ parameters:
       - type: FixedFrequencyTable
         optional: true
   - name: FrequencyHopTable
-    typeID: 147
+    type_id: 147
     fields:
       - name: HopTableID
         type: uint8
@@ -238,12 +238,12 @@ parameters:
       - name: Frequencies
         type: '[]kHz'
   - name: FixedFrequencyTable
-    typeID: 148
+    type_id: 148
     fields:
       - name: Frequencies
         type: '[]kHz'
   - name: PerAntennaReceiveSensitivityRange
-    typeID: 149
+    type_id: 149
     fields:
       - name: AntennaID
         type: uint16
@@ -252,7 +252,7 @@ parameters:
       - name: ReceiveSensitivityIndexMax
         type: uint16
   - name: ROSpec
-    typeID: 177
+    type_id: 177
     fields:
       - name: ROSpecID
         type: uint32
@@ -279,12 +279,12 @@ parameters:
       - type: ROReportSpec
         optional: true
   - name: ROBoundarySpec
-    typeID: 178
+    type_id: 178
     parameters:
       - type: ROSpecStartTrigger
       - type: ROSpecStopTrigger
   - name: ROSpecStartTrigger
-    typeID: 179
+    type_id: 179
     fields:
       - name: ROSpecStartTriggerType
         type: ROSpecStartTriggerType
@@ -295,7 +295,7 @@ parameters:
         optional: true
 
   - name: PeriodicTriggerValue
-    typeID: 180
+    type_id: 180
     fields:
       - name: Offset
         type: milliSecs32
@@ -306,7 +306,7 @@ parameters:
         optional: true
 
   - name: GPITriggerValue
-    typeID: 181
+    type_id: 181
     fields:
       - name: GPIPortNum
         type: uint16
@@ -315,7 +315,7 @@ parameters:
       - name: Timeout
         type: milliSecs32
   - name: ROSpecStopTrigger
-    typeID: 182
+    type_id: 182
     fields:
       - name: ROSpecStopTriggerType
         type: ROSpecStopTriggerType
@@ -325,7 +325,7 @@ parameters:
       - type: GPITriggerValue
         optional: true
   - name: AISpec
-    typeID: 183
+    type_id: 183
     fields:
       - name: AntennaID
         type: '[]uint16'
@@ -337,7 +337,7 @@ parameters:
         optional: true
         repeatable: true
   - name: AISpecStopTrigger
-    typeID: 184
+    type_id: 184
     fields:
       - name: AISpecStopTriggerType
         type: AISpecStopTriggerType
@@ -349,7 +349,7 @@ parameters:
       - type: TagObservationTrigger
         optional: true
   - name: TagObservationTrigger
-    typeID: 185
+    type_id: 185
     fields:
       - name: TagObservationTriggerType
         type: TagObservationTriggerType
@@ -364,7 +364,7 @@ parameters:
       - name: Timeout
         type: milliSecs32
   - name: InventoryParameterSpec
-    typeID: 186
+    type_id: 186
     fields:
       - name: InventoryParameterSpecID
         type: uint16
@@ -378,7 +378,7 @@ parameters:
         optional: true
         repeatable: true
   - name: RFSurveySpec
-    typeID: 187
+    type_id: 187
     fields:
       - name: AntennaID
         type: uint16
@@ -393,7 +393,7 @@ parameters:
         repeatable: true
 
   - name: RFSurveySpecStopTrigger
-    typeID: 188
+    type_id: 188
     fields:
       - type: RFSurveySpecStopTriggerType
       - name: Duration
@@ -402,7 +402,7 @@ parameters:
         type: milliSecs32
 
   - name: AccessSpec
-    typeID: 207
+    type_id: 207
     fields:
       - name: AccessSpecID
         type: uint32
@@ -424,7 +424,7 @@ parameters:
         repeatable: true
 
   - name: AccessSpecStopTrigger
-    typeID: 208
+    type_id: 208
     fields:
       - name: AccessSpecStopTriggerType
         type: AccessSpecStopTriggerType
@@ -432,38 +432,38 @@ parameters:
         type: uint16
 
   - name: AccessCommand
-    typeID: 209
+    type_id: 209
     parameters:
       - type: C1G2TagSpec
-        airProtocol: C1G2
+        air_protocol: C1G2
 
       # op spec; these can come in any order
       - type: C1G2Read
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Write
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Kill
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Recommission
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Lock
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockErase
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockWrite
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockPermalock
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2GetBlockPermalockStatus
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: ClientRequestOpSpec
         optional: true
@@ -473,13 +473,13 @@ parameters:
 
 
   - name: ClientRequestOpSpec
-    typeID: 210
+    type_id: 210
     fields:
       - name: OpSpecID
         type: uint16
 
   - name: ClientRequestResponse
-    typeID: 211
+    type_id: 211
     fields:
       - name: AccessSpecID
         type: uint32
@@ -487,50 +487,51 @@ parameters:
       - type: EPCData
       # op spec; these can come in any order
       - type: C1G2Read
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Write
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Kill
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Recommission
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2Lock
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockErase
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockWrite
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2BlockPermalock
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: C1G2GetBlockPermalockStatus
-        airProtocol: C1G2
+        air_protocol: C1G2
         optional: true
       - type: ClientRequestOpSpec
         optional: true
       - type: Custom
         optional: true
   - name: LLRPConfigurationStateValue
-    typeID: 217
+    type_id: 217
     fields:
       - name: LLRPConfigurationState
         type: uint32
   - name: Identification
-    typeID: 218
+    type_id: 218
     fields:
       - name: IDType
         type: IDType
       - name: ReaderID
         type: '[]byte'
+        test_length: 8
   - name: GPOWriteData
-    typeID: 219
+    type_id: 219
     fields:
       - name: GPOPort
         type: uint16
@@ -538,14 +539,14 @@ parameters:
       - name: GPOData
         type: bool
   - name: KeepAliveSpec
-    typeID: 220
+    type_id: 220
     fields:
       - name: KeepAliveTriggerType
         type: KeepAliveTriggerType
       - name: Interval
         type: milliSecs32
   - name: AntennaProperties
-    typeID: 221
+    type_id: 221
     fields:
       - name: AntennaConnected
         type: bool
@@ -554,7 +555,7 @@ parameters:
       - name: AntennaGain
         type: dBiX100
   - name: AntennaConfiguration
-    typeID: 222
+    type_id: 222
     fields:
       - name: AntennaID
         type: uint16
@@ -570,12 +571,12 @@ parameters:
         optional: true
         repeatable: true
   - name: RFReceiver
-    typeID: 223
+    type_id: 223
     fields:
       - name: ReceiverSensitivityTableIndex
         type: uint16
   - name: RFTransmitter
-    typeID: 224
+    type_id: 224
     fields:
       - name: HopTableID
         type: uint16
@@ -584,7 +585,7 @@ parameters:
       - name: TransmitPowerTableIndex
         type: uint16
   - name: GPIPortCurrentState
-    typeID: 225
+    type_id: 225
     fields:
       - name: GPIPort
         type: uint16
@@ -594,12 +595,12 @@ parameters:
       - name: GPIState
         type: GPIStateType
   - name: EventsAndReports
-    typeID: 226
+    type_id: 226
     fields:
       - name: HoldEventsAndReportsUponReconnect
         type: bool
   - name: ROReportSpec
-    typeID: 237
+    type_id: 237
     fields:
       - name: ROReportTriggerType
         type: ROReportTriggerType
@@ -611,7 +612,7 @@ parameters:
         optional: true
         repeatable: true
   - name: TagReportContentSelector
-    typeID: 238
+    type_id: 238
     fields:
       - name: EnableROSpecID
         type: bool
@@ -659,12 +660,12 @@ parameters:
         optional: true
         repeatable: true
   - name: AccessReportSpec
-    typeID: 239
+    type_id: 239
     fields:
       - name: AccessReportTriggerType
         type: AccessReportTriggerType
   - name: TagReportData
-    typeID: 240
+    type_id: 240
     parameters:
       - type: EPCData
         group: epc-data
@@ -753,13 +754,14 @@ parameters:
         repeatable: true
 
   - name: EPCData
-    typeID: 241
+    type_id: 241
     fields:
       - name: EPC
         type: bitArray
+        test_length: 25  # an SGTIN-198 (e.g.) has an EPC of 198 bits (just under 25 bytes)
 
   - name: RFSurveyReportData
-    typeID: 242
+    type_id: 242
     parameters:
       - type: ROSpecID
         optional: true
@@ -772,7 +774,7 @@ parameters:
         repeatable: true
 
   - name: FrequencyRSSILevelEntry
-    typeID: 243
+    type_id: 243
     fields:
       - name: Frequency
         type: kHz
@@ -789,19 +791,19 @@ parameters:
         group: timestamp
 
   - name: ReaderEventNotificationSpec
-    typeID: 244
+    type_id: 244
     parameters:
       - type: EventNotificationState
         repeatable: true
   - name: EventNotificationState
-    typeID: 245
+    type_id: 245
     fields:
       - name: ReaderEventType
         type: ReaderEventType
       - name: NotificationEnabled
         type: bool
   - name: ReaderEventNotificationData
-    typeID: 246
+    type_id: 246
     parameters:
       - type: UTCTimestamp
         group: timestamp  # group the timestamps: they're mutually-exclusive
@@ -836,19 +838,19 @@ parameters:
         optional: true
         repeatable: true
   - name: HoppingEvent
-    typeID: 247
+    type_id: 247
     fields:
       - name: HopTableID
         type: uint16
   - name: GPIEvent
-    typeID: 248
+    type_id: 248
     fields:
       - name: GPIPort
         type: uint16
       - name: GPIEvent
         type: bool
   - name: ROSpecEvent
-    typeID: 249
+    type_id: 249
     fields:
       - name: ROSpecEventType
         type: ROSpecEventType
@@ -857,14 +859,14 @@ parameters:
       - name: PreemptingROSpecID
         type: uint32
   - name: ReportBufferLevelWarningEvent
-    typeID: 250
+    type_id: 250
     fields:
       - name: PercentFull
         type: uint8
   - name: ReportBufferOverflowErrorEvent
-    typeID: 251
+    type_id: 251
   - name: ReaderExceptionEvent
-    typeID: 252
+    type_id: 252
     fields:
       - name: Message
         type: string
@@ -885,14 +887,14 @@ parameters:
         optional: true
         repeatable: true
   - name: RFSurveyEvent
-    typeID: 253
+    type_id: 253
     fields:
       - name: RFSurveyEventType
         type: RFSurveyEventType
       - name: ROSpecID
         type: uint32
   - name: AISpecEvent
-    typeID: 254
+    type_id: 254
     fields:
       - name: AISpecEventType
         type: AISpecEventType
@@ -905,21 +907,21 @@ parameters:
       - type: C1G2SingulationDetails
         optional: true
   - name: AntennaEvent
-    typeID: 255
+    type_id: 255
     fields:
       - name: AntennaEventType
         type: AntennaEventType
       - name: AntennaID
         type: uint16
   - name: ConnectionAttemptEvent
-    typeID: 256
+    type_id: 256
     fields:
       - name: ConnectionAttemptEventType
         type: ConnectionAttemptEventType
   - name: ConnectionCloseEvent
-    typeID: 257
+    type_id: 257
   - name: LLRPStatus
-    typeID: 287
+    type_id: 287
     fields:
       - name: Status
         type: StatusCode
@@ -931,14 +933,14 @@ parameters:
       - type: ParameterError
         optional: true
   - name: FieldError
-    typeID: 288
+    type_id: 288
     fields:
       - name: FieldIndex
         type: uint16
       - name: ErrorCode
         type: StatusCode
   - name: ParameterError
-    typeID: 289
+    type_id: 289
     fields:
       - name: ParameterType
         type: ParamType
@@ -950,19 +952,19 @@ parameters:
       - type: FieldError
         optional: true
   - name: C1G2LLRPCapabilities
-    typeID: 327
+    type_id: 327
     fields:
       - name: C1G2CapabilitiesFlags
         type: C1G2CapabilitiesFlags
       - name: MaxNumSelectFiltersPerQuery
         type: uint16
   - name: UHFC1G2RFModeTable
-    typeID: 328
+    type_id: 328
     parameters:
       - type: UHFC1G2RFModeTableEntry
         repeatable: true
   - name: UHFC1G2RFModeTableEntry
-    typeID: 329
+    type_id: 329
     fields:
       - name: ModeID
         type: uint32
@@ -985,7 +987,7 @@ parameters:
       - name: SpectralMask
         type: SpectralMaskType
   - name: C1G2InventoryCommand
-    typeID: 330
+    type_id: 330
     fields:
       - name: C1G2InventoryCommandFlags
         type: C1G2InventoryCommandFlags
@@ -1001,7 +1003,7 @@ parameters:
         optional: true
         repeatable: true
   - name: C1G2Filter
-    typeID: 331
+    type_id: 331
     fields:
       - name: C1G2FilterAction
         type: C1G2FilterActionType
@@ -1012,7 +1014,7 @@ parameters:
       - type: C1G2TagInventoryStateUnawareFilterAction
         optional: true
   - name: C1G2TagInventoryMask
-    typeID: 332
+    type_id: 332
     fields:
       - name: C1G2MemoryBank
         type: C1G2MemoryBankType
@@ -1021,26 +1023,26 @@ parameters:
       - name: TagMask
         type: bitArray
   - name: C1G2TagInventoryStateAwareFilterAction
-    typeID: 333
+    type_id: 333
     fields:
       - name: C1G2TagInventoryTarget
         type: C1G2TagInventoryTargetType
       - name: C1G2TagInventoryStateAwareFilterAction
         type: C1G2TagInventoryStateAwareFilterActionType
   - name: C1G2TagInventoryStateUnawareFilterAction
-    typeID: 334
+    type_id: 334
     fields:
       - name: C1G2TagInventoryStateUnawareFilterAction
         type: C1G2TagInventoryStateUnawareFilterActionType
   - name: C1G2RFControl
-    typeID: 335
+    type_id: 335
     fields:
       - name: IndexIntoUHFC1G2RFModeTable
         type: uint16
       - name: Tari
         type: nanoSecs16
   - name: C1G2SingulationControl
-    typeID: 336
+    type_id: 336
     fields:
       - name: C1G2SingulationControlSession
         type: C1G2SingulationControlSessionType
@@ -1052,11 +1054,11 @@ parameters:
       - type: C1G2TagInventoryStateAwareSingulationAction
         optional: true
   - name: C1G2TagInventoryStateAwareSingulationAction
-    typeID: 337
+    type_id: 337
     fields:
       - type: C1G2TagInventoryStateAwareSingulationActionFlags
   - name: C1G2TagSpec
-    typeID: 338
+    type_id: 338
     parameters:
       - name: TagPattern1
         type: C1G2TargetTag
@@ -1064,7 +1066,7 @@ parameters:
         type: C1G2TargetTag
         optional: true
   - name: C1G2TargetTag
-    typeID: 339
+    type_id: 339
     fields:
       - name: C1G2MemoryBank
         type: C1G2MemoryBankType
@@ -1079,7 +1081,7 @@ parameters:
       - name: TagData
         type: bitArray
   - name: C1G2Read
-    typeID: 341
+    type_id: 341
     fields:
       - name: OpSpecID
         type: uint16
@@ -1092,7 +1094,7 @@ parameters:
       - name: WordCount
         type: uint16
   - name: C1G2Write
-    typeID: 342
+    type_id: 342
     fields:
       - name: OpSpecID
         type: uint16
@@ -1105,14 +1107,14 @@ parameters:
       - name: Data
         type: '[]uint16'
   - name: C1G2Kill
-    typeID: 343
+    type_id: 343
     fields:
       - name: OpSpecID
         type: uint16
       - name: KillPassword
         type: uint32
   - name: C1G2Lock
-    typeID: 344
+    type_id: 344
     fields:
       - name: OpSpecID
         type: uint16
@@ -1122,14 +1124,14 @@ parameters:
       - type: C1G2LockPayload
         repeatable: true
   - name: C1G2LockPayload
-    typeID: 345
+    type_id: 345
     fields:
       - name: LockPrivilege
         type: LockPrivilegeType
       - name: LockData
         type: LockDataType
   - name: C1G2BlockErase
-    typeID: 346
+    type_id: 346
     fields:
       - name: OpSpecID
         type: uint16
@@ -1142,7 +1144,7 @@ parameters:
       - name: WordCount
         type: uint16
   - name: C1G2BlockWrite
-    typeID: 347
+    type_id: 347
     fields:
       - name: OpSpecID
         type: uint16
@@ -1155,12 +1157,12 @@ parameters:
       - name: Data
         type: '[]uint16'
   - name: C1G2EPCMemorySelector
-    typeID: 348
+    type_id: 348
     fields:
       - name: C1G2EPCMemorySelectorFlags
         type: C1G2EPCMemorySelectorFlags
   - name: C1G2ReadOpSpecResult
-    typeID: 349
+    type_id: 349
     fields:
       - name: C1G2ReadOpSpecResultType
         type: C1G2ReadOpSpecResultType
@@ -1169,7 +1171,7 @@ parameters:
       - name: Data
         type: '[]uint16'
   - name: C1G2WriteOpSpecResult
-    typeID: 350
+    type_id: 350
     fields:
       - name: C1G2WriteOpSpecResultType
         type: C1G2WriteOpSpecResultType
@@ -1178,28 +1180,28 @@ parameters:
       - name: WordsWritten
         type: uint16
   - name: C1G2KillOpSpecResult
-    typeID: 351
+    type_id: 351
     fields:
       - name: C1G2KillResult
         type: C1G2KillResultType
       - name: OpSpecID
         type: uint16
   - name: C1G2LockOpSpecResult
-    typeID: 352
+    type_id: 352
     fields:
       - name: C1G2LockResult
         type: C1G2LockResultType
       - name: OpSpecID
         type: uint16
   - name: C1G2BlockEraseOpSpecResult
-    typeID: 353
+    type_id: 353
     fields:
       - name: C1G2BlockEraseResult
         type: C1G2BlockEraseResultType
       - name: OpSpecID
         type: uint16
   - name: C1G2BlockWriteOpSpecResult
-    typeID: 354
+    type_id: 354
     fields:
       - name: C1G2BlockWriteResult
         type: C1G2BlockWriteResultType
@@ -1208,19 +1210,19 @@ parameters:
       - name: WordsWritten
         type: uint16
   - name: LoopSpec
-    typeID: 355
+    type_id: 355
     fields:
       - name: LoopCount
         type: uint32
   - name: SpecLoopEvent
-    typeID: 356
+    type_id: 356
     fields:
       - name: ROSpecID
         type: uint32
       - name: LoopCount
         type: uint32
   - name: C1G2Recommission
-    typeID: 357
+    type_id: 357
     fields:
       - name: OpSpecID
         type: uint16
@@ -1228,7 +1230,7 @@ parameters:
         type: uint32
       - type: C1G2RecommissionFlags
   - name: C1G2BlockPermalock
-    typeID: 358
+    type_id: 358
     fields:
       - name: OpSpecID
         type: uint16
@@ -1241,7 +1243,7 @@ parameters:
       - name: BlockMask
         type: '[]uint16'
   - name: C1G2GetBlockPermalockStatus
-    typeID: 359
+    type_id: 359
     fields:
       - name: OpSpecID
         type: uint16
@@ -1254,21 +1256,21 @@ parameters:
       - name: BlockRange
         type: uint16
   - name: C1G2RecommissionOpSpecResult
-    typeID: 360
+    type_id: 360
     fields:
       - name: C1G2RecommissionResult
         type: C1G2RecommissionResultType
       - name: OpSpecID
         type: uint16
   - name: C1G2BlockPermalockOpSpecResult
-    typeID: 361
+    type_id: 361
     fields:
       - name: C1G2BlockPermalockResult
         type: C1G2BlockPermalockResultType
       - name: OpSpecID
         type: uint16
   - name: C1G2GetBlockPermalockStatusOpSpecResult
-    typeID: 362
+    type_id: 362
     fields:
       - name: C1G2GetBlockPermalockStatusResult
         type: C1G2GetBlockPermalockStatusResultType
@@ -1277,20 +1279,20 @@ parameters:
       - name: PermalockStatus
         type: '[]uint16'
   - name: MaximumReceiveSensitivity
-    typeID: 363
+    type_id: 363
     fields:
       - name: MaxSensitivity
         type: dBm16
         description: MaximumReceiveSensitivity is an absolute sensitivity, not relative.
   - name: RFSurveyFrequencyCapabilities
-    typeID: 365
+    type_id: 365
     fields:
       - name: MinFrequency
         type: kHz
       - name: MaxFrequency
         type: kHz
   - name: Custom
-    typeID: 1023
+    type_id: 1023
     fields:
       - name: VendorID
         type: uint32
@@ -1386,6 +1388,14 @@ types:
       - MemoryOverrun
 
   - name: AirProtocolIDType
+    description: |-
+      AirProtocolIDType defines the air protocols LLRP supports for accessing tags.
+
+      The air protocol determines how tags are sigulated and access operations performed,
+      affects which parameters are permitted in certain contexts,
+      and in theory can vary per antenna.
+      In practice, however, there's only ever been a single one defined,
+      and the standard hasn't been updated in ten years.
     storage: uint8
     kind: enum
     prefix: AirProto
@@ -1777,10 +1787,10 @@ types:
 
 messages:
   - name: GetSupportedVersion
-    typeID: 46
+    type_id: 46
   - name: GetSupportedVersionResponse
-    typeID: 56
-    responseTo: setMe
+    type_id: 56
+    response_to: setMe
     fields:
       - name: CurrentVersion
         type: VersionNum
@@ -1789,17 +1799,17 @@ messages:
     parameters:
       - type: LLRPStatus
   - name: SetProtocolVersion
-    typeID: 47
+    type_id: 47
     fields:
       - name: TargetVersion
         type: VersionNum
   - name: SetProtocolVersionResponse
-    typeID: 57
-    responseTo: 47
+    type_id: 57
+    response_to: 47
     parameters:
       - type: LLRPStatus
   - name: GetReaderCapabilities
-    typeID: 1
+    type_id: 1
     fields:
       - name: ReaderCapabilitiesRequestedData
         type: ReaderCapabilitiesRequestedDataType
@@ -1808,8 +1818,8 @@ messages:
         optional: true
         repeatable: true
   - name: GetReaderCapabilitiesResponse
-    typeID: 11
-    responseTo: 1
+    type_id: 11
+    response_to: 1
     parameters:
       - type: LLRPStatus
       - type: GeneralDeviceCapabilities
@@ -1824,136 +1834,136 @@ messages:
         optional: true
         repeatable: true
   - name: AddROSpecs
-    typeID: 20
+    type_id: 20
     parameters:
       - type: ROSpec
   - name: AddROSpecsResponse
-    typeID: 30
-    responseTo: 30
+    type_id: 30
+    response_to: 30
     parameters:
       - type: LLRPStatus
   - name: DeleteROSpecs
-    typeID: 21
+    type_id: 21
     fields:
       - name: ROSpecID
         type: uint32
   - name: DeleteROSpecsResponse
-    typeID: 31
-    responseTo: 21
+    type_id: 31
+    response_to: 21
     parameters:
       - type: LLRPStatus
   - name: StartROSpecs
-    typeID: 22
+    type_id: 22
     fields:
       - name: ROSpecID
         type: uint32
   - name: StartROSpecsResponse
-    typeID: 32
-    responseTo: 22
+    type_id: 32
+    response_to: 22
     parameters:
       - type: LLRPStatus
   - name: StopROSpecs
-    typeID: 23
+    type_id: 23
     fields:
       - name: ROSpecID
         type: uint32
   - name: StopROSpecsResponse
-    typeID: 33
-    responseTo: 23
+    type_id: 33
+    response_to: 23
     parameters:
       - type: LLRPStatus
   - name: EnableROSpecs
-    typeID: 24
+    type_id: 24
     fields:
       - name: ROSpecID
         type: uint32
   - name: EnableROSpecsResponse
-    typeID: 34
-    responseTo: 24
+    type_id: 34
+    response_to: 24
     parameters:
       - type: LLRPStatus
   - name: DisableROSpecs
-    typeID: 25
+    type_id: 25
     fields:
       - name: ROSpecID
         type: uint32
   - name: DisableROSpecsResponse
-    typeID: 35
-    responseTo: 25
+    type_id: 35
+    response_to: 25
     parameters:
       - type: LLRPStatus
   - name: GetROSpecs
-    typeID: 26
+    type_id: 26
   - name: GetROSpecsResponse
-    typeID: 36
-    responseTo: 26
+    type_id: 36
+    response_to: 26
     parameters:
       - type: LLRPStatus
       - type: ROSpec
         optional: true
         repeatable: true
   - name: AddAccessSpec
-    typeID: 40
+    type_id: 40
     parameters:
       - type: AccessSpec
   - name: AddAccessSpecResponse
-    typeID: 50
-    responseTo: 40
+    type_id: 50
+    response_to: 40
     parameters:
       - type: LLRPStatus
   - name: DeleteAccessSpec
-    typeID: 41
+    type_id: 41
     fields:
       - name: AccessSpecID
         type: uint32
   - name: DeleteAccessSpecResponse
-    typeID: 51
-    responseTo: 41
+    type_id: 51
+    response_to: 41
     parameters:
       - type: LLRPStatus
   - name: EnableAccessSpec
-    typeID: 42
+    type_id: 42
     fields:
       - name: AccessSpecID
         type: uint32
   - name: EnableAccessSpecResponse
-    typeID: 52
-    responseTo: 42
+    type_id: 52
+    response_to: 42
     parameters:
       - type: LLRPStatus
   - name: DisableAccessSpec
-    typeID: 43
+    type_id: 43
     fields:
       - name: AccessSpecID
         type: uint32
   - name: DisableAccessSpecResponse
-    typeID: 53
-    responseTo: 43
+    type_id: 53
+    response_to: 43
     parameters:
       - type: LLRPStatus
   - name: GetAccessSpecs
-    typeID: 44
+    type_id: 44
   - name: GetAccessSpecsResponse
-    typeID: 54
-    responseTo: 44
+    type_id: 54
+    response_to: 44
     parameters:
       - type: LLRPStatus
       - type: AccessSpec
         optional: true
         repeatable: true
   - name: ClientRequestOp
-    typeID: 45
+    type_id: 45
     parameters:
       - type: TagReportData
   - name: ClientRequestOpResponse
-    typeID: 55
-    responseTo: 45
+    type_id: 55
+    response_to: 45
     parameters:
       - type: ClientRequestResponse
   - name: GetReport
-    typeID: 60
+    type_id: 60
   - name: ROAccessReport
-    typeID: 61
+    type_id: 61
     parameters:
       - type: TagReportData
         optional: true
@@ -1965,21 +1975,21 @@ messages:
         optional: true
         repeatable: true
   - name: KeepAlive
-    typeID: 62
+    type_id: 62
   - name: KeepAliveACK
-    typeID: 72
+    type_id: 72
   - name: ReaderEventNotification
-    typeID: 63
+    type_id: 63
     parameters:
       - type: ReaderEventNotificationData
   - name: EnableEventsAndReports
-    typeID: 64
+    type_id: 64
   - name: ErrorMessage
-    typeID: 100
+    type_id: 100
     parameters:
       - type: LLRPStatus
   - name: GetReaderConfig
-    typeID: 2
+    type_id: 2
     fields:
       - name: AntennaID
         type: uint16
@@ -1994,8 +2004,8 @@ messages:
         optional: true
         repeatable: true
   - name: GetReaderConfigResponse
-    typeID: 12
-    responseTo: 2
+    type_id: 12
+    response_to: 2
     parameters:
       - type: LLRPStatus
       - type: Identification
@@ -2029,7 +2039,7 @@ messages:
         repeatable: true
 
   - name: SetReaderConfig
-    typeID: 3
+    type_id: 3
     fields:
       - name: ResetToFactoryDefaults
         type: bool
@@ -2060,19 +2070,19 @@ messages:
         optional: true
         repeatable: true
   - name: SetReaderConfigResponse
-    typeID: 13
-    responseTo: 3
+    type_id: 13
+    response_to: 3
     parameters:
       - type: LLRPStatus
   - name: CloseConnection
-    typeID: 14
+    type_id: 14
   - name: CloseConnectionResponse
-    typeID: 4
-    responseTo: 14
+    type_id: 4
+    response_to: 14
     parameters:
       - type: LLRPStatus
   - name: CustomMessage
-    typeID: 1023
+    type_id: 1023
     fields:
       - name: VendorID
         type: uint32
