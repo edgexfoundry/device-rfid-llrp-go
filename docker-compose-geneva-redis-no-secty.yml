@@ -112,6 +112,8 @@ services:
       - "127.0.0.1:48090:48090"
     container_name: edgex-sys-mgmt-agent
     hostname: edgex-sys-mgmt-agent
+    extra_hosts:
+      - "edgex-device-llrp:172.17.0.1"
     networks:
       - edgex-network
     environment:

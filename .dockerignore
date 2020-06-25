@@ -4,3 +4,6 @@
 go.sum
 
 docker-compose*.yml
+coverage.out
+.idea
+.gitignore
