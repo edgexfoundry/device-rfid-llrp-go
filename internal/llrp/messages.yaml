@@ -554,6 +554,10 @@ parameters:
         type: uint16
       - name: AntennaGain
         type: dBiX100
+        description: |-
+          AntennaGain is the composite forward gain of the antenna,
+          including cable loss, relative a hypothetical isotropic antenna,
+          expressed in 1/100ths of dBi.
   - name: AntennaConfiguration
     type_id: 222
     fields:
@@ -599,6 +603,12 @@ parameters:
     fields:
       - name: HoldEventsAndReportsUponReconnect
         type: bool
+        description: |-
+          HoldEventsAndReportsUponReconnect instructs the reader
+          to hold reports and events (except ConnectionAttemptEvent)
+          upon initation of a new connection
+          until the client issues an EnableEventsAndReports message.
+          Once received, reporting proceeds normally for the duration of the connection.
   - name: ROReportSpec
     type_id: 237
     fields:
@@ -1283,7 +1293,7 @@ parameters:
     fields:
       - name: MaxSensitivity
         type: dBm16
-        description: MaximumReceiveSensitivity is an absolute sensitivity, not relative.
+        description: MaximumReceiveSensitivity of the device, in dBm.
   - name: RFSurveyFrequencyCapabilities
     type_id: 365
     fields:
@@ -1306,23 +1316,37 @@ types:
   # ----- aliases ------
   - name: dBm16
     storage: int16
-    description: dBm16 is a 16-bit dBm value, primarily for absolute max sensitivity.
+    description: |-
+      dBm16 is a 16-bit dBm value.
+      In LLRP, it's used for maximum receive sensitivity.
 
   - name: dBm8
     storage: int8
-    description: dBm8 is a 8-bit dBm value, usually to represent RSSI.
+    description: |-
+      dBm8 is a 8-bit dBm value.
+      In LLRP, it's used to represent RSSI.
 
   - name: dBiX100
     storage: uint16
-    description: dBiX100 is dBi*100, primarily for fractional dBi antenna gain values.
+    description: |-
+      dBiX100 is dBi*100, i.e., 0.01dBi or 1 millibel.
+      In LLRP, it's used for fractional dBi antenna gain values.
 
   - name: dBmX100
     storage: uint16
-    description: dBmX100 is dBm*100, primarily for fractional dBm transmit power values.
+    description: |-
+      dBmX100 is dBm*100, i.e., 0.01dBm or 1 millibel milliwatt.
+      In LLRP, it's used primarily for fractional dBm transmit power values.
 
   - name: dB
     storage: uint16
-    description: dB relative a reference, primarily for receive sensitivity values.
+    description: |-
+      dB or decibel is 1/10 of a bel,
+      which is the either the log10 of the ratio of a power quantity relative a reference,
+      or 2*log10 of the ratio of an amplitude quantity relative a reference field.
+
+      In LLRP, it's used primarily for receive sensitivity values
+      relative the device maximum sensitivity.
 
   - name: microSecs64
     storage: uint64
@@ -1582,8 +1606,13 @@ types:
     kind: enum
 
   - name: GPIStateType
+    prefix: GPIState
     storage: uint8
     kind: enum
+    values:
+      - Low
+      - High
+      - Unknown
 
   - name: ForwardLinkModulationType
     storage: uint8

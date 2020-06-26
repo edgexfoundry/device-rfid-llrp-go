@@ -7,6 +7,9 @@
 #  Copyright (C) 2020 Intel Corporation
 #
 #
+#  Copyright (C) 2020 Intel Corporation
+#
+#
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -219,15 +222,15 @@ class GoWriter:
         self.write(f'{style[1]}{after_end}')
 
     @contextmanager
-    def paren(self, before_start: Optional[str] = None):
+    def paren(self, before_start: str = ''):
         """Returns a context within which writes are indented inside parentheses."""
         with self.block(before_start, style=GoWriter.PAREN):
             yield
 
     @contextmanager
-    def condition(self, cond):
+    def condition(self, cond: str):
         """Returns a context within which writes are indented inside an if (cond) block."""
-        with self.block(before_start=f'if {cond}', style=GoWriter.BRACE):
+        with self.block(before_start=f'if {cond}'):
             yield
 
     def ifelse(self, cond: Optional[str] = None):
@@ -240,10 +243,10 @@ class GoWriter:
         self.indent()
 
     @contextmanager
-    def switch(self, before_start: Optional[str] = None):
+    def switch(self, before_start: str = ''):
         """Returns a context for writing switch cases inside curly braces.
         See paren for more information."""
-        with self.block('switch'):
+        with self.block(f'switch {before_start}'):
             yield
 
     @contextmanager
@@ -291,18 +294,17 @@ class GoWriter:
 @dataclass
 class DataType:
     """DataType backs field types, such as built-ins, flags, enumerations, and aliases."""
-    name: str  # type name must be unique to the Go package
     storage: str  # underlying basic type (e.g., uint8)
+    name: str = ''  # type name must be unique to the Go package
     prefix: str = ''  # when generating code, prefix is attached to enum/flag names
-    kind: str = 'alias'  # flag, enumeration, or alias, or external
+    kind: str = 'external'  # flag, enumeration, or alias, or external
     values: Optional[Dict[str, int]] = None  # maps name -> value, or implicitly name -> iota
-    size: int = 0  # storage byte size; for arrays, the byte size of a single element
+    size: int = None  # storage byte size; for arrays, the byte size of a single element
 
     bits: int = 8  # number of bits in the final byte; usually should be 8, but occasionally not
 
     description: Optional[str] = None  # for outputting doc comments
 
-    elem_type: Optional['DataType'] = None
     # used for testing; set to reasonable values if not specified in YAML
     min: Optional[int] = None
     max: Optional[int] = None
@@ -312,60 +314,68 @@ class DataType:
         missing = [req for req in ('name', 'storage') if req not in y]
         if any(missing):
             raise MissingPropError(missing, y)
-        d = cls(**y)
 
-        if d.storage.startswith('[]'):
-            try:
-                d.elem_type = types[d.storage[2:]]
-            except KeyError:
-                raise DefinitionError(y, f'unknown element type for {d.storage}')
+        if 'kind' not in y:
+            y['kind'] = 'alias'
 
-        if 'size' not in y:
-            if d.elem_type is not None:
-                d.size = d.elem_type.size
-            elif d.storage.startswith('uint'):
-                d.size = int(d.storage[4:]) // 8
-            elif d.storage.startswith('int'):
-                d.size = int(d.storage[3:]) // 8
-            elif d.storage in ('bool' or 'byte'):
-                d.size = 1
+        try:
+            return cls(**y)
+        except Error as e:
+            raise DefinitionError(y) from e
+
+    def __post_init__(self):
+        if self.name == '':
+            self.name = self.storage
+
+        if self.size is None:
+            if self.storage.startswith('uint'):
+                self.size = int(self.storage[4:]) // 8
+            elif self.storage.startswith('int'):
+                self.size = int(self.storage[3:]) // 8
+            elif self.storage in ('bool', 'byte'):
+                self.size = 1
             else:
-                raise DefinitionError(y, f"the size of {d.name} ({d.storage}) isn't known")
+                raise Error(f"the size of {self.name} ({self.storage}) isn't known")
 
-        bts = 8 * d.size - 8 + d.bits
-        if d.storage.startswith('int'):
-            d.min = d.min or -(1 << (bts - 1))
-            d.max = d.max or (1 << (bts - 1)) - 1
+        assert self.size > 0, self.name
+        bts = 8 * self.size - 8 + self.bits
+        if self.storage.startswith('int'):
+            self.min = self.min if self.min is not None else -(1 << (bts - 1))
+            self.max = self.max if self.max is not None else (1 << (bts - 1)) - 1
         else:
-            d.min = d.min or 0
-            d.max = 1 << bts
-        assert d.min is not None and d.max is not None, d.name
+            self.min = self.min or 0
+            self.max = self.max if self.max is not None else 1 << bts
+        assert self.min is not None and self.max is not None, self.name
 
-        if d.kind in ('alias', 'external'):
-            return d
+        if self.kind in ('alias', 'external'):
+            return
 
-        if d.kind not in ('flag', 'enum'):
-            raise DefinitionError(y, f'unknown kind {d.kind} for type def {d.name}')
+        if self.kind not in ('flag', 'enum'):
+            raise Error(f'unknown kind {self.kind} for type def {self.name}')
 
-        if d.values is None:
-            d.values = {}
-            return d
+        if self.values is None:
+            self.values = {}
+            return self
 
         try:
             vals = {}
-            for name, value in d.values.items():
-                vals[d.prefix + name] = value
-            d.values = vals
+            for name, value in self.values.items():
+                vals[self.prefix + name] = value
+            self.values = vals
         except AttributeError:
             # allow the YAML value to use a list to map name -> position
             vals = {}
-            for value, name in enumerate(d.values):
-                vals[d.prefix + name] = value
-            d.values = vals
+            for value, name in enumerate(self.values):
+                vals[self.prefix + name] = value
+            self.values = vals
 
-        if len(d.values) > 1 << d.size * 8:
-            raise DefinitionError(y, f'{d.name} has more items than can fit in {d.storage}')
-        return d
+        if len(self.values) > 1 << self.size * 8:
+            raise Error(f'{self.name} has more items than can fit in {self.storage}')
+
+        self.min = 0
+        self.max = len(self.values)
+
+        return self
 
     def write_type_def(self, w):
         if self.kind == 'external':
@@ -374,16 +384,11 @@ class DataType:
         if self.description:
             w.comment(self.description)
 
-        if self.kind == 'alias':
-            w.write(f'type {self.name} = {self.storage}')
-            return
-
-        if not any(self.values):
-            w.write(f'type {self.name} {self.storage}')
+        w.write(f'type {self.name}{"=" if self.is_alias() else " "}{self.storage}')
+        if self.is_alias() or not any(self.values):
             return
 
         if len(self.values) == 1:
-            w.write(f'type {self.name} {self.storage}')
             name, value = list(self.values.items())[0]
             if self.kind == 'flag':
                 w.write(f'const {name} = {self.name}(1 << {self.size * 8 - 1})')
@@ -391,7 +396,6 @@ class DataType:
                 w.write(f'const {name} = {self.name}({value})')
             return
 
-        w.write(f'type {self.name} {self.storage}')
         if self.kind == 'enum':
             with w.paren('const'):
                 for name, value in sorted(self.values.items(), key=lambda x: x[1]):
@@ -448,9 +452,16 @@ class DataType:
                 return f'{self.storage}({i})'
             return str(i)
 
-        assert self.elem_type is not None, self.name
-        b_val = ",".join(f'({self.elem_type.test_instance(j % dist + self.min)})'
-                         for j in range(min(dist // 2, 4, self.max)))
+        assert self.storage.startswith('[]'), self.name
+        if self.storage == '[]byte':
+            b_val = ",".join(f'0x{(j % dist + self.min):0x}'
+                             for j in range(min(dist // 2, 4, self.max)))
+        elif self.storage == '[]uint16':
+            b_val = ",".join(f'0x{(j % dist + self.min):0x}'
+                             for j in range(min(dist // 2, 4, self.max)))
+            b_val += b_val
+        else:
+            raise Error('unknown storage')
         return f'{self.storage}{{{b_val}}}'
 
 
@@ -579,11 +590,10 @@ class FieldSpec:
 
         # determine if we need to cast
         if (self.type.name.startswith('uint') or
-                (self.type.is_alias() or self.type.is_external())
-                and self.type.storage.startswith('uint')):
+                (self.type.is_alias() and self.type.storage.startswith('uint'))):
             return from_exp
-        # if self.type.name == 'bitArray':
-        #   return from_exp
+        if self.type.name == 'bitArray':
+            return from_exp
         if self.type.name == 'bool':
             return f'{from_exp} != 0'
         return f'{self.type.name}({from_exp})'
@@ -706,7 +716,7 @@ class FieldSpec:
                 return f'b2b({name})'
             if self.type.size == 1:
                 return f'byte({name})'
-            return ', '.join([f'byte({name}{f">>{i - 1}" if i - 1 > 0 else ""})'
+            return ', '.join([f'byte({name}{f">>{8 * (i - 1)}" if i - 1 > 0 else ""})'
                               for i in range(self.type.size, 0, -1)])
 
         return ''
@@ -1034,13 +1044,13 @@ class Container:
                     w.write('var pt ParamType')
                     with w.condition('data[0]&0x80 == 1'):
                         w.comment('TV parameter')
-                        w.write('pt = ParamType(data[0])')
+                        w.write('pt = ParamType(data[0]&0x7F)')
                         w.ifelse('len(data) < 4')
                         w.reterr('expecting a TLV header, but %d < 4 byte remain', ['len(data)'])
                         w.ifelse()
                         w.write('pt = ParamType(binary.BigEndian.Uint16(data))')
                 elif tvs:
-                    w.write('pt := ParamType(data[0])')
+                    w.write('pt := ParamType(data[0]&0x7F)')
                 else:
                     w.write(f'pt := ParamType(binary.BigEndian.Uint16(data))')
                     if not mut_excl:
@@ -1068,10 +1078,10 @@ class Container:
     def unmarshal_tv(self, w: GoWriter, p: ParamSpec):
         sub = p.p_def
         if p.optional:
-            blk = w.condition(f'subType := ParamType(data[0]); '
+            blk = w.condition(f'subType := ParamType(data[0]&0x7F); '
                               f'subType == Param{sub.name}')
         else:
-            blk = w.condition(f'subType := ParamType(data[0]); '
+            blk = w.condition(f'subType := ParamType(data[0]&0x7F); '
                               f'subType != Param{sub.name}')
         with blk:
             if not p.optional:
@@ -1229,28 +1239,27 @@ def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], D
 
     # predefine some types
     types: Dict[str, DataType] = {
-        'bool':     DataType('bool', 'bool', kind='external', size=1, bits=1,
-                             min=0, max=1),
-        'uint8':    DataType('uint8', 'uint8', kind='external', size=1, min=0, max=255),
-        'byte':     DataType('byte', 'byte', kind='external', size=1, min=0, max=255),
-        'uint16':   DataType('uint16', 'uint16', kind='external', size=2, min=0, max=2 ** 16 - 1),
-        'uint32':   DataType('uint32', 'uint32', kind='external', size=4, min=0, max=2 ** 32 - 1),
-        'uint64':   DataType('uint64', 'uint64', kind='external', size=8, min=0, max=2 ** 64 - 1),
-        'int8':     DataType('int8', 'int8', kind='external', size=1, min=-128, max=127),
-        'int16':    DataType('int16', 'int16', kind='external', size=2, min=-(2 ** 15), max=2 ** 15 - 1),
-        'int32':    DataType('int32', 'int32', kind='external', size=4, min=-(2 ** 31), max=2 ** 31 - 1),
-        'int64':    DataType('int64', 'int64', kind='external', size=8, min=-(2 ** 63), max=2 ** 63 - 1),
-        'string':   DataType('string', '[]byte', kind='external',
-                             description="strings in LLRP are UTF-8 values "
-                                         "starting with uint16 byte-length header"),
-        'bitArray': DataType('bitArray', '[]byte', kind='external',
-                             min=0, max=2 ** 16 - 1,
-                             description="bitArrays in LLRP are a series of bits, "
-                                         "starting with a uint16 indicating number of bits, "
-                                         "padded with 0s (as LSBs) to an octet boundary."),
+        'bool':     DataType('bool', bits=1),
+        'uint8':    DataType('uint8'),
+        'byte':     DataType('byte', size=1),
+        'uint16':   DataType('uint16'),
+        'uint32':   DataType('uint32'),
+        'uint64':   DataType('uint64'),
+        'int8':     DataType('int8'),
+        'int16':    DataType('int16'),
+        'int32':    DataType('int32'),
+        'int64':    DataType('int64'),
+        'string':   DataType(
+            name='string', storage='[]byte', size=1,
+            description="strings in LLRP are UTF-8 values "
+                        "starting with uint16 byte-length header"),
+        'bitArray': DataType(
+            name='bitArray', storage='[]byte', size=1,
+            kind='external', min=0, max=2 ** 16 - 1,
+            description="bitArrays in LLRP are a series of bits, "
+                        "starting with a uint16 indicating number of bits, "
+                        "padded with 0s (as LSBs) to an octet boundary.")
     }
-    types['string'].elem_type = types['byte']
-    types['bitArray'].elem_type = types['byte']
 
     parameters: Dict[str, Container] = {}
 
