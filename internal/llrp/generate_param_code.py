@@ -690,7 +690,7 @@ class FieldSpec:
                 w.write(f'copy({var}, {data})')
             elif self.type.size == 1:
                 with w.block(f'for i := 0; i < arrLen; i++'):
-                    w.write(f'{var}[i] = {self.value("i")}')
+                    w.write(f'{var}[i] = {self.value(f"i+{pos}")}')
             else:
                 with w.block(f'for i, pos := 0, {pos}; i < arrLen; i, pos = i+1, pos+{sz}'):
                     w.write(f'{var}[i] = {self.value("pos")}')
@@ -719,7 +719,7 @@ class FieldSpec:
                 if reslice:
                     w.write(f'data = data[{pos_exp}:]')
                     w.ifelse()
-                    w.write(f'data = data[{pos+2}:]')
+                    w.write(f'data = data[{pos + 2}:]')
             return
 
         # consume the rest of the data
@@ -923,14 +923,20 @@ class Container:
         with w.block(f'func ({self.short} *{self.type_name}) MarshalBinary() ([]byte, error)'):
             self.write_marshal_body(w)
 
-    def write_new_test_instance(self, w: GoWriter, assignment: str, end: str = ''):
+    def write_new_test_instance(self, w: GoWriter, assignment: str, instances: int = 1, end: str = ''):
         """Write a 'name := value' expression that assigns a new test instance of this type."""
         if self.can_inline():
             w.write(f'{assignment} {self.type_name}({self.fields[0].type.test_instance(0)}){end}', auto_break=True)
             return
 
-        with w.block(f'{assignment} {self.type_name}', after_end=end + '\n'):
-            self.write_literal(w)
+        if instances == 1:
+            with w.block(f'{assignment} {self.type_name}', after_end=end + '\n'):
+                self.write_literal(w)
+            return
+
+        with w.block(f'{assignment} []{self.type_name}', after_end=end + '\n'):
+            with w.block(after_end=end + '\n'):
+                self.write_literal(w)
 
     def write_literal(self, w: GoWriter):
         # write a struct literal
@@ -946,10 +952,12 @@ class Container:
                 continue
             if g_name:
                 p = list(p_group)[0]
-                p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
+                p.p_def.write_new_test_instance(
+                    w, f'{p.name}:', instances=2 if p.repeatable else 1, end=',')
             else:
                 for p in p_group:
-                    p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
+                    p.p_def.write_new_test_instance(
+                        w, f'{p.name}:', instances=2 if p.repeatable else 1, end=',')
 
     def write_round_trip_test(self, w: GoWriter):
         self.write_new_test_instance(w, f'{self.short} :=')
@@ -1079,25 +1087,33 @@ class Container:
         with w.block(f'func ({self.short} *{self.type_name}) EncodeFields(w io.Writer) error'):
             self.write_encode_body(w)
 
-    def write_encode_body(self, w: GoWriter):
-        if self.fixed_size:
-            w.write(f'_, err := w.Write([]byte{{{self.value_bytes()}}})', auto_break=True)
-            w.reterr(f'failed to write fields for {self.const_name}', wrap=True)
-            return
+    def value_bytes(self) -> str:
+        s = self.short if not self.can_inline() else '*' + self.short
+        vb = [f'{f.value_bytes(f.var_name(s))},' for f in self.fields]
+        return ''.join(vb)
 
+    def write_encode_body(self, w: GoWriter):
+        s = self.short if not self.can_inline() else '*' + self.short
         for fxd, f_group in groupby(self.fields, lambda f: f.is_fixed_size()):
             if fxd:
                 f_group = list(f_group)
                 vb = []
                 for shift, fg in groupby(f_group, lambda f: f.type.bits != 8):
-                    if shift:
-                        vb += ['|'.join([
-                            f'{f.value_bytes(f.var_name(self.short))}'
-                            f'<<{(f.type.size*8-f.type.bits)-f.bit}'
-                            for f in fg])]
-                    else:
-                        vb += [','.join([f'{f.value_bytes(f.var_name(self.short))}'
-                                         for f in fg])]
+                    fg = list(fg)
+                    if not shift:
+                        vb += [','.join([f'{f.value_bytes(f.var_name(s))}' for f in fg])]
+                        continue
+
+                    vb += ['']
+                    for f in fg:
+                        put = f'{f.value_bytes(f.var_name(s))}' + \
+                              f'<<{(f.type.size * 8 - f.type.bits) - f.bit}'
+                        if f.partial:
+                            vb[-1] += put + '|'
+                        else:
+                            vb[-1] += put
+                            vb += ['']
+                    vb = vb[:-1]
 
                 w.write('if _,err:=w.Write([]byte{ '
                         f'{",".join(vb)}}});err!=nil{{', auto_break=True)
@@ -1110,36 +1126,36 @@ class Container:
             for f in f_group:
                 if f.type.name == 'bitArray':
                     with w.condition('_, err := w.Write([]byte{'
-                                     f'byte({f.var_name(self.short)}NumBits>>8), '
-                                     f'byte({f.var_name(self.short)}NumBits&0xFF)'
+                                     f'byte({f.var_name(s)}NumBits>>8), '
+                                     f'byte({f.var_name(s)}NumBits&0xFF)'
                                      '}); err != nil'):
                         w.reterr(f'failed to write length of {f.name}', wrap=True)
                     with w.condition('_, err := w.Write('
-                                     f'{f.var_name(self.short)}, '
+                                     f'{f.var_name(s)}, '
                                      '); err != nil'):
                         w.reterr(f'failed to write {f.name}', wrap=True)
                 elif f.length != 0:
-                    with w.condition(f'_, err := w.Write({f.var_name(self.short)}); err != nil'):
+                    with w.condition(f'_, err := w.Write({f.var_name(s)}); err != nil'):
                         w.reterr(f'failed to write {f.name}', wrap=True)
                 elif f.is_array or f.type.name == 'string':
                     with w.condition('_, err := w.Write([]byte{'
-                                     f'byte(len({f.var_name(self.short)})>>8), '
-                                     f'byte(len({f.var_name(self.short)})&0xFF)'
+                                     f'byte(len({f.var_name(s)})>>8), '
+                                     f'byte(len({f.var_name(s)})&0xFF)'
                                      '}); err != nil'):
                         w.reterr(f'failed to write length of {f.name}', wrap=True)
                     if f.type.name == 'string':
                         with w.condition('_, err := w.Write([]byte('
-                                         f'{f.var_name(self.short)}'
+                                         f'{f.var_name(s)}'
                                          ')); err != nil'):
                             w.reterr(f'failed to write {f.name}', wrap=True)
                     elif f.type.can_copy():
                         with w.condition('_, err := w.Write('
-                                         f'{f.var_name(self.short)}'
+                                         f'{f.var_name(s)}'
                                          '); err != nil'):
                             w.reterr(f'failed to write {f.name}', wrap=True)
                     else:
                         with w.condition('err := binary.Write(w, binary.BigEndian, '
-                                         f'{f.var_name(self.short)}); err != nil'):
+                                         f'{f.var_name(s)}); err != nil'):
                             w.reterr(f'failed to write {f.name}', wrap=True)
 
         w.write(f'return nil')
@@ -1163,11 +1179,6 @@ class Container:
             return f'{self.type_id_bytes()},0x00,0x00'
         else:
             return f'{self.type_id_bytes()}'
-
-    def value_bytes(self) -> str:
-        s = self.short if not self.can_inline() else '*' + self.short
-        vb = [f'{f.value_bytes(f.var_name(s))},' for f in self.fields]
-        return ''.join(vb)
 
     def type_id_bytes(self) -> str:
         if self.is_tlv:
@@ -1738,9 +1749,9 @@ def write_test_code(w, types, parameters, messages, write_header=False):
         w.comment(f'Test Message {m.type_id}, {m.name}.')
         m.write_tests(w)
 
-    # for p in parameters.values():
-    #     w.comment(f'Test Parameter {p.type_id}, {p.name}.')
-    #     p.write_tests(w)
+    for p in parameters.values():
+        w.comment(f'Test Parameter {p.type_id}, {p.name}.')
+        p.write_tests(w)
 
 
 def main():
