@@ -1,0 +1,251 @@
+{
+	"LLRPStatus": {
+		"Status": 0,
+		"ErrorDescription": "",
+		"FieldError": null,
+		"ParameterError": null
+	},
+	"Identification": {
+		"IDType": 0,
+		"ReaderID": "ABYl//8RJdY="
+	},
+	"AntennaProperties": [
+		{
+			"AntennaConnected": false,
+			"AntennaID": 1,
+			"AntennaGain": 0
+		},
+		{
+			"AntennaConnected": false,
+			"AntennaID": 2,
+			"AntennaGain": 0
+		},
+		{
+			"AntennaConnected": false,
+			"AntennaID": 3,
+			"AntennaGain": 0
+		},
+		{
+			"AntennaConnected": false,
+			"AntennaID": 4,
+			"AntennaGain": 0
+		}
+	],
+	"AntennaConfiguration": [
+		{
+			"AntennaID": 1,
+			"RFReceiver": 1,
+			"RFTransmitter": {
+				"HopTableID": 1,
+				"ChannelIndexInFixedFrequencyTable": 0,
+				"TransmitPowerTableIndex": 81
+			},
+			"C1G2InventoryCommand": [
+				{
+					"C1G2InventoryCommandFlags": 0,
+					"C1G2Filter": null,
+					"C1G2RFControl": {
+						"IndexIntoUHFC1G2RFModeTable": 1000,
+						"Tari": 0
+					},
+					"C1G2SingulationControl": {
+						"C1G2SingulationControlSession": 64,
+						"TagPopulation": 32,
+						"TagTransitTime": 0,
+						"C1G2TagInventoryStateAwareSingulationAction": null
+					},
+					"Custom": null
+				}
+			],
+			"Custom": null
+		},
+		{
+			"AntennaID": 2,
+			"RFReceiver": 1,
+			"RFTransmitter": {
+				"HopTableID": 1,
+				"ChannelIndexInFixedFrequencyTable": 0,
+				"TransmitPowerTableIndex": 81
+			},
+			"C1G2InventoryCommand": [
+				{
+					"C1G2InventoryCommandFlags": 0,
+					"C1G2Filter": null,
+					"C1G2RFControl": {
+						"IndexIntoUHFC1G2RFModeTable": 1000,
+						"Tari": 0
+					},
+					"C1G2SingulationControl": {
+						"C1G2SingulationControlSession": 64,
+						"TagPopulation": 32,
+						"TagTransitTime": 0,
+						"C1G2TagInventoryStateAwareSingulationAction": null
+					},
+					"Custom": null
+				}
+			],
+			"Custom": null
+		},
+		{
+			"AntennaID": 3,
+			"RFReceiver": 1,
+			"RFTransmitter": {
+				"HopTableID": 1,
+				"ChannelIndexInFixedFrequencyTable": 0,
+				"TransmitPowerTableIndex": 81
+			},
+			"C1G2InventoryCommand": [
+				{
+					"C1G2InventoryCommandFlags": 0,
+					"C1G2Filter": null,
+					"C1G2RFControl": {
+						"IndexIntoUHFC1G2RFModeTable": 1000,
+						"Tari": 0
+					},
+					"C1G2SingulationControl": {
+						"C1G2SingulationControlSession": 64,
+						"TagPopulation": 32,
+						"TagTransitTime": 0,
+						"C1G2TagInventoryStateAwareSingulationAction": null
+					},
+					"Custom": null
+				}
+			],
+			"Custom": null
+		},
+		{
+			"AntennaID": 4,
+			"RFReceiver": 1,
+			"RFTransmitter": {
+				"HopTableID": 1,
+				"ChannelIndexInFixedFrequencyTable": 0,
+				"TransmitPowerTableIndex": 81
+			},
+			"C1G2InventoryCommand": [
+				{
+					"C1G2InventoryCommandFlags": 0,
+					"C1G2Filter": null,
+					"C1G2RFControl": {
+						"IndexIntoUHFC1G2RFModeTable": 1000,
+						"Tari": 0
+					},
+					"C1G2SingulationControl": {
+						"C1G2SingulationControlSession": 64,
+						"TagPopulation": 32,
+						"TagTransitTime": 0,
+						"C1G2TagInventoryStateAwareSingulationAction": null
+					},
+					"Custom": null
+				}
+			],
+			"Custom": null
+		}
+	],
+	"ReaderEventNotificationSpec": {
+		"EventNotificationState": [
+			{
+				"ReaderEventType": 0,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 1,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 2,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 3,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 4,
+				"NotificationStateFlags": 128
+			},
+			{
+				"ReaderEventType": 5,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 6,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 7,
+				"NotificationStateFlags": 0
+			},
+			{
+				"ReaderEventType": 8,
+				"NotificationStateFlags": 128
+			}
+		]
+	},
+	"ROReportSpec": {
+		"ROReportTriggerType": 2,
+		"N": 1,
+		"TagReportContentSelector": {
+			"EnableROSpecID": false,
+			"EnableSpecIndex": false,
+			"EnableInventoryParamSpecID": false,
+			"EnableAntennaID": true,
+			"EnableChannelIndex": false,
+			"EnablePeakRSSI": true,
+			"EnableFirstSeenTimestamp": true,
+			"EnableLastSeenTimestamp": false,
+			"EnableTagSeenCount": false,
+			"EnableAccessSpecID": false,
+			"C1G2EPCMemorySelector": "AA==",
+			"Custom": null
+		},
+		"Custom": null
+	},
+	"AccessReportSpec": 1,
+	"LLRPConfigurationStateValue": 2091054395,
+	"KeepAliveSpec": {
+		"KeepAliveTriggerType": 0,
+		"Interval": 0
+	},
+	"GPIPortCurrentState": [
+		{
+			"GPIPort": 1,
+			"GPIPortEnabled": false,
+			"GPIState": 0
+		},
+		{
+			"GPIPort": 2,
+			"GPIPortEnabled": false,
+			"GPIState": 0
+		},
+		{
+			"GPIPort": 3,
+			"GPIPortEnabled": false,
+			"GPIState": 0
+		},
+		{
+			"GPIPort": 4,
+			"GPIPortEnabled": false,
+			"GPIState": 0
+		}
+	],
+	"GPOWriteData": [
+		{
+			"GPOPort": 1,
+			"GPOData": false
+		},
+		{
+			"GPOPort": 2,
+			"GPOData": false
+		},
+		{
+			"GPOPort": 3,
+			"GPOData": false
+		},
+		{
+			"GPOPort": 4,
+			"GPOData": false
+		}
+	],
+	"EventsAndReports": false,
+	"Custom": null
+}

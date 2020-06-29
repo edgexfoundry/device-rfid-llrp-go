@@ -470,6 +470,7 @@ parameters:
 
       - type: Custom
         optional: true
+        repeatable: true
 
 
   - name: ClientRequestOpSpec
@@ -1862,61 +1863,61 @@ messages:
       - type: Custom
         optional: true
         repeatable: true
-  - name: AddROSpecs
+  - name: AddROSpec
     type_id: 20
     parameters:
       - type: ROSpec
-  - name: AddROSpecsResponse
+  - name: AddROSpecResponse
     type_id: 30
     response_to: 30
     parameters:
       - type: LLRPStatus
-  - name: DeleteROSpecs
+  - name: DeleteROSpec
     type_id: 21
     fields:
       - name: ROSpecID
         type: uint32
-  - name: DeleteROSpecsResponse
+  - name: DeleteROSpecResponse
     type_id: 31
     response_to: 21
     parameters:
       - type: LLRPStatus
-  - name: StartROSpecs
+  - name: StartROSpec
     type_id: 22
     fields:
       - name: ROSpecID
         type: uint32
-  - name: StartROSpecsResponse
+  - name: StartROSpecResponse
     type_id: 32
     response_to: 22
     parameters:
       - type: LLRPStatus
-  - name: StopROSpecs
+  - name: StopROSpec
     type_id: 23
     fields:
       - name: ROSpecID
         type: uint32
-  - name: StopROSpecsResponse
+  - name: StopROSpecResponse
     type_id: 33
     response_to: 23
     parameters:
       - type: LLRPStatus
-  - name: EnableROSpecs
+  - name: EnableROSpec
     type_id: 24
     fields:
       - name: ROSpecID
         type: uint32
-  - name: EnableROSpecsResponse
+  - name: EnableROSpecResponse
     type_id: 34
     response_to: 24
     parameters:
       - type: LLRPStatus
-  - name: DisableROSpecs
+  - name: DisableROSpec
     type_id: 25
     fields:
       - name: ROSpecID
         type: uint32
-  - name: DisableROSpecsResponse
+  - name: DisableROSpecResponse
     type_id: 35
     response_to: 25
     parameters:

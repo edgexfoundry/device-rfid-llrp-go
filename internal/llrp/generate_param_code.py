@@ -3,13 +3,6 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
-#
-#  Copyright (C) 2020 Intel Corporation
-#
-#
-#  Copyright (C) 2020 Intel Corporation
-#
-#
 # This python script reads a YAML file
 # to generate Go code that unpacks binary LLRP messages
 # so that they can be marshaled into JSON.
@@ -135,32 +128,56 @@ class GoWriter:
         self.begin = True
 
         self.code = textwrap.TextWrapper(
-            width=70, break_long_words=False, break_on_hyphens=False,
-        )
+            break_long_words=False, break_on_hyphens=False)
 
-    def noindent(self, text, end='\n'):
-        self.w.write(text + end)
+        self.buffered = None
 
-    def write(self, text, end='\n', pre='', auto_break=False):
-        lines = text.splitlines()
-        if auto_break and end == '\n':
-            self.code.initial_indent = self.i * '\t' + pre
-            self.code.subsequent_indent = self.i * '\t' + pre
-            for line in lines:
-                for wrapped in self.code.wrap(line):
-                    self.w.write(wrapped + '\n')
+    def noindent(self, text):
+        self.w.write(text)
+        self.w.write('\n')
+
+    def buffer(self, text, pre='', auto_break=False):
+        self.buffered = (text, pre, auto_break)
+
+    def write_buffered(self):
+        if self.buffered is None:
+            return
+        self.write(*self.buffered)
+
+    def write(self, text, pre='', auto_break=False):
+        self.buffered = None
+
+        indent = self.i * '\t' + pre
+        if not auto_break:
+            for line in text.splitlines():
+                self.w.write(indent + line.strip() + '\n')
             return
 
-        if self.begin:
-            self.w.write(self.i * '\t' + pre)
+        self.code.width = 70 - len(indent)
+        open_quote = False
+        long_return = False
+        for line in self.code.wrap(text):
+            if long_return:
+                long_return = False
+                self.w.write(' ')
+            else:
+                self.w.write(indent)
 
-        for line in lines[:-1]:
-            self.w.write(line + end + self.i * '\t' + pre)
-        if len(lines) > 0:
-            line = lines[-1]
-            self.w.write(line + end)
+            if open_quote:
+                self.w.write('"')
 
-        self.begin = end == '\n'
+            self.w.write(line.strip())
+
+            if line.count('"') & 1 == 1:
+                open_quote = not open_quote
+
+            if open_quote:
+                self.w.write(' " +')
+
+            if line.strip() == 'return':
+                long_return = True
+            else:
+                self.w.write('\n')
 
     def comment(self, text, auto_break=True):
         self.write(text, pre='// ', auto_break=auto_break)
@@ -272,7 +289,7 @@ class GoWriter:
     def reterr(self, msg: Optional[str], params: Optional[List[str]] = None, wrap: bool = False):
         """Writes code to return an error, using 'return err' or one of
         New, Errorf, Wrap, or Wrapf if there are params and/or wrap is True."""
-        if msg.count('%') != (len(params) if params else 0):
+        if msg and (msg.count('%') != (len(params) if params else 0)):
             raise Error(f'got "{params}", but need {msg.count("%")} params for this error: "{msg}"')
 
         if not msg:
@@ -282,11 +299,11 @@ class GoWriter:
 
         msg = msg.replace('\n', '" +\n"')
         if wrap and params:
-            self.write(f'return errors.Wrapf(err, "{msg}", {", ".join(params)})')
+            self.write(f'return errors.Wrapf(err, "{msg}", {", ".join(params)})', auto_break=True)
         elif wrap and not params:
             self.write(f'return errors.Wrap(err, "{msg}")')
         elif params:
-            self.write(f'return errors.Errorf("{msg}", {", ".join(params)})')
+            self.write(f'return errors.Errorf("{msg}", {", ".join(params)})', auto_break=True)
         else:
             self.write(f'return errors.New("{msg}")')
 
@@ -424,8 +441,9 @@ class DataType:
     def is_external(self) -> bool:
         return self.kind == 'external'
 
-    def must_extract(self) -> bool:
-        return self.size > 1 and not self.is_alias()
+    def can_copy(self) -> bool:
+        return (self.storage in ('byte', 'uint8') and
+                (self.is_alias() or self.name in ('byte', 'uint8')))
 
     def test_instance(self, i: int) -> str:
         """Returns valid Go code for an instance of the correct type,
@@ -438,13 +456,15 @@ class DataType:
         if self.name == 'bool':
             return 'true' if i & 1 == 0 else 'false'
 
+        assert self.max is not None and self.min is not None, self.name
+        dist = self.max - self.min
+        if i == 0:
+            i = dist // 2
+
         if self.is_enum():
             if not any(self.values):
                 return str(self.min)
             return list(self.values.keys())[i % len(self.values)]
-
-        assert self.max is not None and self.min is not None, self.name
-        dist = self.max - self.min
 
         if self.is_fixed_size():
             i = (i % dist) + self.min
@@ -455,10 +475,10 @@ class DataType:
         assert self.storage.startswith('[]'), self.name
         if self.storage == '[]byte':
             b_val = ",".join(f'0x{(j % dist + self.min):0x}'
-                             for j in range(min(dist // 2, 4, self.max)))
+                             for j in range(min(i, 4, self.max)))
         elif self.storage == '[]uint16':
             b_val = ",".join(f'0x{(j % dist + self.min):0x}'
-                             for j in range(min(dist // 2, 4, self.max)))
+                             for j in range(min(i, 4, self.max)))
             b_val += b_val
         else:
             raise Error('unknown storage')
@@ -547,7 +567,7 @@ class FieldSpec:
     def struct_field(self) -> str:
         """Returns the field type as it should appear in a struct definition."""
         if self.type.name == 'bitArray':
-            return f'{self.name} []byte'
+            return f'{self.name}NumBits uint16\n{self.name} []byte'
         if self.type.name == 'string':
             return f'{self.name} string'
         return f'{self.name} {"[]" if self.is_array else ""}{self.type.name}'
@@ -584,9 +604,9 @@ class FieldSpec:
             from_exp += f'& 0x{1 << ((self.type.size * 8) - self.bit - 1):02x}'
         else:
             if downshift != 0:
-                from_exp += f' >> {downshift}'
+                from_exp += f'>>{downshift}'
             if self.bit != 0:
-                from_exp += f'& {1 << bit_size - 1}'
+                from_exp += f'&{1 << bit_size - 1}'
 
         # determine if we need to cast
         if (self.type.name.startswith('uint') or
@@ -598,65 +618,84 @@ class FieldSpec:
             return f'{from_exp} != 0'
         return f'{self.type.name}({from_exp})'
 
-    def write_unmarshal_arr(self, w, reslice: bool, var: str, pos: int):
-        """Writes unmarshaling code for an array type."""
-        if self.length > 0 and self.type.name != 'string':
+    @contextmanager
+    def write_unmarshal_arr(self, w, var: str, pos: int) -> str:
+        """Writes unmarshaling code for an array type.
+        yields an expression to reslice data past what it read."""
+        data = f'data[{pos}:]' if pos else 'data'
+
+        # for fixed size arrays
+        if self.length > 0:
+            if self.type.name == 'string':
+                w.write(f'{var} = string(data[{pos if pos else ""}:{pos + self.length}])')
+                yield f'{pos + self.length}'
+                return
+
             w.write(f'{var} = make([]{self.type.name}, {self.length})')
-            data = f'data[{pos + 2}:]' if pos else 'data'
-            if self.type.name == 'byte':
+            if self.type.can_copy():
                 w.write(f'copy({var}, {data})')
             else:
-                with w.block(f'for i := 0; i < {self.length}; i++'):
+                with w.block(f'for i := 0; i < {self.length * self.type.size}; i++'):
                     w.write(f'{var}[i] = {self.value("i")}')
+            yield f'{pos + self.length * self.type.size}'
             return
 
-        typ = '[]' + self.type.name  # used in error strings
-        if pos == 0:
-            length = f'int(binary.BigEndian.Uint16(data))'
-        else:
-            length = f'int(binary.BigEndian.Uint16(data[{pos}:]))'
+        n_elems = f'binary.BigEndian.Uint16({data})'
         data = f'data[{pos + 2}:]'
+        pos += 2
 
+        # bit arrays require special length handling
         if self.type.name == 'bitArray':
-            typ = 'bit array'
-            length += '&7'
-        elif self.type.name == 'string':
-            typ = 'string'
+            w.write(f'{var}NumBits = {n_elems}')
 
+            w.comment('Go right shift on signed ints is arithmetic, not logical')
+            n_bytes = f'1+((int({var}NumBits)-1)>>3)'
+            with w.condition(f'nBytes := {n_bytes}; nBytes > len({data})'):
+                w.reterr(f'{self.name} (bit array) declares it has %d bits (%d bytes), '
+                         f'but only %d bytes are available',
+                         [f'{var}NumBits', 'nBytes', f'len({data})'])
+                w.ifelse(f'nBytes != 0')
+                w.write(f'{var} = make([]byte, nBytes)')
+                w.write(f'copy({var}, {data})')
+                yield f'nBytes+{pos}'
+            return
+
+        # strings implicitly copy bytes during type conversion from []byte
+        if self.type.name == 'string':
+            with w.condition(f'strLen := int({n_elems}); strLen > len({data})'):
+                w.reterr(f'{self.name} (string) declares it has %d bytes, '
+                         f'but only %d bytes are available', ['strLen', f'len({data})'])
+                w.ifelse('strLen != 0')
+                w.write(f'{var} = string(data[{pos}:strLen+{pos}])')
+                yield f'strLen+{pos}'
+            return
+
+        # all other array types
+        typ = '[]' + self.type.name  # used in error strings
         sz = self.type.size
         mul = f'*{sz}' if sz != 1 else ''
 
-        # this check casts to int64 to prevent overflow issues
-        with w.condition(f'arrLen := {length}; int64(arrLen){mul} > int64(len({data}))'):
+        cond = f'arrLen := int({n_elems}); arrLen > len({data})'
+        if sz > 1:
+            w.comment('cast the len check to int64 to prevent overflow issues')
+            cond = f'arrLen := int({n_elems}); int64(arrLen){mul} > int64(len({data}))'
+
+        with w.condition(cond):
             w.reterr(f'{self.name} ({typ}) declares it has %d{mul} bytes, '
                      f'but only %d bytes are available', ['arrLen', f'len({data})'])
             w.ifelse('arrLen != 0')
 
-            if self.type.name == 'string':
-                w.write(f'{var} = string(data[{pos + 2}:arrLen+{pos + 2}])')
-                if reslice:
-                    w.write(f'data = data[arrLen+{pos + 2}:]')
-                return
-
-            if self.type.name == 'bitArray':
-                w.write(f'{var} = make([]byte, arrLen)')
-            else:
-                w.write(f'{var} = make([]{self.type.name}, arrLen)')
-
-            if self.type.name == 'byte':
+            w.write(f'{var} = make({typ}, arrLen)')
+            if self.type.can_copy():
                 w.write(f'copy({var}, {data})')
             elif self.type.size == 1:
-                if self.type.is_alias():
-                    w.write(f'copy({var}, {data})')
-                else:
-                    with w.block(f'for i := 0; i < arrLen; i++'):
-                        w.write(f'{var}[i] = {self.value("i")}')
+                with w.block(f'for i := 0; i < arrLen; i++'):
+                    w.write(f'{var}[i] = {self.value("i")}')
             else:
-                with w.block(f'for i, pos := 0, {pos + 2}; i < arrLen; i, pos = i+1, pos+{sz}'):
+                with w.block(f'for i, pos := 0, {pos}; i < arrLen; i, pos = i+1, pos+{sz}'):
                     w.write(f'{var}[i] = {self.value("pos")}')
 
-            if reslice:
-                w.write(f'data = data[arrLen{mul}+{pos + 2}:]')
+            yield f'arrLen{mul}+{pos}'
 
     def write_unmarshal(self, w, reslice: bool, prefix: str = 'pt', pos: int = 0):
         """Outputs Go code to unmarshal this fields.
@@ -676,7 +715,11 @@ class FieldSpec:
             return
 
         if self.length >= 0:
-            self.write_unmarshal_arr(w, reslice, var, pos)
+            with self.write_unmarshal_arr(w, var, pos) as pos_exp:
+                if reslice:
+                    w.write(f'data = data[{pos_exp}:]')
+                    w.ifelse()
+                    w.write(f'data = data[{pos+2}:]')
             return
 
         # consume the rest of the data
@@ -699,7 +742,7 @@ class FieldSpec:
         if self.is_array:
             if self.length == 0:
                 # TODO: handle overflow checking; actually append bytes
-                return 'byte(len({name})>>8),byte(len({name}))'
+                return f'byte(len({name})>>8),byte(len({name}))'
             elif self.length > 0:
                 return ','.join([f'{name}[{i}]' for i in range(self.length)])
             else:
@@ -716,8 +759,9 @@ class FieldSpec:
                 return f'b2b({name})'
             if self.type.size == 1:
                 return f'byte({name})'
-            return ', '.join([f'byte({name}{f">>{8 * (i - 1)}" if i - 1 > 0 else ""})'
-                              for i in range(self.type.size, 0, -1)])
+            return ' ' + ','.join([
+                f'byte({name}{f">>{8 * (i - 1)}" if i - 1 > 0 else ""})'
+                for i in range(self.type.size, 0, -1)])
 
         return ''
 
@@ -737,7 +781,7 @@ class ParamSpec:
 
     def is_fixed_size(self) -> bool:
         """Returns true if this parameter is always a fixed size."""
-        return self.p_def.fixed_size and not (self.optional or self.repeatable)
+        return self.p_def.fixed_size and self.exactly_one
 
     @classmethod
     def from_yaml(cls, y: YML) -> 'ParamSpec':
@@ -757,8 +801,12 @@ class ParamSpec:
         w.write('subLen := binary.BigEndian.Uint16(data[2:])')
         with w.condition('int(subLen) > len(data)'):
             w.reterr(f'Param{self.param_name} '
-                     'says it has %d bytes,\n but only %d bytes remain',
+                     'says it has %d bytes, but only %d bytes remain',
                      ['subLen', 'len(data)'])
+
+    @property
+    def exactly_one(self) -> bool:
+        return not (self.optional or self.repeatable)
 
 
 @dataclass
@@ -855,9 +903,11 @@ class Container:
         """Returns True if after unmarshaling, we should check for remaining data."""
         if self.fixed_size:
             return False
-        if self.fields and not self.parameters and self.fields[-1].length >= 0:
-            return True
-        return False
+        if not any(self.parameters):
+            if not any(self.fields):
+                return False
+            return self.fields[-1].length != -1
+        return True
 
     def write_unmarshal(self, w: GoWriter):
         with w.block(f'func ({self.short} *{self.type_name}) UnmarshalBinary(data []byte) error'):
@@ -873,25 +923,29 @@ class Container:
         with w.block(f'func ({self.short} *{self.type_name}) MarshalBinary() ([]byte, error)'):
             self.write_marshal_body(w)
 
-    def write_tests(self, w: GoWriter):
-        with w.block(f'func Test{self.name}_roundTrip(t *testing.T)'):
-            self.write_round_trip_test(w)
-
-    def write_new_test_instance(self, w: GoWriter, name: str):
+    def write_new_test_instance(self, w: GoWriter, assignment: str, end: str = ''):
         """Write a 'name := value' expression that assigns a new test instance of this type."""
         if self.can_inline():
-            w.write(f'{name} := {self.type_name}({self.fields[0].type.test_instance(0)})', auto_break=True)
+            w.write(f'{assignment} {self.type_name}({self.fields[0].type.test_instance(0)}){end}', auto_break=True)
             return
 
+        with w.block(f'{assignment} {self.type_name}', after_end=end + '\n'):
+            self.write_literal(w)
+
+    def write_literal(self, w: GoWriter):
         # write a struct literal
-        with w.block(f'{name} := {self.type_name}'):
-            for f in self.fields:
-                if f.padding:
-                    continue
-                w.write(f'{f.name}: {f.test_field()},')
+        for f in self.fields:
+            if f.padding:
+                continue
+            w.write(f'{f.name}: {f.test_field()},')
+
+        for p in self.parameters:
+            if p.optional:
+                continue
+            p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
 
     def write_round_trip_test(self, w: GoWriter):
-        self.write_new_test_instance(w, self.short)
+        self.write_new_test_instance(w, f'{self.short} :=')
 
         w.write(f'b, err := {self.short}.MarshalBinary()')
         with w.condition('err != nil'):
@@ -899,18 +953,203 @@ class Container:
 
         w.write(f'var {self.short}2 {self.type_name}')
         with w.condition(f'err := {self.short}2.UnmarshalBinary(b); err != nil'):
-            w.write('t.Fatalf("%+v", err)')
+            w.write('t.Errorf("%+v", err)')
 
         with w.condition(f'!reflect.DeepEqual({self.short}, {self.short}2)'):
-            w.write(f't.Errorf("mismatch:\\n%+v\\n%+v", {self.short}, {self.short}2)')
+            w.write(f't.Errorf("mismatch:\\n%# 02x\\n%+v\\n%+v", b, {self.short}, {self.short}2)')
 
-    def write_marshal_body(self, w: GoWriter):
-        if self.fixed_size:
-            with w.block('return []byte', after_end=', nil'):
-                w.write(self.value_bytes(), auto_break=True)
+    def write_get_header(self, w: GoWriter):
+        with w.block(f'func ({self.short} *{self.type_name}) getHeader() paramHeader'):
+            self.write_get_header_body(w)
+
+    def write_get_header_body(self, w: GoWriter):
+        f_sizes = []
+        min_f_size = 0
+        for f in self.fields:
+            if f.is_fixed_size():
+                if f.partial:
+                    continue
+                else:
+                    min_f_size += f.min_size
+            elif f.type.name == 'bitArray':
+                min_f_size += 2
+                f_sizes += [f'uint16(((int({f.var_name(self.short)}NumBits)-1)>>3)+1)']
+            else:
+                min_f_size += 2
+                f_sizes += [f'uint16('
+                            f'len({f.var_name(self.short)})'
+                            f'{f"*{f.type.size}" if f.type.size > 1 else ""})']
+
+        single_inst = [p for p in self.parameters if p.exactly_one]
+        zero_or_one = [p for p in self.parameters if p.optional and not p.repeatable]
+        repeatable = [p for p in self.parameters if p.repeatable]
+
+        if any(not p.exactly_one for p in self.parameters):
+            n_params = [str(len(single_inst))] if any(single_inst) else []
+            n_params += [f'len({self.short}.{p.name})' for p in repeatable]
+            if any(n_params):
+                w.write(f'nParams := {"+ ".join(n_params)}', auto_break=True)
+            else:
+                w.write('nParams := 0')
+
+            for p in zero_or_one:
+                with w.condition(f'{self.short}.{p.name} != nil'):
+                    w.write(f'nParams++')
+            blk = 'ph := paramHeader'
+        elif any(self.parameters) and not self.fixed_size:
+            blk = 'ph := paramHeader'
+        else:
+            blk = 'return paramHeader'
+
+        def write_subs():
+            if any(zero_or_one) or any(repeatable):
+                w.write(f'subs:     make([]paramHeader, 0, nParams),')
+                return
+
+            if not any(single_inst):
+                return
+
+            with w.block('subs:      []paramHeader', after_end=',\n'):
+                for p in single_inst:
+                    w.write(f'{self.short}.{p.name}.getHeader(),')
+
+        with w.block(blk):
+            w.write(f'ParamType: {self.const_name},')
+            w.write(f'data:      {self.short},')
+            if any(f_sizes):
+                w.write(f'sz:        {min_f_size + self.header_size} + {"+ ".join(f_sizes)},', auto_break=True)
+            else:
+                w.write(f'sz:        {min_f_size + self.header_size},')
+            write_subs()
+
+        if not any(self.parameters) or self.fixed_size:
             return
 
-        w.write(f'return nil, nil')
+        if not any(zero_or_one) and not any(repeatable):
+            f_sizes += [f'ph.subs[{i}].sz' for i in range(len(single_inst))]
+            w.write(f'ph.sz += {"+ ".join(f_sizes)}')
+            w.write('return ph')
+            return
+
+        for (optional, repeatable, group_name), p_group in groupby(
+                self.parameters, lambda p: (p.optional, p.repeatable, p.group)):
+            p_group = list(p_group)
+            if repeatable:
+                for p in p_group:
+                    with w.block(f'for i := range {self.short}.{p.name}'):
+                        w.write(f'sh := {self.short}.{p.name}[i].getHeader()')
+                        w.write(f'ph.sz += sh.sz')
+                        w.write(f'ph.subs = append(ph.subs, sh)')
+            elif optional:
+                for p in p_group:
+                    with w.condition(f'{self.short}.{p.name} != nil'):
+                        w.write(f'sh := {self.short}.{p.name}.getHeader()')
+                        w.write(f'ph.sz += sh.sz')
+                        w.write(f'ph.subs = append(ph.subs, sh)')
+            elif group_name is not None:
+                with w.switch():
+                    for p in p_group:
+                        if p.p_def.can_inline():
+                            cond = f'{self.short}.{p.name} != 0'
+                        else:
+                            cond = ' && '.join([
+                                f'{f.var_name(f"{self.short}.{p.name}")} ' +
+                                ("!= 0" if not f.is_fixed_size else "!= nil")
+                                for f in p.p_def.fields])
+                        with w.case(cond):
+                            w.write(f'ph.subs = append(ph.subs, {self.short}.{p.name}.getHeader())')
+                            w.write('ph.sz += ph.subs[len(ph.subs)-1].sz')
+            else:
+                for p in p_group:
+                    w.write(f'ph.subs = append(ph.subs, {self.short}.{p.name}.getHeader())')
+                    w.write('ph.sz += ph.subs[len(ph.subs)-1].sz')
+
+        w.write(f'return ph')
+
+    def write_encode(self, w: GoWriter):
+        self.write_get_header(w)
+
+        with w.block(f'func ({self.short} *{self.type_name}) EncodeFields(w io.Writer) error'):
+            self.write_encode_body(w)
+
+    def write_encode_body(self, w: GoWriter):
+        if self.fixed_size:
+            w.write(f'_, err := w.Write([]byte{{{self.value_bytes()}}})', auto_break=True)
+            w.reterr(f'failed to write fields for {self.const_name}', wrap=True)
+            return
+
+        for fxd, f_group in groupby(self.fields, lambda f: f.is_fixed_size()):
+            if fxd:
+                f_group = list(f_group)
+                vb = []
+                for shift, fg in groupby(f_group, lambda f: f.type.bits != 8):
+                    if shift:
+                        vb += ['|'.join([
+                            f'{f.value_bytes(f.var_name(self.short))}'
+                            f'<<{(f.type.size*8-f.type.bits)-f.bit}'
+                            for f in fg])]
+                    else:
+                        vb += [','.join([f'{f.value_bytes(f.var_name(self.short))}'
+                                         for f in fg])]
+
+                w.write('if _,err:=w.Write([]byte{ '
+                        f'{",".join(vb)}}});err!=nil{{', auto_break=True)
+                w.indent()
+                w.reterr(f'failed to write fields for {self.const_name}', wrap=True)
+                w.dedent()
+                w.write('}')
+                continue
+
+            for f in f_group:
+                if f.type.name == 'bitArray':
+                    with w.condition('_, err := w.Write([]byte{'
+                                     f'byte({f.var_name(self.short)}NumBits>>8), '
+                                     f'byte({f.var_name(self.short)}NumBits&0xFF)'
+                                     '}); err != nil'):
+                        w.reterr(f'failed to write length of {f.name}', wrap=True)
+                    with w.condition('_, err := w.Write('
+                                     f'{f.var_name(self.short)}, '
+                                     '); err != nil'):
+                        w.reterr(f'failed to write {f.name}', wrap=True)
+                elif f.length != 0:
+                    with w.condition(f'_, err := w.Write({f.var_name(self.short)}); err != nil'):
+                        w.reterr(f'failed to write {f.name}', wrap=True)
+                elif f.is_array or f.type.name == 'string':
+                    with w.condition('_, err := w.Write([]byte{'
+                                     f'byte(len({f.var_name(self.short)})>>8), '
+                                     f'byte(len({f.var_name(self.short)})&0xFF)'
+                                     '}); err != nil'):
+                        w.reterr(f'failed to write length of {f.name}', wrap=True)
+                    if f.type.name == 'string':
+                        with w.condition('_, err := w.Write([]byte('
+                                         f'{f.var_name(self.short)}'
+                                         ')); err != nil'):
+                            w.reterr(f'failed to write {f.name}', wrap=True)
+                    elif f.type.can_copy():
+                        with w.condition('_, err := w.Write('
+                                         f'{f.var_name(self.short)}'
+                                         '); err != nil'):
+                            w.reterr(f'failed to write {f.name}', wrap=True)
+                    else:
+                        with w.condition('err := binary.Write(w, binary.BigEndian, '
+                                         f'{f.var_name(self.short)}); err != nil'):
+                            w.reterr(f'failed to write {f.name}', wrap=True)
+
+        w.write(f'return nil')
+
+    def write_marshal_body(self, w):
+        w.write('b := bytes.Buffer{}')
+        w.err_check(f'{self.short}.EncodeFields(&b)', ret='nil, err')
+        for p in self.parameters:
+            if p.repeatable:
+                with w.block(f'for i := range {self.short}.{p.name}'):
+                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}[i].getHeader())', ret='nil, err')
+            elif p.optional:
+                with w.condition(f'{self.short}.{p.name} != nil'):
+                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
+            else:
+                w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
+        w.write('return b.Bytes(), nil')
 
     def header_bytes(self) -> str:
         if self.is_tlv:
@@ -921,7 +1160,6 @@ class Container:
     def value_bytes(self) -> str:
         s = self.short if not self.can_inline() else '*' + self.short
         vb = [f'{f.value_bytes(f.var_name(s))},' for f in self.fields]
-        #  TODO append TLVs
         return ''.join(vb)
 
     def type_id_bytes(self) -> str:
@@ -990,30 +1228,29 @@ class Container:
             if optional and not any(required):
                 with w.condition(f'len(data) == 0'):
                     w.write('return nil')
-            elif known_data_len < req_len:
-                w.err_check(f'hasEnoughBytes({self.const_name}, {req_len}, len(data), false)')
-                known_data_len = req_len
 
             required.difference_update(p.name for p in p_group)
 
             # simple path: there's only a single parameter, or all in p_group are required
-            if len(p_group) == 1 or (g_name is None and not (optional or repeatable)):
+            if not repeatable and (len(p_group) == 1 or (g_name is None and not optional)):
                 for p in p_group:
                     sub: 'Container' = p.p_def
                     if self.fixed_size:
                         assert sub.min_size <= known_data_len, f'{self.name}.{sub.name}: {sub.min_size} > {known_data_len}'
 
-                    known_data_len = sub.header_len_check(w, known_data_len)
+                    if not optional:
+                        known_data_len = sub.header_len_check(w, known_data_len)
 
                     if sub.header_size == 1:
                         self.unmarshal_tv(w, p)
                     else:
-                        self.unmarshal_tlv(w, p)
+                        self.unmarshal_tlv(w, p, False)
 
-                    if sub.fixed_size:
-                        known_data_len -= sub.min_size
-                    else:
-                        known_data_len = 0
+                    if not optional:
+                        if sub.fixed_size:
+                            known_data_len -= sub.min_size
+                        else:
+                            known_data_len = 0
                 continue
 
             # otherwise, the next parameter is one of a collection of
@@ -1022,7 +1259,6 @@ class Container:
 
             tvs = [p for p in p_group if p.p_def.header_size == 1]
             tlvs = [p for p in p_group if p.p_def.header_size == 4]
-            mixed = bool(tvs and tlvs)
 
             blk = ''
             if not mut_excl:
@@ -1036,8 +1272,9 @@ class Container:
                     w.reterr('unexpected parameter %v when unmarshaling '
                              f'Param{self.name}', ['pt'])
 
+            has_sub_len = False
             with w.block(blk):
-                if mixed:
+                if tvs and tlvs:
                     # special weirdness: the next param could be a single byte TV
                     # or it could be a TLV with a 4 byte header,
                     # so we have to check how much data is available
@@ -1055,23 +1292,21 @@ class Container:
                     w.write(f'pt := ParamType(binary.BigEndian.Uint16(data))')
                     if not mut_excl:
                         w.write('subLen := binary.BigEndian.Uint16(data[2:])')
+                        has_sub_len = True
                         with w.condition('int(subLen) > len(data)'):
-                            w.reterr(f'%v says it has %d bytes,\n but only %d bytes remain',
+                            w.reterr(f'%v says it has %d bytes, but only %d bytes remain',
                                      ['pt', 'subLen', 'len(data)'])
 
                 with w.switch('pt'):
-                    self.write_cases(w, p_group, check_len=mixed, default=default_case)
+                    self.write_cases(w, p_group, has_sub_len, default_case)
 
-                if blk == '':
-                    w.write(f'data = data[{req_len}:]')
+                if blk == '' or (tvs and not tlvs):
                     known_data_len -= req_len
                     continue
-                if tlvs and not tvs:
+
+                if has_sub_len:
                     w.write(f'data = data[subLen:]')
                     known_data_len = 0
-                if tvs and not tlvs:
-                    w.write(f'data = data[{req_len}:]')
-                    known_data_len -= req_len
 
         return
 
@@ -1088,9 +1323,9 @@ class Container:
                 w.reterr(f'expected Param{sub.name}, but found %v', ['subType'])
                 w.ifelse()
             self.alloc(w, p)
-            self.write_unmarshal_sub(w, p)
+            self.write_unmarshal_sub(w, p, False)
 
-    def unmarshal_tlv(self, w, p):
+    def unmarshal_tlv(self, w, p, has_sub_len):
         sub = p.p_def
         if p.optional:
             blk = w.condition(f'subType := ParamType(binary.BigEndian.Uint16(data)); '
@@ -1102,27 +1337,26 @@ class Container:
             if not p.optional:
                 w.reterr(f'expected Param{sub.name}, but found %v', ['subType'])
                 w.ifelse()
-            sub.sublen_check(w)
+            has_sub_len = sub.sublen_check(w)
             self.alloc(w, p)
-            self.write_unmarshal_sub(w, p)
-            w.write(f'data = data[subLen:]')
+            self.write_unmarshal_sub(w, p, has_sub_len)
+            if has_sub_len:
+                w.write('data = data[subLen:]')
+            else:
+                w.write(f'data = data[{sub.min_size}:]')
 
-    def write_cases(self, w: GoWriter, p_group: List[ParamSpec], check_len: bool = False,
+    def write_cases(self, w: GoWriter, p_group: List[ParamSpec],
+                    has_sub_len: bool = False,
                     default: Optional[Callable[[GoWriter], None]] = None):
         for p in p_group:
             sub = p.p_def
             with w.case(f'Param{sub.name}'):
-                if check_len:
-                    sub.sublen_check(w)
+                sl = has_sub_len
+                if not has_sub_len:
+                    sl = sub.sublen_check(w)
 
                 self.alloc(w, p)
-                self.write_unmarshal_sub(w, p)
-
-                if check_len:
-                    if sub.header_size == 4:
-                        w.write(f'data = data[subLen:]')
-                    if sub.header_size == 1 and sub.fixed_size:
-                        w.write(f'data = data[{sub.min_size}:]')
+                self.write_unmarshal_sub(w, p, sl)
 
         if not default:
             return
@@ -1130,23 +1364,19 @@ class Container:
         with w.case('default'):
             default(w)
 
-    def write_unmarshal_sub(self, w: GoWriter, p: ParamSpec):
+    def write_unmarshal_sub(self, w: GoWriter, p: ParamSpec, has_sub_len: bool):
         sub = p.p_def
-        if sub.fixed_size:
-            sub_len = sub.min_size
-        else:
-            sub_len = 'subLen'
+        sub_len = 'subLen' if has_sub_len else (sub.min_size if sub.fixed_size else '')
         if p.repeatable:
-            w.write(f'tmp := new({sub.type_name})')
+            # w.write(f'tmp := new({sub.type_name})')
+            w.write(f'var tmp {sub.type_name}')
             w.err_check(f'tmp.UnmarshalBinary(data[{sub.header_size}:{sub_len}])')
-            w.write(f'{self.short}.{p.name} = append({self.short}.{p.name}, *tmp)')
+            w.write(f'{self.short}.{p.name} = append({self.short}.{p.name}, tmp)')
             return
 
         if sub.can_inline():
-            exp = sub.fields[0].value(4)
-            if p.optional:
-                w.write(f'*', end='')
-            w.write(f'{self.short}.{p.name} = {sub.type_name}({exp})')
+            exp = sub.fields[0].value(sub.header_size)
+            w.write(f'{"*" if p.optional else ""}{self.short}.{p.name} = {sub.type_name}({exp})')
         else:
             w.err_check(f'{self.short}.{p.name}.UnmarshalBinary(data[{sub.header_size}:{sub_len}])')
 
@@ -1173,16 +1403,30 @@ class Container:
             return self.header_size
         return known_len
 
-    def sublen_check(self, w: GoWriter):
+    def sublen_check(self, w: GoWriter) -> bool:
         """Write a check that ensures there's at least as many bytes as the header claims.
         Only applies to TLVs; TVs simply return without writing anything."""
+
+        '''
+        if self.fixed_size:
+            with w.condition(f'len(data) < {self.min_size}'):
+                w.reterr(f'{self.const_name} '
+                         f'needs {self.min_size} bytes, but only %d bytes remain',
+                         ['len(data)'])
+            return False
+        '''
         if self.header_size == 1:
-            return
+            return False
         w.write('subLen := binary.BigEndian.Uint16(data[2:])')
         with w.condition('int(subLen) > len(data)'):
             w.reterr(f'{self.const_name} '
-                     'says it has %d bytes,\n but only %d bytes remain',
+                     'says it has %d bytes, but only %d bytes remain',
                      ['subLen', 'len(data)'])
+        return True
+
+    def write_tests(self, w: GoWriter):
+        with w.block(f'func Test{self.name}_roundTrip(t *testing.T)'):
+            self.write_round_trip_test(w)
 
 
 @dataclass
@@ -1213,7 +1457,7 @@ class Message(Container):
             return 0
 
         if self.fixed_size:
-            with w.condition(f'len(data) == {self.min_size}'):
+            with w.condition(f'len(data) != {self.min_size}'):
                 w.reterr(f'{self.const_name} should length should be exactly {self.min_size}, '
                          f'but is %d', ['len(data)'])
         else:
@@ -1232,6 +1476,31 @@ class Message(Container):
             with w.condition('len(data) > 0'):
                 w.reterr(f'{self.name} should be empty, but has %d bytes', ['len(data)'])
             w.write('return nil')
+
+    def write_get_header(self, w):
+        return
+
+    def write_marshal_body(self, w):
+        w.write('b := bytes.Buffer{}')
+        w.err_check(f'{self.short}.EncodeFields(&b)', ret='nil, err')
+        for p in self.parameters:
+            if p.repeatable:
+                with w.block(f'for i := range {self.short}.{p.name}'):
+                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}[i].getHeader())', ret='nil, err')
+            elif p.optional:
+                with w.condition(f'{self.short}.{p.name} != nil'):
+                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
+            else:
+                w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
+        w.write('return b.Bytes(), nil')
+
+    def write_encode_body(self, w):
+        if any(self.fields) or any(self.parameters):
+            super().write_encode_body(w)
+            return
+
+        w.comment(f'{self.name} is a header-only message')
+        w.write('return nil')
 
 
 def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], Dict[str, Message]):
@@ -1404,9 +1673,8 @@ def write_marshal_code(w, types, parameters, messages, write_header=False):
         w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
         w.write('package llrp\n\n')
 
-        # with w.paren('import'):
-        # w.write('"encoding/binary"')
-        # w.write('"github.com/pkg/errors"')
+        with w.paren('import'):
+            w.write('"bytes"')
 
         w.write('')
 
@@ -1425,6 +1693,25 @@ def write_marshal_code(w, types, parameters, messages, write_header=False):
         p.write_marshal(w)
 
 
+def write_encode_code(w, types, parameters, messages, write_header=False):
+    if write_header:
+        w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
+        w.write('package llrp\n\n')
+
+        with w.paren('import'):
+            w.write('"io"')
+            w.write('"encoding/binary"')
+            w.write('"github.com/pkg/errors"')
+
+    for m in messages.values():
+        w.comment(f'EncodeFields for Message {m.type_id}, {m.name}.')
+        m.write_encode(w)
+
+    for p in parameters.values():
+        w.comment(f'EncodeFields for Parameter {p.type_id}, {p.name}.')
+        p.write_encode(w)
+
+
 def write_test_code(w, types, parameters, messages, write_header=False):
     if write_header:
         w.comment(f'Code generated by "{" ".join(sys.argv)}"; DO NOT EDIT.\n', auto_break=False)
@@ -1438,13 +1725,13 @@ def write_test_code(w, types, parameters, messages, write_header=False):
 
         w.write('')
 
-    # for m in messages.values():
-    #     w.comment(f'Test Message {m.type_id}, {m.name}.')
-    #     m.write_tests(w)
+    for m in messages.values():
+        w.comment(f'Test Message {m.type_id}, {m.name}.')
+        m.write_tests(w)
 
-    for p in parameters.values():
-        w.comment(f'Test Parameter {p.type_id}, {p.name}.')
-        p.write_tests(w)
+    # for p in parameters.values():
+    #     w.comment(f'Test Parameter {p.type_id}, {p.name}.')
+    #     p.write_tests(w)
 
 
 def main():
@@ -1464,6 +1751,8 @@ def main():
                         help='output file for unmarshaling code (by default, "-" for STDOUT)')
     parser.add_argument('-m', '--marshal-file', default='-',
                         help='output file for marshaling code (by default, "-" for STDOUT)')
+    parser.add_argument('-e', '--encode-file', default='-',
+                        help='output file for encoder code (by default, "-" for STDOUT)')
     parser.add_argument('-t', '--test-file', default='-',
                         help='output file for test code (by default, "-" for STDOUT)')
 
@@ -1471,18 +1760,22 @@ def main():
                         help='write unmarshaling code')
     parser.add_argument('--marshal', default=True, action='store_true',
                         help='write marshaling code')
+    parser.add_argument('--encode', default=True, action='store_true',
+                        help='write encoding code')
     parser.add_argument('--test', default=True, action='store_true',
                         help='write testing code')
-
-    parser.add_argument('--gofmt', default=True, action='store_true',
-                        help='pipe output through gofmt')
 
     parser.add_argument('--no-unmarshal', dest='unmarshal', action='store_false',
                         help='skip writing unmarshaling code')
     parser.add_argument('--no-marshal', dest='marshal', action='store_false',
-                        help='skip writing marshaling code')
+                        help='skip writing encoder code')
+    parser.add_argument('--no-encode', dest='encode', action='store_false',
+                        help='skip writing testing code')
     parser.add_argument('--no-test', dest='test', action='store_false',
                         help='skip writing testing code')
+
+    parser.add_argument('--gofmt', default=True, action='store_true',
+                        help='pipe output through gofmt')
     parser.add_argument('--no-gofmt', dest='gofmt', action='store_false',
                         help='skip piping output through gofmt')
 
@@ -1514,36 +1807,24 @@ def main():
 
             yield GoWriter(out_file)
 
-    if args.unmarshal:
-        with gowrite(args.unmarshal_file, args.gofmt) as w:
+    stdout_has_header = False
+    for arg, f, func, p_func in [
+        (args.unmarshal, args.unmarshal_file, write_unmarshal_code, Container.write_unmarshal),
+        (args.marshal, args.marshal_file, write_marshal_code, Container.write_marshal),
+        (args.encode, args.encode_file, write_encode_code, Container.write_encode),
+        (args.test, args.test_file, write_test_code, Container.write_tests),
+    ]:
+        with gowrite(f, args.gofmt) as w:
+            write_header = True
+            if f == '-':
+                write_header = stdout_has_header
+                stdout_has_header = True
+
             if args.parameter:
                 for p_name in args.parameter:
-                    parameters[p_name].write_unmarshal(w)
-                return
-
-            write_unmarshal_code(w, types, parameters, messages)
-
-    if args.marshal:
-        with gowrite(args.marshal_file, args.gofmt) as w:
-            if args.parameter:
-                for p_name in args.parameter:
-                    parameters[p_name].write_marshal(w)
-                return
-
-            wh = args.marshal_file != '-' or not args.unmarshal
-            write_marshal_code(w, types, parameters, messages, write_header=wh)
-            w.write('\n')
-
-    if args.test:
-        with gowrite(args.test_file, args.gofmt) as w:
-            if args.parameter:
-                for p_name in args.parameter:
-                    parameters[p_name].write_tests(w)
-                return
-
-            wh = args.test_file != '-' or not (args.unmarshal or args.marshal)
-
-            write_test_code(w, types, parameters, messages, write_header=wh)
+                    p_func(args.parameter[p_name], w)
+            else:
+                func(w, types, parameters, messages, write_header)
             w.write('\n')
 
 
