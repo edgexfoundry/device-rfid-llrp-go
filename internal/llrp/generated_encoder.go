@@ -1790,8 +1790,6 @@ func (p *tagReportData) getHeader() paramHeader {
 		subs:      make([]paramHeader, 0, nParams),
 	}
 	switch {
-	default:
-		panic("only one epc-data may be set")
 	case p.EPCData.EPC != nil:
 		ph.subs = append(ph.subs, p.EPCData.getHeader())
 		ph.sz += ph.subs[len(ph.subs)-1].sz
@@ -2098,8 +2096,6 @@ func (p *readerEventNotificationData) getHeader() paramHeader {
 		subs:      make([]paramHeader, 0, nParams),
 	}
 	switch {
-	default:
-		panic("only one timestamp may be set")
 	case p.UTCTimestamp != 0:
 		ph.subs = append(ph.subs, p.UTCTimestamp.getHeader())
 		ph.sz += ph.subs[len(ph.subs)-1].sz

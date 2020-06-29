@@ -937,12 +937,19 @@ class Container:
         for f in self.fields:
             if f.padding:
                 continue
+            if f.type.name == 'bitArray':
+                w.write(f'{f.name}NumBits: 32,')
             w.write(f'{f.name}: {f.test_field()},')
 
-        for p in self.parameters:
-            if p.optional:
+        for (optional, g_name), p_group in groupby(self.parameters, lambda p: (p.optional, p.group)):
+            if optional:
                 continue
-            p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
+            if g_name:
+                p = list(p_group)[0]
+                p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
+            else:
+                for p in p_group:
+                    p.p_def.write_new_test_instance(w, f'{p.name}:', end=',')
 
     def write_round_trip_test(self, w: GoWriter):
         self.write_new_test_instance(w, f'{self.short} :=')
@@ -1357,6 +1364,8 @@ class Container:
 
                 self.alloc(w, p)
                 self.write_unmarshal_sub(w, p, sl)
+                if not has_sub_len:
+                    sub.len_adv(w)
 
         if not default:
             return

@@ -633,7 +633,7 @@ func TestClientRequestOp_roundTrip(t *testing.T) {
 	m := clientRequestOp{
 		TagReportData: tagReportData{
 			EPCData: epcData{
-				EPCNumBits: 4 * 8,
+				EPCNumBits: 32,
 				EPC:        []byte{0x0, 0x1, 0x2, 0x3},
 			},
 		},

@@ -1653,8 +1653,10 @@ paramGroup3:
 				return err
 			}
 		case ParamAccessReportSpec:
+			m.AccessReportSpec = new(accessReportSpec)
 			*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
 		case ParamLLRPConfigurationStateValue:
+			m.LLRPConfigurationStateValue = new(llrpConfigurationStateValue)
 			*m.LLRPConfigurationStateValue = llrpConfigurationStateValue(binary.BigEndian.Uint32(data[4:]))
 		case ParamKeepAliveSpec:
 			m.KeepAliveSpec = new(keepAliveSpec)
@@ -1705,6 +1707,7 @@ paramGroup4:
 			return errors.Errorf("ParamEventsAndReports says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
+		m.EventsAndReports = new(eventsAndReports)
 		*m.EventsAndReports = eventsAndReports(data[4]&0x80 != 0)
 		data = data[subLen:]
 	}
@@ -1827,6 +1830,7 @@ paramGroup2:
 				return err
 			}
 		case ParamAccessReportSpec:
+			m.AccessReportSpec = new(accessReportSpec)
 			*m.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
 		case ParamKeepAliveSpec:
 			m.KeepAliveSpec = new(keepAliveSpec)
@@ -1877,6 +1881,7 @@ paramGroup3:
 			return errors.Errorf("ParamEventsAndReports says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
+		m.EventsAndReports = new(eventsAndReports)
 		*m.EventsAndReports = eventsAndReports(data[4]&0x80 != 0)
 		data = data[subLen:]
 	}
@@ -2316,6 +2321,8 @@ func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
 	} else if strLen != 0 {
 		p.ReaderFirmwareVersion = string(data[13 : strLen+13])
 		data = data[strLen+13:]
+	} else {
+		data = data[13:]
 	}
 	// sub-parameters
 
@@ -2407,6 +2414,7 @@ paramGroup3:
 			return errors.Errorf("ParamMaximumReceiveSensitivity says it has %d "+
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
+		p.MaximumReceiveSensitivity = new(maximumReceiveSensitivity)
 		*p.MaximumReceiveSensitivity = maximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data[4:])))
 		data = data[subLen:]
 	}
@@ -2457,6 +2465,8 @@ func (p *perAntennaAirProtocol) UnmarshalBinary(data []byte) error {
 			p.AirProtocolIDs[i] = AirProtocolIDType(data[i])
 		}
 		data = data[arrLen+4:]
+	} else {
+		data = data[4:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading PerAntennaAirProtocol, but an "+
@@ -2741,6 +2751,8 @@ func (p *frequencyHopTable) UnmarshalBinary(data []byte) error {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
 		data = data[arrLen*4+4:]
+	} else {
+		data = data[4:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading FrequencyHopTable, but an "+
@@ -2769,6 +2781,8 @@ func (p *fixedFrequencyTable) UnmarshalBinary(data []byte) error {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
 		data = data[arrLen*4+2:]
+	} else {
+		data = data[2:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading FixedFrequencyTable, but an "+
@@ -2883,6 +2897,7 @@ paramGroup2:
 		}
 		switch pt {
 		case ParamLoopSpec:
+			p.LoopSpec = new(loopSpec)
 			*p.LoopSpec = loopSpec(binary.BigEndian.Uint32(data[4:]))
 		case ParamROReportSpec:
 			p.ROReportSpec = new(roReportSpec)
@@ -3026,6 +3041,7 @@ func (p *periodicTriggerValue) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamUTCTimestamp says it has %d bytes, but "+
 				"only %d bytes remain", subLen, len(data))
 		}
+		p.UTCTimestamp = new(utcTimestamp)
 		*p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
 		data = data[subLen:]
 	}
@@ -3115,6 +3131,8 @@ func (p *aiSpec) UnmarshalBinary(data []byte) error {
 			p.AntennaID[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+2:]
+	} else {
+		data = data[2:]
 	}
 	// sub-parameters
 	if err := hasEnoughBytes(ParamAISpecStopTrigger, 4, len(data), false); err != nil {
@@ -3461,6 +3479,7 @@ func (p *accessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessReportSpec says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
+		p.AccessReportSpec = new(accessReportSpec)
 		*p.AccessReportSpec = accessReportSpec(AccessReportTriggerType(data[4]))
 		data = data[subLen:]
 	}
@@ -3606,6 +3625,7 @@ paramGroup1:
 				return err
 			}
 		case ParamClientRequestOpSpec:
+			p.ClientRequestOpSpec = new(clientRequestOpSpec)
 			*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
 		default:
 			break paramGroup1
@@ -3752,6 +3772,7 @@ paramGroup1:
 				return err
 			}
 		case ParamClientRequestOpSpec:
+			p.ClientRequestOpSpec = new(clientRequestOpSpec)
 			*p.ClientRequestOpSpec = clientRequestOpSpec(binary.BigEndian.Uint16(data[4:]))
 		case ParamCustom:
 			p.Custom = new(custom)
@@ -3802,6 +3823,8 @@ func (p *identification) UnmarshalBinary(data []byte) error {
 		p.ReaderID = make([]byte, arrLen)
 		copy(p.ReaderID, data[3:])
 		data = data[arrLen+3:]
+	} else {
+		data = data[3:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading Identification, but an "+
@@ -3894,6 +3917,7 @@ paramGroup0:
 		}
 		switch pt {
 		case ParamRFReceiver:
+			p.RFReceiver = new(rfReceiver)
 			*p.RFReceiver = rfReceiver(binary.BigEndian.Uint16(data[4:]))
 		case ParamRFTransmitter:
 			p.RFTransmitter = new(rfTransmitter)
@@ -4227,36 +4251,47 @@ paramGroup1:
 		pt := ParamType(data[0] & 0x7F)
 		switch pt {
 		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[1:]))
 			data = data[5:]
 		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
 		case ParamInventoryParameterSpecID:
+			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
 			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
 		case ParamAntennaID:
+			p.AntennaID = new(antennaID)
 			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
 		case ParamPeakRSSI:
+			p.PeakRSSI = new(peakRSSI)
 			*p.PeakRSSI = peakRSSI(dBm8(data[1]))
 			data = data[2:]
 		case ParamChannelIndex:
+			p.ChannelIndex = new(channelIndex)
 			*p.ChannelIndex = channelIndex(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
 		case ParamFirstSeenUTC:
+			p.FirstSeenUTC = new(firstSeenUTC)
 			*p.FirstSeenUTC = firstSeenUTC(binary.BigEndian.Uint64(data[1:]))
 			data = data[9:]
 		case ParamFirstSeenUptime:
+			p.FirstSeenUptime = new(firstSeenUptime)
 			*p.FirstSeenUptime = firstSeenUptime(binary.BigEndian.Uint64(data[1:]))
 			data = data[9:]
 		case ParamLastSeenUTC:
+			p.LastSeenUTC = new(lastSeenUTC)
 			*p.LastSeenUTC = lastSeenUTC(binary.BigEndian.Uint64(data[1:]))
 			data = data[9:]
 		case ParamLastSeenUptime:
+			p.LastSeenUptime = new(lastSeenUptime)
 			*p.LastSeenUptime = lastSeenUptime(binary.BigEndian.Uint64(data[1:]))
 			data = data[9:]
 		case ParamTagSeenCount:
+			p.TagSeenCount = new(tagSeenCount)
 			*p.TagSeenCount = tagSeenCount(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
 		default:
@@ -4277,33 +4312,37 @@ paramGroup2:
 				return err
 			}
 			p.C1G2PC = append(p.C1G2PC, tmp)
+			data = data[3:]
 		case ParamC1G2XPCW1:
 			var tmp c1G2XPCW1
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
 				return err
 			}
 			p.C1G2XPCW1 = append(p.C1G2XPCW1, tmp)
+			data = data[3:]
 		case ParamC1G2XPCW2:
 			var tmp c1G2XPCW2
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
 				return err
 			}
 			p.C1G2XPCW2 = append(p.C1G2XPCW2, tmp)
+			data = data[3:]
 		case ParamC1G2CRC:
 			var tmp c1G2CRC
 			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
 				return err
 			}
 			p.C1G2CRC = append(p.C1G2CRC, tmp)
+			data = data[3:]
 		default:
 			break paramGroup2
 		}
-		data = data[3:]
 	}
 	if len(data) == 0 {
 		return nil
 	}
 	if subType := ParamType(data[0] & 0x7F); subType == ParamAccessSpecID {
+		p.AccessSpecID = new(accessSpecID)
 		*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[1:]))
 	}
 	if len(data) == 0 {
@@ -4479,9 +4518,11 @@ func (p *epcData) UnmarshalBinary(data []byte) error {
 			"bytes), but only %d bytes are available", p.EPCNumBits, nBytes,
 			len(data[2:]))
 	} else if nBytes != 0 {
-		p.EPC = make([]byte, 1+((int(p.EPCNumBits)-1)>>3))
+		p.EPC = make([]byte, nBytes)
 		copy(p.EPC, data[2:])
 		data = data[nBytes+2:]
+	} else {
+		data = data[2:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading EPCData, but an unexpected %d "+
@@ -4510,9 +4551,13 @@ paramGroup0:
 		pt := ParamType(data[0] & 0x7F)
 		switch pt {
 		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[1:]))
+			data = data[5:]
 		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		default:
 			break paramGroup0
 		}
@@ -4600,6 +4645,7 @@ func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 					"only %d bytes remain", subLen, len(data))
 			}
 			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
+			data = data[subLen:]
 		case ParamUptime:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
@@ -4607,6 +4653,7 @@ func (p *frequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 					"%d bytes remain", subLen, len(data))
 			}
 			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
+			data = data[subLen:]
 		default:
 			return errors.Errorf("unexpected parameter %v when unmarshaling "+
 				"ParamFrequencyRSSILevelEntry", pt)
@@ -4707,6 +4754,7 @@ func (p *readerEventNotificationData) UnmarshalBinary(data []byte) error {
 					"only %d bytes remain", subLen, len(data))
 			}
 			p.UTCTimestamp = utcTimestamp(binary.BigEndian.Uint64(data[4:]))
+			data = data[subLen:]
 		case ParamUptime:
 			subLen := binary.BigEndian.Uint16(data[2:])
 			if int(subLen) > len(data) {
@@ -4714,12 +4762,12 @@ func (p *readerEventNotificationData) UnmarshalBinary(data []byte) error {
 					"%d bytes remain", subLen, len(data))
 			}
 			p.Uptime = uptime(binary.BigEndian.Uint64(data[4:]))
+			data = data[subLen:]
 		default:
 			return errors.Errorf("unexpected parameter %v when unmarshaling "+
 				"ParamReaderEventNotificationData", pt)
 		}
 	}
-	data = data[12:]
 	if len(data) == 0 {
 		return nil
 	}
@@ -4917,6 +4965,8 @@ func (p *readerExceptionEvent) UnmarshalBinary(data []byte) error {
 	} else if strLen != 0 {
 		p.Message = string(data[2 : strLen+2])
 		data = data[strLen+2:]
+	} else {
+		data = data[2:]
 	}
 	// sub-parameters
 	if len(data) == 0 {
@@ -4928,17 +4978,29 @@ paramGroup0:
 		pt := ParamType(data[0] & 0x7F)
 		switch pt {
 		case ParamROSpecID:
+			p.ROSpecID = new(roSpecID)
 			*p.ROSpecID = roSpecID(binary.BigEndian.Uint32(data[1:]))
+			data = data[5:]
 		case ParamSpecIndex:
+			p.SpecIndex = new(specIndex)
 			*p.SpecIndex = specIndex(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		case ParamInventoryParameterSpecID:
+			p.InventoryParameterSpecID = new(inventoryParameterSpecID)
 			*p.InventoryParameterSpecID = inventoryParameterSpecID(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		case ParamAntennaID:
+			p.AntennaID = new(antennaID)
 			*p.AntennaID = antennaID(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		case ParamAccessSpecID:
+			p.AccessSpecID = new(accessSpecID)
 			*p.AccessSpecID = accessSpecID(binary.BigEndian.Uint32(data[1:]))
+			data = data[5:]
 		case ParamOpSpecID:
+			p.OpSpecID = new(opSpecID)
 			*p.OpSpecID = opSpecID(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		default:
 			break paramGroup0
 		}
@@ -5426,6 +5488,7 @@ paramGroup1:
 				return err
 			}
 		case ParamC1G2TagInventoryStateUnawareFilterAction:
+			p.C1G2TagInventoryStateUnawareFilterAction = new(c1G2TagInventoryStateUnawareFilterAction)
 			*p.C1G2TagInventoryStateUnawareFilterAction = c1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
 		default:
 			break paramGroup1
@@ -5461,9 +5524,11 @@ func (p *c1G2TagInventoryMask) UnmarshalBinary(data []byte) error {
 			"(%d bytes), but only %d bytes are available", p.TagMaskNumBits,
 			nBytes, len(data[5:]))
 	} else if nBytes != 0 {
-		p.TagMask = make([]byte, 1+((int(p.TagMaskNumBits)-1)>>3))
+		p.TagMask = make([]byte, nBytes)
 		copy(p.TagMask, data[5:])
 		data = data[nBytes+5:]
+	} else {
+		data = data[5:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2TagInventoryMask, but an "+
@@ -5547,6 +5612,7 @@ func (p *c1G2SingulationControl) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TagInventoryStateAwareSingulationAction "+
 				"says it has %d bytes, but only %d bytes remain", subLen, len(data))
 		}
+		p.C1G2TagInventoryStateAwareSingulationAction = new(c1G2TagInventoryStateAwareSingulationAction)
 		*p.C1G2TagInventoryStateAwareSingulationAction = c1G2TagInventoryStateAwareSingulationAction(C1G2TagInventoryStateAwareSingulationActionFlags(data[4]))
 		data = data[subLen:]
 	}
@@ -5645,9 +5711,11 @@ func (p *c1G2TargetTag) UnmarshalBinary(data []byte) error {
 			"(%d bytes), but only %d bytes are available", p.TagMaskNumBits,
 			nBytes, len(data[5:]))
 	} else if nBytes != 0 {
-		p.TagMask = make([]byte, 1+((int(p.TagMaskNumBits)-1)>>3))
+		p.TagMask = make([]byte, nBytes)
 		copy(p.TagMask, data[5:])
 		data = data[nBytes+5:]
+	} else {
+		data = data[5:]
 	}
 	p.TagDataNumBits = binary.BigEndian.Uint16(data)
 	// Go right shift on signed ints is arithmetic, not logical
@@ -5656,9 +5724,11 @@ func (p *c1G2TargetTag) UnmarshalBinary(data []byte) error {
 			"(%d bytes), but only %d bytes are available", p.TagDataNumBits,
 			nBytes, len(data[2:]))
 	} else if nBytes != 0 {
-		p.TagData = make([]byte, 1+((int(p.TagDataNumBits)-1)>>3))
+		p.TagData = make([]byte, nBytes)
 		copy(p.TagData, data[2:])
 		data = data[nBytes+2:]
+	} else {
+		data = data[2:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2TargetTag, but an "+
@@ -5717,6 +5787,8 @@ func (p *c1G2Write) UnmarshalBinary(data []byte) error {
 			p.Data[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+11:]
+	} else {
+		data = data[11:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2Write, but an unexpected "+
@@ -5851,6 +5923,8 @@ func (p *c1G2BlockWrite) UnmarshalBinary(data []byte) error {
 			p.Data[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+11:]
+	} else {
+		data = data[11:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2BlockWrite, but an "+
@@ -5895,6 +5969,8 @@ func (p *c1G2ReadOpSpecResult) UnmarshalBinary(data []byte) error {
 			p.Data[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+5:]
+	} else {
+		data = data[5:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2ReadOpSpecResult, but an "+
@@ -6063,6 +6139,8 @@ func (p *c1G2BlockPermalock) UnmarshalBinary(data []byte) error {
 			p.BlockMask[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+11:]
+	} else {
+		data = data[11:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading C1G2BlockPermalock, but an "+
@@ -6154,6 +6232,8 @@ func (p *c1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 			p.PermalockStatus[i] = binary.BigEndian.Uint16(data[pos:])
 		}
 		data = data[arrLen*2+5:]
+	} else {
+		data = data[5:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading "+
