@@ -11,7 +11,7 @@
 	},
 	"AntennaProperties": [
 		{
-			"AntennaConnected": false,
+			"AntennaConnected": true,
 			"AntennaID": 1,
 			"AntennaGain": 0
 		},
@@ -145,39 +145,39 @@
 		"EventNotificationState": [
 			{
 				"ReaderEventType": 0,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 1,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 2,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 3,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 4,
-				"NotificationStateFlags": 128
+				"NotificationEnabled": true
 			},
 			{
 				"ReaderEventType": 5,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 6,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 7,
-				"NotificationStateFlags": 0
+				"NotificationEnabled": false
 			},
 			{
 				"ReaderEventType": 8,
-				"NotificationStateFlags": 128
+				"NotificationEnabled": true
 			}
 		]
 	},
