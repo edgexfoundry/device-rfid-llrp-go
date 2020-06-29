@@ -3,6 +3,7 @@ package driver
 import (
 	"encoding/binary"
 	"fmt"
+	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -31,7 +32,7 @@ var virtualRegex = regexp.MustCompile("^(?:docker[0-9]+|br-.*|virbr[0-9]+.*|dock
 
 // autoDiscover probes all addresses in the local network to attempt to discover any possible
 // RFID readers that support LLRP.
-func autoDiscover() {
+func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
 	ipCh := make(chan uint32, 5*probeAsyncLimit)
 	done := make(chan struct{})
 	resultCh := make(chan uint32)
@@ -43,7 +44,9 @@ func autoDiscover() {
 	for i := 0; i < probeAsyncLimit; i++ {
 		go ipWorker(deviceMap, &wg, done, ipCh, resultCh)
 	}
-	go resultsWorker(resultCh)
+
+	discovered = make([]dsModels.DiscoveredDevice, 0)
+	go resultsWorker(resultCh, &discovered)
 
 	netCh := getIPv4Nets(scanVirtualInterfaces)
 	ipGenerator(&wg, netCh, ipCh)
@@ -52,6 +55,8 @@ func autoDiscover() {
 	close(ipCh)
 	close(resultCh)
 	close(done)
+
+	return discovered
 }
 
 // makeDeviceMap creates a lookup table of existing devices in order to skip scanning
@@ -189,15 +194,15 @@ func probe(ip string, port string) error {
 	return nil
 }
 
-func resultsWorker(results <-chan uint32) {
+func resultsWorker(results <-chan uint32, discovered *[]dsModels.DiscoveredDevice) {
 	ip := net.IP([]byte{0, 0, 0, 0})
 	for a := range results {
 		binary.BigEndian.PutUint32(ip, a)
-		registerDeviceIfNeeded(ip.String(), llrpPortStr)
+		*discovered = append(*discovered, newDiscoveredDevice(ip.String(), llrpPortStr))
 	}
 }
 
-// ipWorker pulls uint32s, convert to IPs, and send back successful probes
+// ipWorker pulls uint32s, convert to IPs, and sends back successful probes
 func ipWorker(deviceMap map[string]bool, wg *sync.WaitGroup, done <-chan struct{}, ipCh <-chan uint32, results chan<- uint32) {
 	ip := net.IP([]byte{0, 0, 0, 0})
 	for {
@@ -229,34 +234,21 @@ func makeDeviceName(ip string, port string) string {
 	return ip + "_" + port
 }
 
-// registerDeviceIfNeeded takes the host and port number of a discovered LLRP reader and registers it for
-// use with EdgeX
-func registerDeviceIfNeeded(ip string, port string) {
+// newDiscoveredDevice takes the host and port number of a discovered LLRP reader and prepares it for
+// registering use with EdgeX
+func newDiscoveredDevice(ip string, port string) dsModels.DiscoveredDevice {
 	deviceName := makeDeviceName(ip, port)
 
-	if _, err := driver.service().GetDeviceByName(deviceName); err == nil {
-		// if err is nil, device already exists
-		driver.lc.Info("Device already exists, not registering", "deviceId", deviceName, "profile", profileName)
-		return
-	}
-
-	driver.lc.Info("Device not found in EdgeX database. Now Registering.", "deviceId", deviceName, "profile", profileName)
-	_, err := driver.service().AddDevice(edgexModels.Device{
-		Name:           deviceName,
-		AdminState:     edgexModels.Unlocked,
-		OperatingState: edgexModels.Enabled,
+	return dsModels.DiscoveredDevice{
+		Name: deviceName,
 		Protocols: map[string]edgexModels.ProtocolProperties{
 			"tcp": {
 				"host": ip,
 				"port": port,
+				"llrp": "llrp",
 			},
 		},
-		Profile: edgexModels.DeviceProfile{
-			Name: profileName,
-		},
-	})
-	if err != nil {
-		driver.lc.Error("Device registration failed",
-			"device", deviceName, "profile", profileName, "cause", err)
+		Description: "LLRP RFID Reader",
+		Labels:      nil,
 	}
 }

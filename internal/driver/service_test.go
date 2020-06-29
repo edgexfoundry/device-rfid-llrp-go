@@ -1,7 +1,7 @@
 package driver
 
 import (
-	"fmt"
+	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"sync/atomic"
 )
@@ -34,11 +34,18 @@ func (s *MockSdkService) Devices() []contract.Device {
 	return devices
 }
 
-func (s *MockSdkService) GetDeviceByName(name string) (contract.Device, error) {
-	if d, found := s.devices[name]; found {
-		return d, nil
-	} else {
-		return contract.Device{}, fmt.Errorf("device not found")
+func (s *MockSdkService) AddDiscoveredDevices(discovered []dsModels.DiscoveredDevice) {
+	for _, d := range discovered {
+		device := contract.Device{
+			Name:            d.Name,
+			Protocols:       d.Protocols,
+		}
+
+		s.devices[device.Name] = device
+		if device.Id == "" {
+			device.Id = device.Name
+		}
+		atomic.AddUint32(&s.added, 1)
 	}
 }
 
@@ -49,4 +56,9 @@ func (s *MockSdkService) AddDevice(device contract.Device) (id string, err error
 	}
 	atomic.AddUint32(&s.added, 1)
 	return device.Id, nil
+}
+
+func (s *MockSdkService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
+	// todo: implement mock
+	return nil
 }

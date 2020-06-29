@@ -1,0 +1,15 @@
+{
+  "name":"llrp-provision-watcher",
+  "identifiers":{
+    "llrp":"llrp"
+  },
+  "blockingidentifiers": {
+  },
+  "profile":{
+    "name":"Device.LLRP.Profile"
+  },
+  "service":{
+    "name":"edgex-device-llrp"
+  },
+  "adminState": "UNLOCKED"
+}

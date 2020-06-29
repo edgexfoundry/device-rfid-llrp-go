@@ -8,6 +8,7 @@ package driver
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -57,8 +58,15 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	d.lc = lc
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
-	// todo: check configuration to make sure enabled
-	go d.Discover()
+
+	go func() {
+		// hack: sleep to allow edgex time to finish loading cache and clients
+		time.Sleep(5 * time.Second)
+
+		d.addProvisionWatcher()
+		// todo: check configuration to make sure discovery is enabled
+		d.Discover()
+	}()
 	return nil
 }
 
@@ -227,11 +235,30 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
+func (d *Driver) addProvisionWatcher() error {
+	var provisionWatcher contract.ProvisionWatcher
+	data, err := ioutil.ReadFile("res/provisionwatcher.json")
+	if err != nil {
+		d.lc.Error(err.Error())
+		return err
+	}
+
+	err = provisionWatcher.UnmarshalJSON(data)
+	if err != nil {
+		d.lc.Error(err.Error())
+		return err
+	}
+
+	if err := d.service().AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
+		d.lc.Info(err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (d *Driver) Discover() {
-	// todo: todo
 	d.lc.Info("*** Discover was called ***")
-	autoDiscover()
-	// need to do this to tell edgex that discovery is complete
-	d.deviceCh <- nil
+	d.deviceCh <- autoDiscover()
 	d.lc.Info("scanning complete")
 }

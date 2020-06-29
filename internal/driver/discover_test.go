@@ -38,28 +38,26 @@ func TestAutoDiscover(t *testing.T) {
 
 	// attempt to discover without emulator, expect none found
 	svc.clearDevices()
-	autoDiscover()
-	if len(driver.svc.Devices()) != 0 {
-		t.Fatalf("expected 0 discovered devices, however got: %d", len(driver.svc.Devices()))
+	discovered := autoDiscover()
+	if len(discovered) != 0 {
+		t.Fatalf("expected 0 discovered devices, however got: %d", len(discovered))
 	}
 
 	// attempt to discover WITH emulator, expect emulator to be found
 	port, _ := strconv.Atoi(llrpPortStr)
 	go emuServer(port)
-	autoDiscover()
-	if len(driver.svc.Devices()) != 1 {
-		t.Fatalf("expected 1 discovered device, however got: %d", len(driver.svc.Devices()))
+	discovered = autoDiscover()
+	if len(discovered) != 1 {
+		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
+	svc.AddDiscoveredDevices(discovered)
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
 	svc.resetAddedCount()
 	go emuServer(port)
-	autoDiscover()
-	if svc.added != 0 {
-		t.Fatalf("expected no new devices to be added, but %d was added", svc.added)
-	}
-	if len(driver.svc.Devices()) != 1 {
-		t.Fatalf("expected no number of devices to still be 1, but was %d", len(driver.svc.Devices()))
+	discovered = autoDiscover()
+	if len(discovered) != 0 {
+		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
 	}
 
 	// reset
