@@ -23,15 +23,13 @@ type paramHeader struct {
 
 func encodeParams(w io.Writer, headers ...paramHeader) error {
 	for _, h := range headers {
-		if h.ParamType&0x80 == 1 {
-			// TV header
+		if h.ParamType.isTV() {
 			if n, err := w.Write([]byte{byte(h.ParamType & 0x7F)}); err != nil {
 				return errors.Wrapf(err, "failed to write TV header for %v", h.ParamType)
 			} else if n < 1 {
 				return errors.Errorf("short write for %v: %d < 1", h.ParamType, n)
 			}
 		} else {
-			// TLV header
 			if n, err := w.Write([]byte{
 				byte(h.ParamType >> 8), byte(h.ParamType & 0xff),
 				byte(h.sz >> 8), byte(h.sz & 0xff),

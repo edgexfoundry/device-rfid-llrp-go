@@ -17,7 +17,6 @@ import (
 // ParamType is an 8 or 10 bit value identifying
 // both the encoding and content of an LLRP Parameter.
 //
-//
 // An LLRP message consists of a header identifying its type and size,
 // followed by 0 or more data fields.
 // Some of these fields have a fixed size and offset (relative the header),
@@ -34,6 +33,28 @@ import (
 // TV parameters can (in theory) be as short as 1 byte.
 // The MSBit is always 1, then the next 7 are the type: 1-127
 // (so in a certain sense, they range 128-255).
+//
+// Most parameter types are represented by Go structs,
+// with their LLRP fields and parameters given as struct fields.
+// As a special case, if the struct would consist of a single numeric field,
+// then its type is defined as "type <paramName> <backing type>".
+//
+// Most fields are represented by an int/uint of the appropriate storage size,
+// or as an enumeration, flag, or type alias backed such.
+// Variable length fields are represented by slices of the above,
+// with the following exceptions:
+//   - LLRP strings are represented by Go strings;
+//     the bytes are taken as-is and not validated for UTF-8 correctness.
+//   - In Custom params/messages, all non-header bytes are stored as "Data []byte".
+//   - Bit arrays keep a "<name>NumBits uint16" for their bit length
+//     and store the bit data in a "<name> []byte" field
+//     with the same MSB offset and octet padding as the original message value.
+//
+// Optional parameters are represented by pointer values
+// and are left nil if not present during unmarshaling.
+// Repeatable parameters are represented by slices,
+// which may be nil if no parameter of the given type is present.
+// Required, non-repeatable parameters are regular struct fields.
 type ParamType uint16
 
 const (

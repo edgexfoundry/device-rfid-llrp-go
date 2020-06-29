@@ -776,7 +776,7 @@ class ParamSpec:
     repeatable: bool = False  # parameter is "0-n" or "1-n"
     air_protocol: Optional[str] = None  # if this parameter is tied to a specific air protocol...
     p_def: 'Container' = None  # parameter definition; set after parameters are read
-    group: Optional[str] = None  # groups are mutually exclusive, unless named 'mixed'
+    group: Optional[str] = None  # groups are mutually exclusive
     version: Optional[int] = 1
 
     def is_fixed_size(self) -> bool:
@@ -806,7 +806,7 @@ class ParamSpec:
 
     @property
     def exactly_one(self) -> bool:
-        return not (self.optional or self.repeatable)
+        return not (self.optional or self.repeatable or self.group)
 
 
 @dataclass
@@ -968,7 +968,7 @@ class Container:
 
         w.write(f'var {self.short}2 {self.type_name}')
         with w.condition(f'err := {self.short}2.UnmarshalBinary(b); err != nil'):
-            w.write('t.Errorf("%+v", err)')
+            w.write(f't.Errorf("%+v\\n%# 02x\\n%+v\\n%+v", err, b, {self.short}, {self.short}2)')
 
         with w.condition(f'!reflect.DeepEqual({self.short}, {self.short}2)'):
             w.write(f't.Errorf("mismatch:\\n%# 02x\\n%+v\\n%+v", b, {self.short}, {self.short}2)')
@@ -999,12 +999,12 @@ class Container:
         zero_or_one = [p for p in self.parameters if p.optional and not p.repeatable]
         repeatable = [p for p in self.parameters if p.repeatable]
 
+        n_params = [str(len(single_inst))] if any(single_inst) else []
         if any(not p.exactly_one for p in self.parameters):
-            n_params = [str(len(single_inst))] if any(single_inst) else []
             n_params += [f'len({self.short}.{p.name})' for p in repeatable]
             if any(n_params):
                 w.write(f'nParams := {"+ ".join(n_params)}', auto_break=True)
-            else:
+            elif any(zero_or_one):
                 w.write('nParams := 0')
 
             for p in zero_or_one:
@@ -1021,7 +1021,7 @@ class Container:
                 w.write(f'subs:     make([]paramHeader, 0, nParams),')
                 return
 
-            if not any(single_inst):
+            if not (self.fixed_size and any(single_inst)):
                 return
 
             with w.block('subs:      []paramHeader', after_end=',\n'):
@@ -1040,7 +1040,7 @@ class Container:
         if not any(self.parameters) or self.fixed_size:
             return
 
-        if not any(zero_or_one) and not any(repeatable):
+        if not any(zero_or_one) and not any(repeatable) and f_sizes:
             f_sizes += [f'ph.subs[{i}].sz' for i in range(len(single_inst))]
             w.write(f'ph.sz += {"+ ".join(f_sizes)}')
             w.write('return ph')
@@ -1162,17 +1162,8 @@ class Container:
 
     def write_marshal_body(self, w):
         w.write('b := bytes.Buffer{}')
-        w.err_check(f'{self.short}.EncodeFields(&b)', ret='nil, err')
-        for p in self.parameters:
-            if p.repeatable:
-                with w.block(f'for i := range {self.short}.{p.name}'):
-                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}[i].getHeader())', ret='nil, err')
-            elif p.optional:
-                with w.condition(f'{self.short}.{p.name} != nil'):
-                    w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
-            else:
-                w.err_check(f'encodeParams(&b, {self.short}.{p.name}.getHeader())', ret='nil, err')
-        w.write('return b.Bytes(), nil')
+        w.err_check(f'encodeParams(&b, {self.short}.getHeader())', ret='nil, err')
+        w.write(f'return b.Bytes()[{self.header_size}:], nil')
 
     def header_bytes(self) -> str:
         if self.is_tlv:
