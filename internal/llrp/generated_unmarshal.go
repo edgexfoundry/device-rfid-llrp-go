@@ -309,10 +309,10 @@ type NotificationStateFlags uint8
 type C1G2CapabilitiesFlags uint8
 type C1G2RecommissionFlags uint8
 type C1G2InventoryCommandFlags uint8
-type GeneralCapabilityFlags uint8
+type GeneralCapabilityFlags uint16
 
 const (
-	CanSetAntennaProperties = GeneralCapabilityFlags(1 << (7 - iota))
+	CanSetAntennaProperties = GeneralCapabilityFlags(1 << (15 - iota))
 	HasUTCClock
 )
 
@@ -2295,7 +2295,8 @@ func (p *uptime) UnmarshalBinary(data []byte) error {
 // GeneralDeviceCapabilities.
 type generalDeviceCapabilities struct {
 	MaxSupportedAntennas               uint16
-	GeneralCapabilityFlags             GeneralCapabilityFlags
+	CanSetAntennaProperties            bool
+	HasUTCClockCapability              bool
 	DeviceManufacturerName             uint32
 	ModelName                          uint32
 	ReaderFirmwareVersion              string
@@ -2308,21 +2309,22 @@ type generalDeviceCapabilities struct {
 
 // UnmarshalBinary Parameter 137, GeneralDeviceCapabilities.
 func (p *generalDeviceCapabilities) UnmarshalBinary(data []byte) error {
-	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 29, len(data), false); err != nil {
+	if err := hasEnoughBytes(ParamGeneralDeviceCapabilities, 30, len(data), false); err != nil {
 		return err
 	}
 	p.MaxSupportedAntennas = binary.BigEndian.Uint16(data)
-	p.GeneralCapabilityFlags = GeneralCapabilityFlags(data[2])
-	p.DeviceManufacturerName = binary.BigEndian.Uint32(data[3:])
-	p.ModelName = binary.BigEndian.Uint32(data[7:])
-	if strLen := int(binary.BigEndian.Uint16(data[11:])); strLen > len(data[13:]) {
+	p.CanSetAntennaProperties = data[2]&0x80 != 0
+	p.HasUTCClockCapability = data[2]&0x40 != 0
+	p.DeviceManufacturerName = binary.BigEndian.Uint32(data[4:])
+	p.ModelName = binary.BigEndian.Uint32(data[8:])
+	if strLen := int(binary.BigEndian.Uint16(data[12:])); strLen > len(data[14:]) {
 		return errors.Errorf("ReaderFirmwareVersion (string) declares it has "+
-			"%d bytes, but only %d bytes are available", strLen, len(data[13:]))
+			"%d bytes, but only %d bytes are available", strLen, len(data[14:]))
 	} else if strLen != 0 {
-		p.ReaderFirmwareVersion = string(data[13 : strLen+13])
-		data = data[strLen+13:]
+		p.ReaderFirmwareVersion = string(data[14 : strLen+14])
+		data = data[strLen+14:]
 	} else {
-		data = data[13:]
+		data = data[14:]
 	}
 	// sub-parameters
 

@@ -662,7 +662,7 @@ func (p *generalDeviceCapabilities) getHeader() paramHeader {
 	ph := paramHeader{
 		ParamType: ParamGeneralDeviceCapabilities,
 		data:      p,
-		sz:        17 + uint16(len(p.ReaderFirmwareVersion)),
+		sz:        18 + uint16(len(p.ReaderFirmwareVersion)),
 		subs:      make([]paramHeader, 0, nParams),
 	}
 	for i := range p.ReceiveSensitivityTableEntries {
@@ -691,7 +691,7 @@ func (p *generalDeviceCapabilities) getHeader() paramHeader {
 }
 func (p *generalDeviceCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.MaxSupportedAntennas >> 8), byte(p.MaxSupportedAntennas), byte(p.GeneralCapabilityFlags),
+		byte(p.MaxSupportedAntennas >> 8), byte(p.MaxSupportedAntennas), b2b(p.CanSetAntennaProperties)<<7 | b2b(p.HasUTCClockCapability)<<6, 0x00,
 		byte(p.DeviceManufacturerName >> 24), byte(p.DeviceManufacturerName >> 16), byte(p.DeviceManufacturerName >> 8), byte(p.DeviceManufacturerName),
 		byte(p.ModelName >> 24), byte(p.ModelName >> 16), byte(p.ModelName >> 8), byte(p.ModelName)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGeneralDeviceCapabilities")

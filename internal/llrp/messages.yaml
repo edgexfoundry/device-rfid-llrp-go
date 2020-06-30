@@ -120,7 +120,15 @@ parameters:
     fields:
       - name: MaxSupportedAntennas
         type: uint16
-      - type: GeneralCapabilityFlags
+      - name: CanSetAntennaProperties
+        type: bool
+        bit: 0
+        partial: true
+      - name: HasUTCClockCapability
+        type: bool
+        bit: 1
+      - type: uint8
+        padding: true
       - name: DeviceManufacturerName
         type: uint32
       - name: ModelName
@@ -1789,7 +1797,7 @@ types:
     kind: flag
 
   - name: GeneralCapabilityFlags
-    storage: uint8
+    storage: uint16
     kind: flag
     values:
       - CanSetAntennaProperties

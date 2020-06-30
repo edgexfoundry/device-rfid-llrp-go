@@ -38,8 +38,14 @@ func compareMessages(msgName string) func(t *testing.T) {
 	}
 	var v binRoundTrip
 	switch msgName {
+	case GetReaderCapabilitiesResponse.String():
+		v = &getReaderCapabilitiesResponse{}
 	case GetReaderConfigResponse.String():
 		v = &getReaderConfigResponse{}
+	case GetAccessSpecsResponse.String():
+		v = &getAccessSpecsResponse{}
+	case GetROSpecsResponse.String():
+		v = &getROSpecsResponse{}
 	case CloseConnectionResponse.String():
 		v = &closeConnectionResponse{}
 	}

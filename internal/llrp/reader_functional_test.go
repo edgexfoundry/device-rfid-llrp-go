@@ -81,24 +81,63 @@ func collectData() error {
 		}
 	}
 
-	if err := getAndWrite(r, GetReaderConfig, []byte{0, 0, 0, 0, 0, 0, 0}, &getReaderConfigResponse{}); err != nil {
-		return err
+	var errs []error
+	for _, toSend := range []struct {
+		mt  MessageType
+		out encoding.BinaryMarshaler
+		in  encoding.BinaryUnmarshaler
+	}{
+		{GetReaderConfig, &getReaderConfig{}, &getReaderConfigResponse{}},
+		{GetReaderCapabilities, &getReaderCapabilities{}, &getReaderCapabilitiesResponse{}},
+		{GetROSpecs, nil, &getROSpecsResponse{}},
+		{GetAccessSpecs, nil, &getAccessSpecsResponse{}},
+		{GetReport, nil, &roAccessReport{}},
+		{CloseConnection, nil, &closeConnectionResponse{}},
+	} {
+		if err := getAndWrite(r, toSend.mt, toSend.out, toSend.in); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				errs = append(errs, errors.WithMessagef(err, "failed to get response for %v", toSend.mt))
+			} else {
+				return err
+			}
+		}
 	}
 
-	if err := getAndWrite(r, CloseConnection, nil, &closeConnectionResponse{}); err != nil {
-		return err
+	if err := r.Close(); err != nil {
+		errs = append(errs, err)
 	}
 
-	_ = r.Close()
+	if err := <-connErrs; err != nil {
+		errs = append(errs, err)
+	}
+
+	{
+		var errMsg string
+		for _, e := range errs {
+			errMsg += e.Error() + "\n"
+		}
+		if errMsg != "" {
+			return errors.New(errMsg)
+		}
+	}
 
 	return <-connErrs
 }
 
-func getAndWrite(r *Reader, mt MessageType, payload []byte, resultValue encoding.BinaryUnmarshaler) error {
+func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
+	var data []byte
+	if payload != nil {
+		var err error
+		data, err = payload.MarshalBinary()
+		if err != nil {
+			return err
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	resultT, result, err := r.SendMessage(ctx, mt, payload)
+	resultT, result, err := r.SendMessage(ctx, mt, data)
 	if err != nil {
 		return err
 	}

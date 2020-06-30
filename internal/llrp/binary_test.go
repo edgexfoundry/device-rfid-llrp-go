@@ -1294,11 +1294,12 @@ func TestUptime_roundTrip(t *testing.T) {
 // Test Parameter 137, GeneralDeviceCapabilities.
 func TestGeneralDeviceCapabilities_roundTrip(t *testing.T) {
 	p := generalDeviceCapabilities{
-		MaxSupportedAntennas:   32768,
-		GeneralCapabilityFlags: 1,
-		DeviceManufacturerName: 2147483648,
-		ModelName:              2147483648,
-		ReaderFirmwareVersion:  "some arbitrary string",
+		MaxSupportedAntennas:    32768,
+		CanSetAntennaProperties: true,
+		HasUTCClockCapability:   true,
+		DeviceManufacturerName:  2147483648,
+		ModelName:               2147483648,
+		ReaderFirmwareVersion:   "some arbitrary string",
 		ReceiveSensitivityTableEntries: []receiveSensitivityTableEntry{
 			{
 				TableIndex:         32768,

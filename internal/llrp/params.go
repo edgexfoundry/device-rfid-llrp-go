@@ -4,14 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:generate python3 generate_param_code.py -i messages.yaml -o generated_unmarshal.go
-//go:generate stringer -type=ParamType,ConnectionAttemptEventType,StatusCode
+//go:generate stringer -type=ParamType,ConnectionAttemptEventType,StatusCode,AirProtocolIDType
 
 package llrp
 
 import (
 	"github.com/pkg/errors"
 	"strconv"
-	"time"
 )
 
 // ParamType is an 8 or 10 bit value identifying
@@ -350,38 +349,4 @@ func (ren *readerEventNotification) isConnectSuccess() bool {
 	}
 
 	return ConnSuccess == ConnectionAttemptEventType(*ren.ReaderEventNotificationData.ConnectionAttemptEvent)
-}
-
-// TLV type 128 == UTC Timestamp, microseconds since 00:00:00 UTC, Jan 1, 1970.
-// TLV type 129 == Uptime Timestamp, microseconds since reader started.
-type timestamp struct {
-	microseconds microSecs64
-	isUptime     bool // true if microseconds is uptime instead of offset since unix epoch
-}
-
-// toGoTime returns the timestamp as a Go time.Time type,
-// assuming that it's a UTC timestamp.
-// If it isn't, then the caller should add the reader's start time.
-func (ts timestamp) toGoTime() time.Time {
-	// todo: extends this sometime in the next few hundred years
-	return time.Unix(0, int64(ts.microseconds*1000))
-}
-
-func (*timestamp) fromGoTime(t time.Time) timestamp {
-	return timestamp{
-		microseconds: uint64(time.Duration(t.UnixNano()).Microseconds()),
-	}
-}
-
-func (ts timestamp) String() string {
-	if ts.isUptime {
-		return time.Duration(ts.microseconds).String() + " since reader start"
-	}
-	return ts.toGoTime().String()
-}
-
-func utcCurrent() timestamp {
-	return timestamp{
-		microseconds: uint64(time.Duration(time.Now().UnixNano()).Microseconds()),
-	}
 }
