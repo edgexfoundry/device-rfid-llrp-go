@@ -577,6 +577,13 @@ class FieldSpec:
         if self.is_array:
             items = ",".join(self.type.test_instance(i) for i in range(self.test_length))
             return f'[]{self.type.name}{{{items}}}'
+        if self.max is not None and self.min is not None:
+            dist = self.max - self.min
+            return f'{self.type.test_instance(max(self.min, dist // 2))}'
+        if self.max is not None:
+            return f'{self.type.test_instance(self.max)}'
+        if self.min is not None:
+            return f'{self.type.test_instance(self.min)}'
         return f'{self.type.test_instance(self.test_length)}'
 
     def value(self, begin: Union[int, str] = 0, end: Union[int, str] = '') -> str:
@@ -741,7 +748,7 @@ class FieldSpec:
 
         if self.is_array:
             if self.length == 0:
-                # TODO: handle overflow checking; actually append bytes
+                # TODO: handle overflow checking
                 return f'byte(len({name})>>8),byte(len({name}))'
             elif self.length > 0:
                 return ','.join([f'{name}[{i}]' for i in range(self.length)])
@@ -787,7 +794,11 @@ class ParamSpec:
     def from_yaml(cls, y: YML) -> 'ParamSpec':
         if 'type' not in y:
             raise MissingPropError(['type'], y)
-        y['name'] = y.get('name', y['type'])
+        if 'name' not in y:
+            y['name'] = y['type']
+            if y.get('repeatable') and not (
+                    y['name'] == 'Custom' or y['name'].endswith('Data')):
+                y['name'] += 's'
         y['param_name'] = y['type']
         del y['type']
         return ParamSpec(**y)
@@ -1288,7 +1299,7 @@ class Container:
                     # or it could be a TLV with a 4 byte header,
                     # so we have to check how much data is available
                     w.write('var pt ParamType')
-                    with w.condition('data[0]&0x80 == 1'):
+                    with w.condition('data[0]&0x80 != 0'):
                         w.comment('TV parameter')
                         w.write('pt = ParamType(data[0]&0x7F)')
                         w.ifelse('len(data) < 4')

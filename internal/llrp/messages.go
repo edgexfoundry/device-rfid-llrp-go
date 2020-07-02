@@ -102,9 +102,6 @@ func (mt MessageType) responseType() (MessageType, bool) {
 type messageID uint32
 
 type awaitMap = map[messageID]chan<- Message
-type responseHandler interface {
-	handle(r *Message)
-}
 
 // header holds information about an LLRP message header.
 //
@@ -308,31 +305,4 @@ func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 // msgErr returns a new error for LLRP message issues.
 func msgErr(why string, v ...interface{}) error {
 	return errors.Errorf("invalid LLRP message: "+why, v...)
-}
-
-var msgFieldSizes = map[MessageType]uint16{
-	CustomMessage:               4 + 1,         // VendorID, Message Subtype
-	SetReaderConfig:             1,             // flags
-	GetReaderConfig:             2 + 1 + 2 + 2, // antenna ID, requested data flags, GPI port, GPO port
-	DeleteAccessSpec:            4,             // AccessSpecID
-	EnableAccessSpec:            4,             // AccessSpecID
-	DisableAccessSpec:           4,             // AccessSpecID
-	DeleteROSpec:                4,             // ROSpecID
-	StartROSpec:                 4,             // ROSpecID
-	StopROSpec:                  4,             // ROSpecID
-	EnableROSpec:                4,             // ROSpecID
-	DisableROSpec:               4,             // ROSpecID
-	SetProtocolVersion:          1,             // Target Version
-	GetSupportedVersionResponse: 1 + 1,         // current, max
-	GetReaderCapabilities:       1,             // capability flags
-}
-
-var fixedParamSizes = map[ParamType]uint16{
-	ParamAntennaID:       2,
-	ParamFirstSeenUptime: 8,
-	ParamLastSeenUptime:  8,
-	ParamFirstSeenUTC:    8,
-	ParamLastSeenUTC:     8,
-	ParamPeakRSSI:        1,
-	ParamChannelIndex:    2,
 }

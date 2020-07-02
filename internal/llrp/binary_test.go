@@ -1303,7 +1303,7 @@ func TestGeneralDeviceCapabilities_roundTrip(t *testing.T) {
 		ReceiveSensitivityTableEntries: []receiveSensitivityTableEntry{
 			{
 				TableIndex:         32768,
-				ReceiveSensitivity: uint16(32768),
+				ReceiveSensitivity: uint16(64),
 			},
 		},
 		GPIOCapabilities: gpioCapabilities{
@@ -1334,7 +1334,7 @@ func TestGeneralDeviceCapabilities_roundTrip(t *testing.T) {
 func TestReceiveSensitivityTableEntry_roundTrip(t *testing.T) {
 	p := receiveSensitivityTableEntry{
 		TableIndex:         32768,
-		ReceiveSensitivity: uint16(32768),
+		ReceiveSensitivity: uint16(64),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1434,20 +1434,20 @@ func TestRegulatoryCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 144, UHFBandCapabilities.
 func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 	p := uhfBandCapabilities{
-		TransmitPowerLevelTableEntry: []transmitPowerLevelTableEntry{
+		TransmitPowerLevelTableEntrys: []transmitPowerLevelTableEntry{
 			{
 				Index:              32768,
 				TransmitPowerValue: uint16(32768),
 			},
 		},
-		FrequencyInformation: []frequencyInformation{
+		FrequencyInformations: []frequencyInformation{
 			{
 				HoppingFlags: 0,
 			},
 		},
-		UHFC1G2RFModeTable: []uhfc1G2RFModeTable{
+		UHFC1G2RFModeTables: []uhfc1G2RFModeTable{
 			{
-				UHFC1G2RFModeTableEntry: []uhfc1G2RFModeTableEntry{
+				UHFC1G2RFModeTableEntrys: []uhfc1G2RFModeTableEntry{
 					{
 						ModeID:                     2147483648,
 						UHFC1G2RFModeFlags:         128,
@@ -1703,12 +1703,12 @@ func TestROSpecStopTrigger_roundTrip(t *testing.T) {
 // Test Parameter 183, AISpec.
 func TestAISpec_roundTrip(t *testing.T) {
 	p := aiSpec{
-		AntennaID: []uint16{32768, 1, 2, 3},
+		AntennaIDs: []antennaID{32768, 1, 2, 3},
 		AISpecStopTrigger: aiSpecStopTrigger{
 			AISpecStopTriggerType: AIStopTriggerGPI,
 			DurationTriggerValue:  uint32(2147483648),
 		},
-		InventoryParameterSpec: []inventoryParameterSpec{
+		InventoryParameterSpecs: []inventoryParameterSpec{
 			{
 				InventoryParameterSpecID: 32768,
 				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
@@ -1976,7 +1976,7 @@ func TestLLRPConfigurationStateValue_roundTrip(t *testing.T) {
 // Test Parameter 218, Identification.
 func TestIdentification_roundTrip(t *testing.T) {
 	p := identification{
-		IDType:   IDEPC,
+		IDType:   ID_EPC,
 		ReaderID: []byte{128, 1, 2, 3, 4, 5, 6, 7},
 	}
 	b, err := p.MarshalBinary()
@@ -1995,7 +1995,7 @@ func TestIdentification_roundTrip(t *testing.T) {
 // Test Parameter 219, GPOWriteData.
 func TestGPOWriteData_roundTrip(t *testing.T) {
 	p := gpoWriteData{
-		GPOPort: 32768,
+		GPOPort: 1,
 		GPOData: true,
 	}
 	b, err := p.MarshalBinary()
@@ -2034,7 +2034,7 @@ func TestKeepAliveSpec_roundTrip(t *testing.T) {
 func TestAntennaProperties_roundTrip(t *testing.T) {
 	p := antennaProperties{
 		AntennaConnected: true,
-		AntennaID:        32768,
+		AntennaID:        1,
 		AntennaGain:      uint16(32768),
 	}
 	b, err := p.MarshalBinary()
@@ -2107,7 +2107,7 @@ func TestRFTransmitter_roundTrip(t *testing.T) {
 // Test Parameter 225, GPIPortCurrentState.
 func TestGPIPortCurrentState_roundTrip(t *testing.T) {
 	p := gpiPortCurrentState{
-		GPIPort:        32768,
+		GPIPort:        1,
 		GPIPortEnabled: true,
 		GPIState:       GPIStateHigh,
 	}
@@ -2257,7 +2257,7 @@ func TestEPCData_roundTrip(t *testing.T) {
 // Test Parameter 242, RFSurveyReportData.
 func TestRFSurveyReportData_roundTrip(t *testing.T) {
 	p := rfSurveyReportData{
-		FrequencyRSSILevelEntry: []frequencyRSSILevelEntry{
+		FrequencyRSSILevelEntrys: []frequencyRSSILevelEntry{
 			{
 				Frequency:    uint32(2147483648),
 				Bandwidth:    uint32(2147483648),
@@ -2305,7 +2305,7 @@ func TestFrequencyRSSILevelEntry_roundTrip(t *testing.T) {
 // Test Parameter 244, ReaderEventNotificationSpec.
 func TestReaderEventNotificationSpec_roundTrip(t *testing.T) {
 	p := readerEventNotificationSpec{
-		EventNotificationState: []eventNotificationState{
+		EventNotificationStates: []eventNotificationState{
 			{
 				ReaderEventType:     0,
 				NotificationEnabled: true,
@@ -2636,7 +2636,7 @@ func TestC1G2LLRPCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 328, UHFC1G2RFModeTable.
 func TestUHFC1G2RFModeTable_roundTrip(t *testing.T) {
 	p := uhfc1G2RFModeTable{
-		UHFC1G2RFModeTableEntry: []uhfc1G2RFModeTableEntry{
+		UHFC1G2RFModeTableEntrys: []uhfc1G2RFModeTableEntry{
 			{
 				ModeID:                     2147483648,
 				UHFC1G2RFModeFlags:         128,
@@ -2962,7 +2962,7 @@ func TestC1G2Lock_roundTrip(t *testing.T) {
 	p := c1G2Lock{
 		OpSpecID:       32768,
 		AccessPassword: 2147483648,
-		C1G2LockPayload: []c1G2LockPayload{
+		C1G2LockPayloads: []c1G2LockPayload{
 			{
 				LockPrivilege: 0,
 				LockData:      0,
@@ -3320,7 +3320,7 @@ func TestC1G2GetBlockPermalockStatusOpSpecResult_roundTrip(t *testing.T) {
 	p := c1G2GetBlockPermalockStatusOpSpecResult{
 		C1G2GetBlockPermalockStatusResult: 0,
 		OpSpecID:                          32768,
-		PermalockStatus:                   []uint16{32768, 1, 2, 3},
+		PermalockStatuses:                 []uint16{32768, 1, 2, 3},
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {

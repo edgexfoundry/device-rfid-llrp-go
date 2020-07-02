@@ -335,8 +335,13 @@ parameters:
   - name: AISpec
     type_id: 183
     fields:
-      - name: AntennaID
-        type: '[]uint16'
+      - name: AntennaIDs
+        # type: '[]uint16'
+        type: '[]antennaID'
+        description: |-
+          AntennaIDs tells the device which antennas to use.
+          If any of them are zero, then they're all used,
+          regardless of any other value in the array.
     parameters:
       - type: AISpecStopTrigger
       - type: InventoryParameterSpec
@@ -539,6 +544,9 @@ parameters:
       - name: ReaderID
         type: '[]byte'
         test_length: 8
+        description: |-
+          ReaderID is "unique within the local administration domain",
+          and may be the reader's MAC in EUI-64 format or an EPC.
   - name: GPOWriteData
     type_id: 219
     fields:
@@ -560,7 +568,8 @@ parameters:
       - name: AntennaConnected
         type: bool
       - name: AntennaID
-        type: uint16
+        type: antennaID
+        min: 1
       - name: AntennaGain
         type: dBiX100
         description: |-
@@ -571,7 +580,7 @@ parameters:
     type_id: 222
     fields:
       - name: AntennaID
-        type: uint16
+        type: antennaID
     parameters:
       - type: RFReceiver
         optional: true
@@ -931,7 +940,7 @@ parameters:
       - name: AntennaEventType
         type: AntennaEventType
       - name: AntennaID
-        type: uint16
+        type: antennaID
   - name: ConnectionAttemptEvent
     type_id: 256
     fields:
@@ -1295,8 +1304,9 @@ parameters:
         type: C1G2GetBlockPermalockStatusResultType
       - name: OpSpecID
         type: uint16
-      - name: PermalockStatus
+      - name: PermalockStatuses
         type: '[]uint16'
+        description: PermalockStatuses of each block requested.
   - name: MaximumReceiveSensitivity
     type_id: 363
     fields:
@@ -1323,6 +1333,14 @@ parameters:
 
 types:
   # ----- aliases ------
+  - name: antennaID
+    storage: uint16
+    kind: 'external'
+    description: |-
+      The AntennaID parameter is will inline to a uint16,
+      so defining this here is a convenient way
+      to use it as a type for fields in the above definitions.
+
   - name: dBm16
     storage: int16
     description: |-
@@ -1593,7 +1611,7 @@ types:
   - name: IDType
     storage: uint8
     kind: enum
-    prefix: ID
+    prefix: ID_
     values:
       - MAC_EUI64
       - EPC

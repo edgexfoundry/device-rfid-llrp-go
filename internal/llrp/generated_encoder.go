@@ -816,8 +816,8 @@ func (p *regulatoryCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 144, UHFBandCapabilities.
 func (p *uhfBandCapabilities) getHeader() paramHeader {
-	nParams := len(p.TransmitPowerLevelTableEntry) +
-		len(p.FrequencyInformation) + len(p.UHFC1G2RFModeTable)
+	nParams := len(p.TransmitPowerLevelTableEntrys) +
+		len(p.FrequencyInformations) + len(p.UHFC1G2RFModeTables)
 	if p.RFSurveyFrequencyCapabilities != nil {
 		nParams++
 	}
@@ -827,18 +827,18 @@ func (p *uhfBandCapabilities) getHeader() paramHeader {
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.TransmitPowerLevelTableEntry {
-		sh := p.TransmitPowerLevelTableEntry[i].getHeader()
+	for i := range p.TransmitPowerLevelTableEntrys {
+		sh := p.TransmitPowerLevelTableEntrys[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.FrequencyInformation {
-		sh := p.FrequencyInformation[i].getHeader()
+	for i := range p.FrequencyInformations {
+		sh := p.FrequencyInformations[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.UHFC1G2RFModeTable {
-		sh := p.UHFC1G2RFModeTable[i].getHeader()
+	for i := range p.UHFC1G2RFModeTables {
+		sh := p.UHFC1G2RFModeTables[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -871,7 +871,7 @@ func (p *transmitPowerLevelTableEntry) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 146, FrequencyInformation.
 func (p *frequencyInformation) getHeader() paramHeader {
-	nParams := len(p.FrequencyHopTable)
+	nParams := len(p.FrequencyHopTables)
 	if p.FixedFrequencyTable != nil {
 		nParams++
 	}
@@ -881,8 +881,8 @@ func (p *frequencyInformation) getHeader() paramHeader {
 		sz:        5,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.FrequencyHopTable {
-		sh := p.FrequencyHopTable[i].getHeader()
+	for i := range p.FrequencyHopTables {
+		sh := p.FrequencyHopTables[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -958,7 +958,7 @@ func (p *perAntennaReceiveSensitivityRange) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 177, ROSpec.
 func (p *roSpec) getHeader() paramHeader {
-	nParams := 1 + len(p.AISpec) + len(p.RFSurveySpec) + len(p.Custom)
+	nParams := 1 + len(p.AISpecs) + len(p.RFSurveySpecs) + len(p.Custom)
 	if p.LoopSpec != nil {
 		nParams++
 	}
@@ -973,13 +973,13 @@ func (p *roSpec) getHeader() paramHeader {
 	}
 	ph.subs = append(ph.subs, p.ROBoundarySpec.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
-	for i := range p.AISpec {
-		sh := p.AISpec[i].getHeader()
+	for i := range p.AISpecs {
+		sh := p.AISpecs[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.RFSurveySpec {
-		sh := p.RFSurveySpec[i].getHeader()
+	for i := range p.RFSurveySpecs {
+		sh := p.RFSurveySpecs[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1133,17 +1133,17 @@ func (p *roSpecStopTrigger) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 183, AISpec.
 func (p *aiSpec) getHeader() paramHeader {
-	nParams := 1 + len(p.InventoryParameterSpec) + len(p.Custom)
+	nParams := 1 + len(p.InventoryParameterSpecs) + len(p.Custom)
 	ph := paramHeader{
 		ParamType: ParamAISpec,
 		data:      p,
-		sz:        6 + uint16(len(p.AntennaID)*2),
+		sz:        6 + uint16(len(p.AntennaIDs)*2),
 		subs:      make([]paramHeader, 0, nParams),
 	}
 	ph.subs = append(ph.subs, p.AISpecStopTrigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
-	for i := range p.InventoryParameterSpec {
-		sh := p.InventoryParameterSpec[i].getHeader()
+	for i := range p.InventoryParameterSpecs {
+		sh := p.InventoryParameterSpecs[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1155,11 +1155,11 @@ func (p *aiSpec) getHeader() paramHeader {
 	return ph
 }
 func (p *aiSpec) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(len(p.AntennaID) >> 8), byte(len(p.AntennaID) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of AntennaID")
+	if _, err := w.Write([]byte{byte(len(p.AntennaIDs) >> 8), byte(len(p.AntennaIDs) & 0xFF)}); err != nil {
+		return errors.Wrap(err, "failed to write length of AntennaIDs")
 	}
-	if err := binary.Write(w, binary.BigEndian, p.AntennaID); err != nil {
-		return errors.Wrap(err, "failed to write AntennaID")
+	if err := binary.Write(w, binary.BigEndian, p.AntennaIDs); err != nil {
+		return errors.Wrap(err, "failed to write AntennaIDs")
 	}
 	return nil
 }
@@ -1220,15 +1220,15 @@ func (p *tagObservationTrigger) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 186, InventoryParameterSpec.
 func (p *inventoryParameterSpec) getHeader() paramHeader {
-	nParams := len(p.AntennaConfiguration) + len(p.Custom)
+	nParams := len(p.AntennaConfigurations) + len(p.Custom)
 	ph := paramHeader{
 		ParamType: ParamInventoryParameterSpec,
 		data:      p,
 		sz:        7,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.AntennaConfiguration {
-		sh := p.AntennaConfiguration[i].getHeader()
+	for i := range p.AntennaConfigurations {
+		sh := p.AntennaConfigurations[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1659,7 +1659,7 @@ func (p *antennaProperties) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 222, AntennaConfiguration.
 func (p *antennaConfiguration) getHeader() paramHeader {
-	nParams := len(p.C1G2InventoryCommand) + len(p.Custom)
+	nParams := len(p.C1G2InventoryCommands) + len(p.Custom)
 	if p.RFReceiver != nil {
 		nParams++
 	}
@@ -1682,8 +1682,8 @@ func (p *antennaConfiguration) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2InventoryCommand {
-		sh := p.C1G2InventoryCommand[i].getHeader()
+	for i := range p.C1G2InventoryCommands {
+		sh := p.C1G2InventoryCommands[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1793,15 +1793,15 @@ func (p *roReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 238, TagReportContentSelector.
 func (p *tagReportContentSelector) getHeader() paramHeader {
-	nParams := len(p.C1G2EPCMemorySelector) + len(p.Custom)
+	nParams := len(p.C1G2EPCMemorySelectors) + len(p.Custom)
 	ph := paramHeader{
 		ParamType: ParamTagReportContentSelector,
 		data:      p,
 		sz:        6,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2EPCMemorySelector {
-		sh := p.C1G2EPCMemorySelector[i].getHeader()
+	for i := range p.C1G2EPCMemorySelectors {
+		sh := p.C1G2EPCMemorySelectors[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1837,15 +1837,15 @@ func (p *accessReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 240, TagReportData.
 func (p *tagReportData) getHeader() paramHeader {
-	nParams := len(p.C1G2PC) + len(p.C1G2XPCW1) + len(p.C1G2XPCW2) +
-		len(p.C1G2CRC) + len(p.C1G2ReadOpSpecResult) +
-		len(p.C1G2WriteOpSpecResult) + len(p.C1G2KillOpSpecResult) +
-		len(p.C1G2LockOpSpecResult) + len(p.C1G2BlockEraseOpSpecResult) +
-		len(p.C1G2BlockWriteOpSpecResult) +
-		len(p.C1G2RecommissionOpSpecResult) +
-		len(p.C1G2BlockPermalockOpSpecResult) +
-		len(p.C1G2GetBlockPermalockStatusOpSpecResult) +
-		len(p.ClientRequestOpSpecResult) + len(p.Custom)
+	nParams := len(p.C1G2PCs) + len(p.C1G2XPCW1s) + len(p.C1G2XPCW2s) +
+		len(p.C1G2CRCs) + len(p.C1G2ReadOpSpecResults) +
+		len(p.C1G2WriteOpSpecResults) + len(p.C1G2KillOpSpecResults) +
+		len(p.C1G2LockOpSpecResults) + len(p.C1G2BlockEraseOpSpecResults) +
+		len(p.C1G2BlockWriteOpSpecResults) +
+		len(p.C1G2RecommissionOpSpecResults) +
+		len(p.C1G2BlockPermalockOpSpecResults) +
+		len(p.C1G2GetBlockPermalockStatusOpSpecResults) +
+		len(p.ClientRequestOpSpecResults) + len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -1951,23 +1951,23 @@ func (p *tagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2PC {
-		sh := p.C1G2PC[i].getHeader()
+	for i := range p.C1G2PCs {
+		sh := p.C1G2PCs[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW1 {
-		sh := p.C1G2XPCW1[i].getHeader()
+	for i := range p.C1G2XPCW1s {
+		sh := p.C1G2XPCW1s[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW2 {
-		sh := p.C1G2XPCW2[i].getHeader()
+	for i := range p.C1G2XPCW2s {
+		sh := p.C1G2XPCW2s[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2CRC {
-		sh := p.C1G2CRC[i].getHeader()
+	for i := range p.C1G2CRCs {
+		sh := p.C1G2CRCs[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1976,53 +1976,53 @@ func (p *tagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2ReadOpSpecResult {
-		sh := p.C1G2ReadOpSpecResult[i].getHeader()
+	for i := range p.C1G2ReadOpSpecResults {
+		sh := p.C1G2ReadOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2WriteOpSpecResult {
-		sh := p.C1G2WriteOpSpecResult[i].getHeader()
+	for i := range p.C1G2WriteOpSpecResults {
+		sh := p.C1G2WriteOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2KillOpSpecResult {
-		sh := p.C1G2KillOpSpecResult[i].getHeader()
+	for i := range p.C1G2KillOpSpecResults {
+		sh := p.C1G2KillOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2LockOpSpecResult {
-		sh := p.C1G2LockOpSpecResult[i].getHeader()
+	for i := range p.C1G2LockOpSpecResults {
+		sh := p.C1G2LockOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockEraseOpSpecResult {
-		sh := p.C1G2BlockEraseOpSpecResult[i].getHeader()
+	for i := range p.C1G2BlockEraseOpSpecResults {
+		sh := p.C1G2BlockEraseOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockWriteOpSpecResult {
-		sh := p.C1G2BlockWriteOpSpecResult[i].getHeader()
+	for i := range p.C1G2BlockWriteOpSpecResults {
+		sh := p.C1G2BlockWriteOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2RecommissionOpSpecResult {
-		sh := p.C1G2RecommissionOpSpecResult[i].getHeader()
+	for i := range p.C1G2RecommissionOpSpecResults {
+		sh := p.C1G2RecommissionOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockPermalockOpSpecResult {
-		sh := p.C1G2BlockPermalockOpSpecResult[i].getHeader()
+	for i := range p.C1G2BlockPermalockOpSpecResults {
+		sh := p.C1G2BlockPermalockOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2GetBlockPermalockStatusOpSpecResult {
-		sh := p.C1G2GetBlockPermalockStatusOpSpecResult[i].getHeader()
+	for i := range p.C1G2GetBlockPermalockStatusOpSpecResults {
+		sh := p.C1G2GetBlockPermalockStatusOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.ClientRequestOpSpecResult {
-		sh := p.ClientRequestOpSpecResult[i].getHeader()
+	for i := range p.ClientRequestOpSpecResults {
+		sh := p.ClientRequestOpSpecResults[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2057,7 +2057,7 @@ func (p *epcData) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 242, RFSurveyReportData.
 func (p *rfSurveyReportData) getHeader() paramHeader {
-	nParams := len(p.FrequencyRSSILevelEntry) + len(p.Custom)
+	nParams := len(p.FrequencyRSSILevelEntrys) + len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -2080,8 +2080,8 @@ func (p *rfSurveyReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.FrequencyRSSILevelEntry {
-		sh := p.FrequencyRSSILevelEntry[i].getHeader()
+	for i := range p.FrequencyRSSILevelEntrys {
+		sh := p.FrequencyRSSILevelEntrys[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2124,15 +2124,15 @@ func (p *frequencyRSSILevelEntry) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 244, ReaderEventNotificationSpec.
 func (p *readerEventNotificationSpec) getHeader() paramHeader {
-	nParams := len(p.EventNotificationState)
+	nParams := len(p.EventNotificationStates)
 	ph := paramHeader{
 		ParamType: ParamReaderEventNotificationSpec,
 		data:      p,
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.EventNotificationState {
-		sh := p.EventNotificationState[i].getHeader()
+	for i := range p.EventNotificationStates {
+		sh := p.EventNotificationStates[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2629,15 +2629,15 @@ func (p *c1G2LLRPCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 328, UHFC1G2RFModeTable.
 func (p *uhfc1G2RFModeTable) getHeader() paramHeader {
-	nParams := len(p.UHFC1G2RFModeTableEntry)
+	nParams := len(p.UHFC1G2RFModeTableEntrys)
 	ph := paramHeader{
 		ParamType: ParamUHFC1G2RFModeTable,
 		data:      p,
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.UHFC1G2RFModeTableEntry {
-		sh := p.UHFC1G2RFModeTableEntry[i].getHeader()
+	for i := range p.UHFC1G2RFModeTableEntrys {
+		sh := p.UHFC1G2RFModeTableEntrys[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2670,7 +2670,7 @@ func (p *uhfc1G2RFModeTableEntry) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 330, C1G2InventoryCommand.
 func (p *c1G2InventoryCommand) getHeader() paramHeader {
-	nParams := len(p.C1G2Filter) + len(p.Custom)
+	nParams := len(p.C1G2Filters) + len(p.Custom)
 	if p.C1G2RFControl != nil {
 		nParams++
 	}
@@ -2683,8 +2683,8 @@ func (p *c1G2InventoryCommand) getHeader() paramHeader {
 		sz:        5,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2Filter {
-		sh := p.C1G2Filter[i].getHeader()
+	for i := range p.C1G2Filters {
+		sh := p.C1G2Filters[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2979,15 +2979,15 @@ func (p *c1G2Kill) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 344, C1G2Lock.
 func (p *c1G2Lock) getHeader() paramHeader {
-	nParams := len(p.C1G2LockPayload)
+	nParams := len(p.C1G2LockPayloads)
 	ph := paramHeader{
 		ParamType: ParamC1G2Lock,
 		data:      p,
 		sz:        10,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2LockPayload {
-		sh := p.C1G2LockPayload[i].getHeader()
+	for i := range p.C1G2LockPayloads {
+		sh := p.C1G2LockPayloads[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -3305,7 +3305,7 @@ func (p *c1G2GetBlockPermalockStatusOpSpecResult) getHeader() paramHeader {
 	return paramHeader{
 		ParamType: ParamC1G2GetBlockPermalockStatusOpSpecResult,
 		data:      p,
-		sz:        9 + uint16(len(p.PermalockStatus)*2),
+		sz:        9 + uint16(len(p.PermalockStatuses)*2),
 	}
 }
 func (p *c1G2GetBlockPermalockStatusOpSpecResult) EncodeFields(w io.Writer) error {
@@ -3313,11 +3313,11 @@ func (p *c1G2GetBlockPermalockStatusOpSpecResult) EncodeFields(w io.Writer) erro
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2GetBlockPermalockStatusOpSpecResult")
 	}
-	if _, err := w.Write([]byte{byte(len(p.PermalockStatus) >> 8), byte(len(p.PermalockStatus) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of PermalockStatus")
+	if _, err := w.Write([]byte{byte(len(p.PermalockStatuses) >> 8), byte(len(p.PermalockStatuses) & 0xFF)}); err != nil {
+		return errors.Wrap(err, "failed to write length of PermalockStatuses")
 	}
-	if err := binary.Write(w, binary.BigEndian, p.PermalockStatus); err != nil {
-		return errors.Wrap(err, "failed to write PermalockStatus")
+	if err := binary.Write(w, binary.BigEndian, p.PermalockStatuses); err != nil {
+		return errors.Wrap(err, "failed to write PermalockStatuses")
 	}
 	return nil
 }

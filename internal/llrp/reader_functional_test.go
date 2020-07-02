@@ -40,6 +40,7 @@ func TestReaderFunctional(t *testing.T) {
 	}
 
 	t.Run("hangup", testHangUp)
+	t.Run("addROSpec", testAddROSpec)
 
 	for i := 0; i < 1; i++ {
 		t.Run("connect "+strconv.Itoa(i), testConnect)
@@ -397,6 +398,270 @@ func testConnect(t *testing.T) {
 	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
 			t.Errorf("%+v", err)
+		}
+	}
+}
+
+func testAddROSpec(t *testing.T) {
+	conn, err := net.Dial("tcp", *readerAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := conn.SetDeadline(time.Now().Add(300 * time.Second)); err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	r, err := NewReader(WithConn(conn))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	connErrs := make(chan error, 1)
+	go func() {
+		defer close(connErrs)
+		connErrs <- r.Connect()
+	}()
+
+	spec := addROSpec{
+		ROSpec: roSpec{
+			ROSpecID:           1,
+			Priority:           0,
+			ROSpecCurrentState: ROSpecStateDisabled,
+			ROBoundarySpec: roBoundarySpec{
+				ROSpecStartTrigger: roSpecStartTrigger{
+					ROSpecStartTriggerType: ROStartTriggerImmediate,
+				},
+				ROSpecStopTrigger: roSpecStopTrigger{
+					ROSpecStopTriggerType: ROStopTriggerDuration,
+					DurationTriggerValue:  milliSecs32(60000),
+				},
+			},
+			AISpecs: []aiSpec{{
+				AntennaIDs: []antennaID{0},
+				AISpecStopTrigger: aiSpecStopTrigger{
+					AISpecStopTriggerType: AIStopTriggerNone,
+				},
+				InventoryParameterSpecs: []inventoryParameterSpec{{
+					InventoryParameterSpecID: 1,
+					AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
+				}},
+			}},
+		},
+	}
+
+	if js, err := json.MarshalIndent(spec, "", "\t"); err != nil {
+		t.Error(err)
+	} else {
+		t.Logf("%s", js)
+	}
+
+	payload, err := spec.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%# 02x", payload[50:])
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	mt, resp, err := r.SendMessage(ctx, AddROSpec, payload)
+	cancel()
+
+	if err != nil {
+		t.Error(err)
+	} else if resp == nil {
+		t.Error("expected non-nil response")
+	}
+
+	switch mt {
+	default:
+		t.Errorf("expected %v; got %v", AddROSpecResponse, mt)
+	case ErrorMessage:
+		readErr(t, resp)
+	case AddROSpecResponse:
+		var roRsp addROSpecResponse
+		if err := roRsp.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := roRsp.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		} else {
+			t.Logf("%+v", roRsp)
+		}
+
+		if r, err := json.MarshalIndent(roRsp, "", "\t"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log(string(r))
+		}
+	}
+
+	enableSpec, err := (&enableROSpec{ROSpecID: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	mt, resp, err = r.SendMessage(ctx, EnableROSpec, enableSpec)
+	cancel()
+	if err != nil {
+		t.Error(err)
+	}
+
+	switch mt {
+	default:
+		t.Errorf("expected %v; got %v", EnableROSpecResponse, mt)
+	case ErrorMessage:
+		readErr(t, resp)
+	case EnableROSpecResponse:
+		enableRsp := enableROSpecResponse{}
+		if err := enableRsp.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := enableRsp.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		}
+	}
+
+	<-time.After(10 * time.Second)
+
+	disableRO(t, r)
+	deleteRO(t, r)
+
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := r.Shutdown(ctx); err != nil {
+		t.Errorf("%+v", err)
+		if err := r.Close(); err != nil {
+			t.Errorf("%+v", err)
+		}
+	}
+
+	for err := range connErrs {
+		if !errors.Is(err, ErrReaderClosed) {
+			t.Errorf("%+v", err)
+		}
+	}
+}
+
+func enableAccSpec(t *testing.T, r *Reader) {
+	t.Helper()
+
+	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	switch mt {
+	default:
+		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
+	case ErrorMessage:
+		readErr(t, resp)
+	case DisableROSpecResponse:
+		disableRsp := disableROSpecResponse{}
+		if err := disableRsp.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := disableRsp.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func disableRO(t *testing.T, r *Reader) {
+	t.Helper()
+
+	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	switch mt {
+	default:
+		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
+	case ErrorMessage:
+		readErr(t, resp)
+	case DisableROSpecResponse:
+		disableRsp := disableROSpecResponse{}
+		if err := disableRsp.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := disableRsp.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func deleteRO(t *testing.T, r *Reader) {
+	t.Helper()
+
+	deleteSpec, err := (&deleteROSpec{ROSpecID: 1}).MarshalBinary()
+	if err != nil {
+		t.Error(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mt, resp, err := r.SendMessage(ctx, DeleteROSpec, deleteSpec)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	switch mt {
+	default:
+		t.Errorf("expected %v; got %v", DeleteROSpecResponse, mt)
+	case ErrorMessage:
+		readErr(t, resp)
+	case DeleteROSpecResponse:
+		rsp := deleteROSpecResponse{}
+		if err := rsp.UnmarshalBinary(resp); err != nil {
+			t.Errorf("%+v", err)
+			t.Logf("%# 02x", resp)
+		} else if err := rsp.LLRPStatus.Err(); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func readErr(t *testing.T, resp []byte) {
+	t.Helper()
+	errMsg := &errorMessage{}
+	if err := errMsg.UnmarshalBinary(resp); err != nil {
+		t.Error(err)
+		t.Logf("%# 02x", resp)
+	} else if err := errMsg.LLRPStatus.Err(); err != nil {
+		t.Logf("%+v", errMsg)
+		t.Error(err)
+	} else {
+		if r, err := json.MarshalIndent(errMsg, "", "\t"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log(string(r))
 		}
 	}
 }
