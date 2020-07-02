@@ -1,12 +1,295 @@
 name: "Device.LLRP.Profile"
 manufacturer: "Intel"
-model: "RFIDSensor"
+model: "RFID Reader"
 labels:
-- "LLRP"
+  - "LLRP"
+  - "RFID"
 description: "Device profile of RFID based readers that communicate using LLRP protocol"
 
 deviceResources:
+  - name: "READER_CAPABILITIES"
+    description: "Capabilities of a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "R", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "ADD_ROSPEC"
+    description: "Add a ROSPEC to a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "DELETE_ROSPEC"
+    description: "Delete a ROSPEC in a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "ENABLE_ROSPEC"
+    description: "Enable ROSPEC in a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "DISABLE_ROSPEC"
+    description: "Disable ROSPEC in a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "START_ROSPEC"
+    description: "Start a ROSPEC in a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "STOP_ROSPEC"
+    description: "Stop a ROSPEC in a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "READER_CONFIG"
+    description: "Current configuration info of a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "RW", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "ADD_ACCESSSPEC"
+    description: "Create a new AccessSpec at the reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "DELETE_ACCESSSPEC"
+    description: "Delete an AccessSpec at the reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "ENABLE_ACCESSSPEC"
+    description: "Enable an AccessSpec at the reader"
+    properties:
+      value:
+        { type: "String", readWrite: "W", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "RO_ACCESS_REPORT"
+    description: "Get tag reports from a reader"
+    properties:
+      value:
+        { type: "String", readWrite: "R", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+  - name: "READER_EVENT_NOTIFICATION"
+    description: "Notify client whenever an event subscribed to by the client occurs"
+    properties:
+      value:
+        { type: "String", readWrite: "R", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
+#  - name: "ALL_ON"
+#    description: "Start reading of all the readers connected"
+#    properties:
+#      value:
+#        { type: "String", readWrite: "W", defaultValue: "" }
+#      units:
+#        { type: "String", readWrite: "R", defaultValue: "" }
+#  - name: "INACTIVE"
+#    description: "Stop reading of all the readers connected"
+#    properties:
+#      value:
+#        { type: "String", readWrite: "W", defaultValue: "" }
+#      units:
+#        { type: "String", readWrite: "R", defaultValue: "" }
 
 deviceCommands:
+  - name: GET_READER_CAPABILITIES
+    get:
+      - { index: "1", operation: "get", deviceResource: "READER_CAPABILITIES"}
+  - name: ADD_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "ADD_ROSPEC"}
+  - name: DELETE_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "DELETE_ROSPEC"}
+  - name: ENABLE_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "ENABLE_ROSPEC"}
+  - name: DISABLE_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "DISABLE_ROSPEC"}
+  - name: START_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "START_ROSPEC"}
+  - name: STOP_ROSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "STOP_ROSPEC"}
+  - name: READER_CONFIG
+    get:
+      - { index: "1", operation: "get", deviceResource: "READER_CONFIG"}
+    set:
+      - { index: "1", operation: "set", deviceResource: "READER_CONFIG"}
+  - name: ADD_ACCESSSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "ADD_ACCESSSPEC"}
+  - name: ENABLE_ACCESSSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "ENABLE_ACCESSSPEC"}
+  - name: DELETE_ACCESSSPEC
+    set:
+      - { index: "1", operation: "set", deviceResource: "DELETE_ACCESSSPEC"}
+  - name: GET_REPORT
+    get:
+      - { index: "1", operation: "get", deviceResource: "RO_ACCESS_REPORT"}
 
 coreCommands:
+  - name: GET_READER_CAPABILITIES
+    get:
+      path: "/api/v1/device/{deviceId}/GET_READER_CAPABILITIES"
+      responses:
+        - code: "200"
+          description: "Get capabilities of a reader"
+          expectedValues: ["READER_CAPABILITIES"]
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: ADD_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/ADD_ROSPEC"
+      parameterNames: ["ADD_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Add a ROSPEC to a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: DELETE_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/DELETE_ROSPEC"
+      parameterNames: ["DELETE_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Delete a ROSPEC in a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: ENABLE_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/ENABLE_ROSPEC"
+      parameterNames: ["ENABLE_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Enable a ROSPEC in a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: DISABLE_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/DISABLE_ROSPEC"
+      parameterNames: ["DISABLE_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Disable a ROSPEC in a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: START_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/START_ROSPEC"
+      parameterNames: ["START_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Start a ROSPEC in a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: STOP_ROSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/STOP_ROSPEC"
+      parameterNames: ["STOP_ROSPEC"]
+      responses:
+        - code: "200"
+          description: "Stop a ROSPEC in a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: READER_CONFIG
+    get:
+      path: "/api/v1/device/{deviceId}/READER_CONFIG"
+      responses:
+        - code: "200"
+          description: "Get the current configuration info of a reader"
+          expectedValues: ["READER_CONFIG"]
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+    put:
+      path: "/api/v1/device/{deviceId}/READER_CONFIG"
+      parameterNames: ["READER_CONFIG"]
+      responses:
+        - code: "200"
+          description: "Set configuration of a reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: ADD_ACCESSSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/ADD_ACCESSSPEC"
+      parameterNames: ["ADD_ACCESSSPEC"]
+      responses:
+        - code: "200"
+          description: "Create a new AccessSpec at the reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: ENABLE_ACCESSSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/ENABLE_ACCESSSPEC"
+      parameterNames: ["ENABLE_ACCESSSPEC"]
+      responses:
+        - code: "200"
+          description: "Enable an AccessSpec at the reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: DELETE_ACCESSSPEC
+    put:
+      path: "/api/v1/device/{deviceId}/DELETE_ACCESSSPEC"
+      parameterNames: ["DELETE_ACCESSSPEC"]
+      responses:
+        - code: "200"
+          description: "Delete an AccessSpec at the reader"
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+  - name: GET_REPORT
+    get:
+      path: "/api/v1/device/{deviceId}/GET_REPORT"
+      responses:
+        - code: "200"
+          description: "Get tag reports from a reader"
+          expectedValues: ["RO_ACCESS_REPORT"]
+        - code: "500"
+          description: "Error"
+          expectedValues: []

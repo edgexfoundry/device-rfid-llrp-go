@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
+	"io/ioutil"
 	"net"
 	"sync"
 	"time"
@@ -18,15 +19,22 @@ import (
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 )
 
+const (
+	ServiceName string = "edgex-device-llrp"
+)
+
 var once sync.Once
 var driver *Driver
 
 type Driver struct {
-	lc      logger.LoggingClient
-	asyncCh chan<- *dsModels.AsyncValues
+	lc       logger.LoggingClient
+	asyncCh  chan<- *dsModels.AsyncValues
+	deviceCh chan<- []dsModels.DiscoveredDevice
 
 	readers     map[string]*llrp.Reader
 	readerMapMu sync.RWMutex
+
+	svc ServiceWrapper
 }
 
 func NewProtocolDriver() dsModels.ProtocolDriver {
@@ -38,11 +46,28 @@ func NewProtocolDriver() dsModels.ProtocolDriver {
 	return driver
 }
 
+func (d *Driver) service() ServiceWrapper {
+	if d.svc == nil {
+		d.svc = RunningService()
+	}
+	return d.svc
+}
+
 // Initialize performs protocol-specific initialization for the device
 // service.
-func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, devs chan<- []dsModels.DiscoveredDevice) error {
+func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
 	d.lc = lc
 	d.asyncCh = asyncCh
+	d.deviceCh = deviceCh
+
+	go func() {
+		// hack: sleep to allow edgex time to finish loading cache and clients
+		time.Sleep(5 * time.Second)
+
+		d.addProvisionWatcher()
+		// todo: check configuration to make sure discovery is enabled
+		d.Discover()
+	}()
 	return nil
 }
 
@@ -209,4 +234,32 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
 	return addr, errors.Wrapf(err,
 		"unable to create addr for tcp protocol (%q, %q)", host, port)
+}
+
+func (d *Driver) addProvisionWatcher() error {
+	var provisionWatcher contract.ProvisionWatcher
+	data, err := ioutil.ReadFile("res/provisionwatcher.json")
+	if err != nil {
+		d.lc.Error(err.Error())
+		return err
+	}
+
+	err = provisionWatcher.UnmarshalJSON(data)
+	if err != nil {
+		d.lc.Error(err.Error())
+		return err
+	}
+
+	if err := d.service().AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
+		d.lc.Info(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (d *Driver) Discover() {
+	d.lc.Info("*** Discover was called ***")
+	d.deviceCh <- autoDiscover()
+	d.lc.Info("scanning complete")
 }
