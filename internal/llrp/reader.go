@@ -33,6 +33,7 @@
 package llrp
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -61,8 +62,9 @@ type Reader struct {
 	logger    ReaderLogger   // reports pressure on the ACK queue
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
-	handlerMu sync.RWMutex
-	handlers  map[MessageType]responseHandler
+	handlerMu      sync.RWMutex
+	handlers       map[MessageType]MessageHandler
+	defaultHandler MessageHandler // used if no MessageHandlers for type and nothing awaiting reply
 
 	version VersionNum // sent in headers; established during negotiation
 }
@@ -86,7 +88,10 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		sendQueue: make(chan request),
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
-		handlers:  make(map[MessageType]responseHandler),
+		handlers: map[MessageType]MessageHandler{
+			KeepAlive:      ackHandler{},
+			ROAccessReport: roHandler{},
+		},
 	}
 
 	for _, opt := range opts {
@@ -163,14 +168,61 @@ func WithLogger(l ReaderLogger) ReaderOpt {
 	})
 }
 
+type MessageHandler interface {
+	handleMessage(r *Reader, msg Message)
+}
+
+// WithMessageHandler sets a handler which will be called
+// whenever a message of the given type arrives.
+//
+// Each message type has only a single handler,
+// so if you wish to support multiple behaviors for a single type,
+// you'll need to copy and propagate the message to the other handlers.
+// Setting a handler for the same message more than once
+// will overwrite previously recorded handlers.
+//
+// Readers are created with a handler for KeepAlive (it sends KeepAliveAck).
+// If you override this, you'll need to acknowledge the KeepAlives yourself.
+//
+// If a the incoming message is a response with a listener awaiting the rely,
+// the message is copied to a buffer, sent to the response listener,
+// then dispatched to the handler.
+//
+// Currently, there isn't a way to remove a handler,
+// nor to add them after a Reader is created,
+// though that may change in the future.
+//
+// Adding a nil handler clears it.
+func WithMessageHandler(mt MessageType, handler MessageHandler) ReaderOpt {
+	return readerOpt(func(r *Reader) error {
+		if handler == nil {
+			delete(r.handlers, mt)
+		} else {
+			r.handlers[mt] = handler
+		}
+		return nil
+	})
+}
+
+// WithDefaultHandler sets a default handler for messages
+// that aren't handled by either an awaiting listener or another MessageHandler.
+//
+// Only a single default handler is supported,
+// though it may propagate the message to other handlers if desired.
+//
+// It may be set to nil, in which case unhandled messages are simply dropped.
+func WithDefaultHandler(handler MessageHandler) ReaderOpt {
+	return readerOpt(func(r *Reader) error {
+		r.defaultHandler = handler
+		return nil
+	})
+}
+
 // ReaderLogger is used by the Reader to log certain status messages.
 type ReaderLogger interface {
 	Println(v ...interface{})
 	Printf(fmt string, v ...interface{})
 }
-
-// stdGoLogger uses a standard Go logger to satisfy the ReaderLogger interface.
-var stdGoLogger = log.New(os.Stderr, "LLRP-", log.LstdFlags)
 
 var (
 	// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
@@ -228,13 +280,10 @@ func (r *Reader) Connect() error {
 //     ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 //	   defer cancel()
 //	   if err := r.Shutdown(ctx); err != nil {
-//	       if !errors.Is(err, context.DeadlineExceeded) {
-//             panic(err)
-//         }
-//         // It's still possible to get ErrReaderClosed
 //	       if err := r.Close(); err != nil && !errors.Is(err, ErrReaderClosed) {
 //		       panic(err)
 //         }
+//         panic(err)
 //     }
 func (r *Reader) Shutdown(ctx context.Context) error {
 	r.logger.Println("putting CloseConnection in send queue")
@@ -309,16 +358,22 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 	if err != nil {
 		return 0, nil, err
 	}
-	defer resp.Close()
 
 	if resp.payloadLen > maxBufferedPayloadSz {
 		return 0, nil, errors.Errorf("message payload exceeds max: %d > %d",
 			resp.payloadLen, maxBufferedPayloadSz)
 	}
 
-	buffResponse := make([]byte, resp.payloadLen)
-	if _, err := io.ReadFull(resp.payload, buffResponse); err != nil {
-		return 0, nil, err
+	// TODO: this bytes buffer is just tech-debt
+	//   from an earlier implementation
+	var buffResponse []byte
+	if buff, ok := resp.payload.(*bytes.Buffer); ok {
+		buffResponse = buff.Bytes()
+	} else {
+		buffResponse = make([]byte, int(resp.payloadLen))
+		if _, err := io.ReadFull(resp.payload, buffResponse); err != nil {
+			return 0, nil, err
+		}
 	}
 
 	return resp.typ, buffResponse, nil
@@ -406,7 +461,8 @@ func (r *Reader) handleIncoming() error {
 		default:
 		}
 
-		m, err := r.nextMessage()
+		// m, err := r.nextMessage()
+		hdr, err := r.readHeader()
 		if err != nil {
 			if !receivedClosed {
 				return errors.Wrap(err, "failed to get next message")
@@ -421,32 +477,22 @@ func (r *Reader) handleIncoming() error {
 			return errors.Wrap(ErrReaderClosed, "client connection closed")
 		}
 
-		r.logger.Printf(">>> %v", m)
+		r.logger.Printf(">>> %v", hdr)
 
-		if m.typ == CloseConnectionResponse {
+		if hdr.typ == CloseConnectionResponse {
 			receivedClosed = true
 		}
 
-		if m.version != r.version {
-			r.logger.Printf("warning: incoming message version mismatch (expected %v): %v", r.version, m)
+		if hdr.version != r.version {
+			r.logger.Printf("warning: incoming message version mismatch (expected %v): %v", r.version, hdr)
 		}
 
 		// Handle the payload.
-		handler := r.getResponseHandler(m.header)
-		_, err = io.Copy(handler, m.payload)
-		if pw, ok := handler.(*io.PipeWriter); ok {
-			pw.Close()
-		}
-
-		r.logger.Printf("handled %v", m)
+		err = r.passToHandler(hdr)
+		r.logger.Printf("handled %v", hdr)
 
 		switch err {
 		case nil, io.ErrClosedPipe:
-			// If the message handler stopped listening; that's OK.
-			// Make sure we read the rest of the payload.
-			if err := m.Close(); err != nil {
-				return err
-			}
 		case io.EOF:
 			// The connection may have closed.
 			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
@@ -576,32 +622,84 @@ func (r *Reader) sendAck(mid messageID) {
 	}
 }
 
-// getResponseHandler returns the handler for a given message's response.
-func (r *Reader) getResponseHandler(hdr header) io.Writer {
+type ackHandler struct{}
+
+func (ackHandler) handleMessage(r *Reader, msg Message) {
+	r.sendAck(msg.id)
+}
+
+func (r *Reader) passToHandler(hdr header) error {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
-	if hdr.typ == KeepAlive {
-		r.sendAck(hdr.id)
-		return ioutil.Discard
-	}
+	handler := r.handlers[hdr.typ]
 
 	r.awaitMu.Lock()
-	replyChan, ok := r.awaiting[hdr.id]
+	replyChan, needsReply := r.awaiting[hdr.id]
 	delete(r.awaiting, hdr.id)
 	r.awaitMu.Unlock()
 
-	if !ok {
-		r.logger.Printf("no handler found for mID %d: %v", hdr.id, hdr.typ)
-		return ioutil.Discard
+	if handler == nil && !needsReply {
+		r.logger.Printf("no handlers for mID %d: %v", hdr.id, hdr.typ)
+		_, err := io.CopyN(ioutil.Discard, r.conn, int64(hdr.payloadLen))
+		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
 	}
 
-	r.logger.Printf("piping mID %d: %v", hdr.id, hdr.typ)
-	// the pipe lets us know when the other side finishes
-	pr, pw := io.Pipe()
-	resp := Message{header: hdr, payload: pr}
-	replyChan <- resp
-	close(replyChan)
-	return pw
+	payload := io.LimitReader(r.conn, int64(hdr.payloadLen))
+	if needsReply {
+		// TODO: this is mostly tech-debt from an earlier implementation
+		if hdr.payloadLen > maxBufferedPayloadSz {
+			// SendMessage will reject it
+			replyChan <- Message{header: hdr}
+		} else {
+
+			buffResponse := make([]byte, hdr.payloadLen)
+			if _, err := io.ReadFull(r.conn, buffResponse); err != nil {
+				return nil
+			}
+
+			payload = bytes.NewReader(buffResponse) // make a second payload instance
+			replyChan <- Message{header: hdr, payload: bytes.NewReader(buffResponse)}
+		}
+
+		close(replyChan)
+	}
+
+	if handler == nil {
+		r.logger.Printf("no handler for mID %d: %v; using default: %T", hdr.id, hdr.typ, r.defaultHandler)
+		handler = r.defaultHandler
+	}
+
+	if handler != nil {
+		// TODO: maybe call in goroutine, guard with recover
+		r.logger.Printf("passing message to handler %T for mID %d: %v",
+			handler, hdr.id, hdr.typ)
+		handler.handleMessage(r, Message{header: hdr, payload: payload})
+	}
+	return nil
+}
+
+type roHandler struct{}
+
+func (roHandler) handleMessage(r *Reader, m Message) {
+	roar := &roAccessReport{}
+	buff := make([]byte, m.payloadLen)
+	if _, err := io.ReadFull(r.conn, buff); err != nil {
+		r.logger.Printf("error: %+v", err)
+		return
+	}
+
+	if err := roar.UnmarshalBinary(buff); err != nil {
+		r.logger.Printf("error: %+v\n%# 02x", err, buff)
+		return
+	}
+
+	j, err := json.MarshalIndent(roar, "", "\t")
+	if err != nil {
+		r.logger.Printf("error: %+v\n%s", err, j)
+		return
+	}
+
+	r.logger.Printf("%s", j)
 }
 
 // request is sent to the write coordinator to start a new request.
