@@ -2,3 +2,8 @@
 # different versions of Golang. Remove once all Go versions
 # are in sync
 go.sum
+
+docker-compose*.yml
+coverage.out
+.idea
+.gitignore

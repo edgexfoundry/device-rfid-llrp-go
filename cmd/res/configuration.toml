@@ -5,9 +5,9 @@ LogLevel = 'INFO'
 BootTimeout = 30000
 CheckInterval = '10s'
 ClientMonitor = 15000
-Host = 'localhost'
-Port = 49992
-Protocol = 'http'
+Host = 'edgex-device-llrp'
+Port = 51992
+Protocol = 'llrp'
 StartupMsg = 'device llrp started'
 Timeout = 5000
 ConnectRetries = 10
@@ -16,9 +16,9 @@ EnableAsyncReadings = true
 AsyncBufferSize = 16
 
 [Registry]
-Host = "localhost"
+Host = 'localhost'
 Port = 8500
-Type = "consul"
+Type = 'consul'
 
 [Logging]
 EnableRemote = false
@@ -50,3 +50,6 @@ File = ''
   RemoveCmdArgs = ''
   ProfilesDir = './res'
   UpdateLastConnected = false
+  [Device.Discovery]
+    Enabled = true
+    Interval = '1h'
