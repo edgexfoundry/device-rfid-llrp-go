@@ -61,9 +61,6 @@ type Reader struct {
 	logger    ReaderLogger   // reports pressure on the ACK queue
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
-	handlerMu sync.RWMutex
-	handlers  map[MessageType]responseHandler
-
 	version VersionNum // sent in headers; established during negotiation
 }
 
@@ -86,7 +83,6 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 		sendQueue: make(chan request),
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
-		handlers:  make(map[MessageType]responseHandler),
 	}
 
 	for _, opt := range opts {
@@ -332,10 +328,10 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 // Once a message header is written,
 // length bytes must also be written to the stream,
 // or the connection will be in an invalid state and should be closed.
-func (r *Reader) writeHeader(h header) error {
-	header := make([]byte, headerSz)
+func (r *Reader) writeHeader(h Header) error {
+	header := make([]byte, HeaderSz)
 	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
-	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+headerSz)
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
 	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
 	_, err := r.conn.Write(header)
 	return errors.Wrapf(err, "failed to write header")
@@ -349,7 +345,7 @@ func (r *Reader) writeHeader(h header) error {
 // If the Reader has a timeout, this will set the read deadline before reading.
 // This method blocks until it reads enough bytes to fill the header buffer
 // unless the underlying connection is closed or times out.
-func (r *Reader) readHeader() (mh header, err error) {
+func (r *Reader) readHeader() (mh Header, err error) {
 	if r.timeout > 0 {
 		if err = r.conn.SetReadDeadline(time.Now().Add(r.timeout)); err != nil {
 			err = errors.Wrap(err, "failed to set read deadline")
@@ -357,7 +353,7 @@ func (r *Reader) readHeader() (mh header, err error) {
 		}
 	}
 
-	buf := make([]byte, headerSz)
+	buf := make([]byte, HeaderSz)
 	if _, err = io.ReadFull(r.conn, buf); err != nil {
 		err = errors.Wrap(err, "failed to read header")
 		return
@@ -377,7 +373,7 @@ func (r *Reader) nextMessage() (Message, error) {
 		return Message{}, err
 	}
 	p := io.LimitReader(r.conn, int64(hdr.payloadLen))
-	return Message{header: hdr, payload: p}, nil
+	return Message{Header: hdr, payload: p}, nil
 }
 
 // handleIncoming handles the read side of the connection.
@@ -432,7 +428,7 @@ func (r *Reader) handleIncoming() error {
 		}
 
 		// Handle the payload.
-		handler := r.getResponseHandler(m.header)
+		handler := r.getResponseHandler(m.Header)
 		_, err = io.Copy(handler, m.payload)
 		if pw, ok := handler.(*io.PipeWriter); ok {
 			pw.Close()
@@ -477,13 +473,13 @@ func (r *Reader) handleOutgoing() error {
 		case <-r.done:
 			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 		case mid := <-r.ackQueue:
-			msg = Message{header: header{id: mid, typ: KeepAliveAck}}
+			msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 			case mid := <-r.ackQueue:
-				msg = Message{header: header{id: mid, typ: KeepAliveAck}}
+				msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -533,7 +529,7 @@ func (r *Reader) handleOutgoing() error {
 		}
 
 		r.logger.Printf("<<< %v", msg)
-		if err := r.writeHeader(msg.header); err != nil {
+		if err := r.writeHeader(msg.Header); err != nil {
 			return err
 		}
 
@@ -577,7 +573,7 @@ func (r *Reader) sendAck(mid messageID) {
 }
 
 // getResponseHandler returns the handler for a given message's response.
-func (r *Reader) getResponseHandler(hdr header) io.Writer {
+func (r *Reader) getResponseHandler(hdr Header) io.Writer {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
 	if hdr.typ == KeepAlive {
@@ -598,7 +594,7 @@ func (r *Reader) getResponseHandler(hdr header) io.Writer {
 	r.logger.Printf("piping mID %d: %v", hdr.id, hdr.typ)
 	// the pipe lets us know when the other side finishes
 	pr, pw := io.Pipe()
-	resp := Message{header: hdr, payload: pr}
+	resp := Message{Header: hdr, payload: pr}
 	replyChan <- resp
 	close(replyChan)
 	return pw

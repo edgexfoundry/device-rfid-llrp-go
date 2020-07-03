@@ -73,8 +73,8 @@ const (
 	msgResvEnd     = MessageType(999)
 	msgTypeInvalid = MessageType(0)
 
-	headerSz     = 10                           // LLRP message headers are 10 bytes
-	maxPayloadSz = uint32(1<<32 - 1 - headerSz) // max size for a payload
+	HeaderSz     = 10                           // LLRP message headers are 10 bytes
+	maxPayloadSz = uint32(1<<32 - 1 - HeaderSz) // max size for a payload
 )
 
 // responseType maps certain message types to their response type.
@@ -103,26 +103,34 @@ type messageID uint32
 
 type awaitMap = map[messageID]chan<- Message
 
-// header holds information about an LLRP message header.
+// Header holds information about an LLRP message header.
 //
 // Importantly, payloadLen does not include the header's 10 bytes;
 // when a message is read, it's automatically subtracted,
 // and when a message is written, it's automatically added.
 // See header.UnmarshalBinary and header.MarshalBinary for more information.
-type header struct {
+type Header struct {
 	payloadLen uint32      // length of payload; 0 if message is header-only
 	id         messageID   // for correlating request/response (uint32)
 	typ        MessageType // message type: 10 bits (uint16)
 	version    VersionNum  // version: 3 bits (uint8)
 }
 
-func (h header) String() string {
+func (h Header) Version() VersionNum {
+	return h.version
+}
+
+func (h Header) Type() MessageType {
+	return h.typ
+}
+
+func (h Header) String() string {
 	return fmt.Sprintf("version: %v, id: %d (%#08[2]x), payloadLen: %d, type: %s (%[4]d, %#04x)",
 		h.version, h.id, h.payloadLen, h.typ, uint16(h.typ))
 }
 
 func (m Message) String() string {
-	return fmt.Sprintf("message{%v}", m.header)
+	return fmt.Sprintf("message{%v}", m.Header)
 }
 
 // UnmarshalBinary unmarshals the a header buffer into the message header.
@@ -130,37 +138,37 @@ func (m Message) String() string {
 // The payload length is the message length less the header size,
 // unless the subtraction would overflow,
 // in which case this returns an error indicating the impossible size.
-func (h *header) UnmarshalBinary(buf []byte) error {
-	if len(buf) < headerSz {
-		return msgErr("not enough data for a message header: %d < %d", len(buf), headerSz)
+func (h *Header) UnmarshalBinary(buf []byte) error {
+	if len(buf) < HeaderSz {
+		return msgErr("not enough data for a message header: %d < %d", len(buf), HeaderSz)
 	}
 
 	_ = buf[9] // prevent extraneous bounds checks: golang.org/issue/14808
-	*h = header{
+	*h = Header{
 		version:    VersionNum((buf[0] >> 2) & 0b111),
 		typ:        MessageType(binary.BigEndian.Uint16(buf[0:2]) & (0b0011_1111_1111)),
 		payloadLen: binary.BigEndian.Uint32(buf[2:6]),
 		id:         messageID(binary.BigEndian.Uint32(buf[6:10])),
 	}
 
-	if h.payloadLen < headerSz {
+	if h.payloadLen < HeaderSz {
 		return msgErr("message length is smaller than the minimum: %d < %d",
-			h.payloadLen, headerSz)
+			h.payloadLen, HeaderSz)
 	}
-	h.payloadLen -= headerSz
+	h.payloadLen -= HeaderSz
 
 	return nil
 }
 
 // MarshalBinary marshals a header to a byte array.
-func (h *header) MarshalBinary() ([]byte, error) {
+func (h *Header) MarshalBinary() ([]byte, error) {
 	if err := validateHeader(h.payloadLen, h.typ); err != nil {
 		return nil, err
 	}
 
-	header := make([]byte, headerSz)
+	header := make([]byte, HeaderSz)
 	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
-	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+headerSz)
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
 	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
 	return header, nil
 }
@@ -195,7 +203,7 @@ func validateHeader(payloadLen uint32, typ MessageType) error {
 // payload may be nil to signal no data.
 type Message struct {
 	payload io.Reader
-	header
+	Header
 }
 
 // Close the message by discarding any remaining payload.
@@ -278,7 +286,7 @@ func newMessage(data io.Reader, payloadLen uint32, typ MessageType) Message {
 
 	return Message{
 		payload: payload,
-		header: header{
+		Header: Header{
 			payloadLen: payloadLen,
 			typ:        typ,
 			version:    versionMin,

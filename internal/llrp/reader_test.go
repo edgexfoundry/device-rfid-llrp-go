@@ -25,7 +25,7 @@ func TestReader_readHeader(t *testing.T) {
 	type testCase struct {
 		desc     string
 		data     []byte
-		expected header
+		expected Header
 		invalid  bool
 	}
 
@@ -38,17 +38,17 @@ func TestReader_readHeader(t *testing.T) {
 				0x0, 0x0, 0x0, 0x1, // msg id
 				// no payload
 			},
-			expected: header{payloadLen: 0, id: 1, typ: 1, version: 2},
+			expected: Header{payloadLen: 0, id: 1, typ: 1, version: 2},
 		},
 		{
 			desc:     "reserved bits are set",
 			data:     []byte{0b010_001_00, 1, 0, 0, 0, 0xA, 0, 0, 0, 1},
-			expected: header{payloadLen: 0, id: 1, typ: 1, version: 1},
+			expected: Header{payloadLen: 0, id: 1, typ: 1, version: 1},
 		},
 		{
 			desc:     "huge payload length",
 			data:     []byte{8, 1, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 1},
-			expected: header{payloadLen: 4294967285, id: 1, typ: 1, version: 2},
+			expected: Header{payloadLen: 4294967285, id: 1, typ: 1, version: 2},
 		},
 		{
 			desc:    "impossible message size",
@@ -109,7 +109,7 @@ func TestReader_readHeader(t *testing.T) {
 
 func TestReader_newMessage(t *testing.T) {
 	ack := NewHdrOnlyMsg(KeepAliveAck)
-	expMsg := Message{header: header{version: versionMin, typ: KeepAliveAck}}
+	expMsg := Message{Header: Header{version: versionMin, typ: KeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -125,7 +125,7 @@ func TestReader_newMessage(t *testing.T) {
 			errs <- err
 			return
 		}
-		if err := lr.writeHeader(ack.header); err != nil {
+		if err := lr.writeHeader(ack.Header); err != nil {
 			errs <- err
 		}
 	}()
@@ -140,7 +140,7 @@ func TestReader_newMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expHdr := header{
+	expHdr := Header{
 		typ:     KeepAliveAck,
 		version: v,
 		id:      messageID(0),
@@ -155,8 +155,8 @@ func TestReader_newMessage(t *testing.T) {
 }
 
 // dummyRead reads a header into h and discards the payload, if present.
-func dummyRead(h *header, rfid net.Conn) error {
-	buf := make([]byte, headerSz)
+func dummyRead(h *Header, rfid net.Conn) error {
+	buf := make([]byte, HeaderSz)
 	if n, err := io.ReadFull(rfid, buf); err != nil {
 		return errors.Wrapf(err, "header read failed after %d bytes", n)
 	}
@@ -171,13 +171,13 @@ func dummyRead(h *header, rfid net.Conn) error {
 }
 
 // connectSuccess writes a ReaderEventNotification indicating successful connection.
-func connectSuccess(h *header, rfid net.Conn) error {
+func connectSuccess(h *Header, rfid net.Conn) error {
 	d, _ := hex.DecodeString("043f000000200000000000f600160080000c0005a738133c2c9e010000060000")
 	_, err := rfid.Write(d)
 	return err
 }
 
-func closeSuccess(h *header, rfid net.Conn) error {
+func closeSuccess(h *Header, rfid net.Conn) error {
 	d, _ := hex.DecodeString("04040000000000000000011f000800000000")
 	binary.BigEndian.PutUint32(d[2:], uint32(len(d)))
 	binary.BigEndian.PutUint32(d[6:], uint32(h.id))
@@ -186,8 +186,8 @@ func closeSuccess(h *header, rfid net.Conn) error {
 }
 
 // dummyReply sends empty replies with the header's response type.
-func dummyReply(h *header, rfid net.Conn) error {
-	reply := header{id: h.id, version: h.version, typ: responseType[h.typ]}
+func dummyReply(h *Header, rfid net.Conn) error {
+	reply := Header{id: h.id, version: h.version, typ: responseType[h.typ]}
 	hdr, err := reply.MarshalBinary()
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func dummyReply(h *header, rfid net.Conn) error {
 
 // randomReply returns a function that sends replies with a random payload
 // such that minSz <= len(payload) <= maxSz.
-func randomReply(minSz, maxSz uint32) func(h *header, rfid net.Conn) error {
+func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 	rnd := rand.New(rand.NewSource(1))
 	if minSz > maxSz {
 		panic(errors.Errorf("bad sizes: %d > %d", minSz, maxSz))
@@ -208,10 +208,10 @@ func randomReply(minSz, maxSz uint32) func(h *header, rfid net.Conn) error {
 	dist := int64(maxSz - minSz)
 	min64 := int64(minSz)
 
-	return func(h *header, rfid net.Conn) error {
+	return func(h *Header, rfid net.Conn) error {
 		// Use int64 to get full uint32; CopyN needs an int64 anyway.
 		sz := rnd.Int63n(dist) + min64
-		reply := header{
+		reply := Header{
 			payloadLen: uint32(sz),
 			id:         h.id,
 			typ:        responseType[h.typ],
@@ -290,8 +290,8 @@ func TestReader_Connection(t *testing.T) {
 	go func() {
 		defer close(rfidErrs)
 		defer rfid.Close()
-		h := header{version: Version1_0_1}
-		for _, op := range []func(*header, net.Conn) error{
+		h := Header{version: Version1_0_1}
+		for _, op := range []func(*Header, net.Conn) error{
 			connectSuccess,
 			dummyRead,  // CustomMessage
 			dummyReply, // response
@@ -373,7 +373,7 @@ func TestReader_ManySenders(t *testing.T) {
 	rfidErrs := make(chan error, 1)
 	go func() {
 		defer close(rfidErrs)
-		var h header
+		var h Header
 		err := connectSuccess(&h, rfid)
 		op, nextOp := dummyRead, randomReply(0, 1024)
 		s1, s2 := "read", "reply"
@@ -461,7 +461,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 	rfidErrs := make(chan error, 1)
 	go func() {
 		defer close(rfidErrs)
-		var h header
+		var h Header
 		err := connectSuccess(&h, rfid)
 		op, nextOp := dummyRead, randomReply(0, 1024)
 		s1, s2 := "read", "reply"

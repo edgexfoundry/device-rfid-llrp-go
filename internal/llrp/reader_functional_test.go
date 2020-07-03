@@ -192,7 +192,7 @@ func testHangUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := [headerSz]byte{}
+	b := [HeaderSz]byte{}
 	if _, err := io.ReadFull(conn, b[:]); err != nil {
 		t.Error(err)
 	}

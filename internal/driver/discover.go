@@ -1,3 +1,8 @@
+//
+// Copyright (C) 2020 Intel Corporation
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package driver
 
 import (
@@ -7,6 +12,7 @@ import (
 	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io"
 	"math/bits"
 	"net"
@@ -172,22 +178,23 @@ func probe(ip string, port string) error {
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
 	driver.lc.Info("connection dialed")
 
-	buf := make([]byte, headerSz)
+	buf := make([]byte, llrp.HeaderSz)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		log.Error(err)
 		return err
 	}
 
-	h := header{}
+	h := llrp.Header{}
 	err = h.UnmarshalBinary(buf)
 	log.Debugf("connection header: %+v", h)
 
-	if h.typ != ReaderEventNotification {
-		return errors.New("wrong connection status")
+	if h.Type() != llrp.ReaderEventNotification {
+		return errors.Errorf("expected %v, got %v", llrp.ReaderEventNotification, h.Type())
 	}
 
 	driver.lc.Info("Reader successfully discovered @ " + addr)
