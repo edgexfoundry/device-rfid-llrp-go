@@ -133,11 +133,13 @@ func (m Message) String() string {
 	return fmt.Sprintf("message{%v}", m.Header)
 }
 
-// UnmarshalBinary unmarshals the a header buffer into the message header.
+// UnmarshalBinary unmarshals a binary LLRP message header.
 //
-// The payload length is the message length less the header size,
+// The resulting payload length is the message length, less the header size,
 // unless the subtraction would overflow,
 // in which case this returns an error indicating the impossible size.
+// Note that this differs from the original LLRP message length,
+// which includes the 10 byte header.
 func (h *Header) UnmarshalBinary(buf []byte) error {
 	if len(buf) < HeaderSz {
 		return msgErr("not enough data for a message header: %d < %d", len(buf), HeaderSz)

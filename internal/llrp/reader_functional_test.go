@@ -385,7 +385,7 @@ func testConnect(t *testing.T) {
 		}
 	}
 
-	<-time.After(10 * time.Second)
+	time.Sleep(10 * time.Second)
 	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
@@ -525,7 +525,7 @@ func testAddROSpec(t *testing.T) {
 		}
 	}
 
-	<-time.After(10 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	disableRO(t, r)
 	deleteRO(t, r)
