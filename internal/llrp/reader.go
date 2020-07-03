@@ -147,9 +147,17 @@ func WithVersion(v VersionNum) ReaderOpt {
 	})
 }
 
-// WithTimeout sets a timeout for reads/writes.
+// WithTimeout sets the connection timeout for all reads and writes.
+//
 // If non-zero, the reader will call SetReadDeadline and SetWriteDeadline
 // before reading or writing respectively.
+//
+// Note that if set, the connection will automatically close
+// if the RFID device fails to send a message within the timeout.
+// As a result, this is most useful when combined with LLRP KeepAlive,
+// and set to an integer multiple of the KeepAlive interval plus a small grace.
+// In that case, the Reader will automatically close the connection
+// if it fails to receive KeepAlive messages from the RFID device.
 func WithTimeout(d time.Duration) ReaderOpt {
 	return readerOpt(func(r *Reader) error {
 		if d < 0 {
@@ -170,6 +178,12 @@ func WithLogger(l ReaderLogger) ReaderOpt {
 
 type MessageHandler interface {
 	handleMessage(r *Reader, msg Message)
+}
+
+type messageHandlerFunc func(r *Reader, msg Message)
+
+func (mhf messageHandlerFunc) handleMessage(r *Reader, msg Message) {
+	mhf(r, msg)
 }
 
 // WithMessageHandler sets a handler which will be called
@@ -359,24 +373,12 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		return 0, nil, err
 	}
 
-	if resp.payloadLen > maxBufferedPayloadSz {
-		return 0, nil, errors.Errorf("message payload exceeds max: %d > %d",
-			resp.payloadLen, maxBufferedPayloadSz)
+	respData, err := resp.data()
+	if err != nil {
+		return 0, nil, err
 	}
 
-	// TODO: this bytes buffer is just tech-debt
-	//   from an earlier implementation
-	var buffResponse []byte
-	if buff, ok := resp.payload.(*bytes.Buffer); ok {
-		buffResponse = buff.Bytes()
-	} else {
-		buffResponse = make([]byte, int(resp.payloadLen))
-		if _, err := io.ReadFull(resp.payload, buffResponse); err != nil {
-			return 0, nil, err
-		}
-	}
-
-	return resp.typ, buffResponse, nil
+	return resp.typ, respData, nil
 }
 
 // writeHeader writes a message header to the connection.
@@ -477,7 +479,7 @@ func (r *Reader) handleIncoming() error {
 			return errors.Wrap(ErrReaderClosed, "client connection closed")
 		}
 
-		r.logger.Printf(">>> %v", hdr)
+		r.logger.Printf(">>> message{%v}", hdr)
 
 		if hdr.typ == CloseConnectionResponse {
 			receivedClosed = true
@@ -628,7 +630,7 @@ func (ackHandler) handleMessage(r *Reader, msg Message) {
 	r.sendAck(msg.id)
 }
 
-func (r *Reader) passToHandler(hdr header) error {
+func (r *Reader) passToHandler(hdr Header) error {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
 	handler := r.handlers[hdr.typ]
@@ -649,7 +651,7 @@ func (r *Reader) passToHandler(hdr header) error {
 		// TODO: this is mostly tech-debt from an earlier implementation
 		if hdr.payloadLen > maxBufferedPayloadSz {
 			// SendMessage will reject it
-			replyChan <- Message{header: hdr}
+			replyChan <- Message{Header: hdr}
 		} else {
 
 			buffResponse := make([]byte, hdr.payloadLen)
@@ -657,8 +659,8 @@ func (r *Reader) passToHandler(hdr header) error {
 				return nil
 			}
 
-			payload = bytes.NewReader(buffResponse) // make a second payload instance
-			replyChan <- Message{header: hdr, payload: bytes.NewReader(buffResponse)}
+			payload = bytes.NewReader(buffResponse) // replace the now-read payload
+			replyChan <- Message{Header: hdr, payload: bytes.NewReader(buffResponse)}
 		}
 
 		close(replyChan)
@@ -670,10 +672,12 @@ func (r *Reader) passToHandler(hdr header) error {
 	}
 
 	if handler != nil {
-		// TODO: maybe call in goroutine, guard with recover
+		// TODO: maybe guard with recover semantics; also, if
+		//   it'd be useful perhaps to distinguish "our" handlers from unknown/outside ones,
+		//   in which case we can take avoiding reading certain messages completely
 		r.logger.Printf("passing message to handler %T for mID %d: %v",
 			handler, hdr.id, hdr.typ)
-		handler.handleMessage(r, Message{header: hdr, payload: payload})
+		handler.handleMessage(r, Message{Header: hdr, payload: payload})
 	}
 	return nil
 }

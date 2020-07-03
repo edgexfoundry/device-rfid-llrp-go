@@ -16,6 +16,8 @@ import (
 	"io/ioutil"
 	"net"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -40,7 +42,7 @@ func TestReaderFunctional(t *testing.T) {
 	}
 
 	t.Run("hangup", testHangUp)
-	t.Run("addROSpec", testAddROSpec)
+	t.Run("addROSpec", testGatherTagReads)
 
 	for i := 0; i < 1; i++ {
 		t.Run("connect "+strconv.Itoa(i), testConnect)
@@ -148,18 +150,22 @@ func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, re
 		return errors.Errorf("expected %v; got %v", expR, mt)
 	}
 
-	bfn := fmt.Sprintf("testdata/%v.bytes", resultT)
-	jfn := fmt.Sprintf("testdata/%v.json", resultT)
+	return writeCapture(0, result, resultT, resultValue)
+}
+
+func writeCapture(idx uint32, result []byte, typ MessageType, decoder encoding.BinaryUnmarshaler) error {
+	bfn := fmt.Sprintf("testdata/%v-%03d.bytes", typ, idx)
+	jfn := fmt.Sprintf("testdata/%v-%03d.json", typ, idx)
 
 	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
 		return err
 	}
 
-	if err := resultValue.UnmarshalBinary(result); err != nil {
+	if err := decoder.UnmarshalBinary(result); err != nil {
 		return err
 	}
 
-	j, err := json.MarshalIndent(resultValue, "", "\t")
+	j, err := json.MarshalIndent(decoder, "", "\t")
 	if err != nil {
 		return err
 	}
@@ -319,12 +325,7 @@ func testConnect(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := conn.SetDeadline(time.Now().Add(120 * time.Second)); err != nil {
-		t.Fatal(err)
-		return
-	}
-
-	r, err := NewReader(WithConn(conn))
+	r, err := NewReader(WithConn(conn), WithTimeout(120*time.Second), WithLogger(testingLogger{T: t}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,65 +336,8 @@ func testConnect(t *testing.T) {
 		connErrs <- r.Connect()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	payload := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
-	mt, resp, err := r.SendMessage(ctx, GetReaderConfig, payload)
-	cancel()
-
-	if err != nil {
-		t.Error(err)
-	} else if resp == nil {
-		t.Error("expected non-nil response")
-	}
-
-	if GetReaderConfigResponse != mt {
-		t.Errorf("expected %v; got %v", GetReaderConfigResponse, mt)
-		if mt == ErrorMessage {
-			var errMsg errorMessage
-
-			if err := errMsg.UnmarshalBinary(resp); err != nil {
-				t.Error(err)
-				t.Logf("%# 02x", resp)
-			} else if err := errMsg.LLRPStatus.Err(); err != nil {
-				t.Logf("%+v", errMsg)
-				t.Error(err)
-			} else {
-				if r, err := json.MarshalIndent(errMsg, "", "\t"); err != nil {
-					t.Error(err)
-				} else {
-					t.Log(string(r))
-				}
-			}
-		}
-	} else {
-		var conf getReaderConfigResponse
-		if err := conf.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := conf.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		}
-
-		t.Logf("%+v", conf)
-
-		if r, err := json.MarshalIndent(conf, "", "\t"); err != nil {
-			t.Error(err)
-		} else {
-			t.Log(string(r))
-		}
-	}
-
-	time.Sleep(10 * time.Second)
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := r.Shutdown(ctx); err != nil {
-		t.Errorf("%+v", err)
-		if err := r.Close(); err != nil {
-			t.Errorf("%+v", err)
-		}
-	}
+	sendAndCheck(t, r, &getReaderConfig{}, &getReaderConfigResponse{})
+	closeConn(t, r)
 
 	for err := range connErrs {
 		if !errors.Is(err, ErrReaderClosed) {
@@ -402,266 +346,161 @@ func testConnect(t *testing.T) {
 	}
 }
 
-func testAddROSpec(t *testing.T) {
+func testGatherTagReads(t *testing.T) {
 	conn, err := net.Dial("tcp", *readerAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := conn.SetDeadline(time.Now().Add(300 * time.Second)); err != nil {
+	ec := &errorCollector{}
+
+	opts := []ReaderOpt{
+		WithConn(conn),
+		WithLogger(testingLogger{T: t}),
+		WithMessageHandler(ErrorMessage, ec),
+		WithTimeout(300 * time.Second),
+	}
+
+	if *update {
+		var i uint32
+		opts = append(opts, WithMessageHandler(ROAccessReport, messageHandlerFunc(
+			func(r *Reader, msg Message) {
+				atomic.AddUint32(&i, 1)
+
+				data, err := msg.data()
+				if err != nil {
+					ec.addErr(err)
+					return
+				}
+
+				ec.addErr(writeCapture(i, data, ROAccessReport, &roAccessReport{}))
+			})))
+	}
+
+	r, err := NewReader(opts...)
+	if err != nil {
 		t.Fatal(err)
+	}
+
+	go func() {
+		ec.addErr(r.Connect())
+	}()
+
+	spec := NewROSpec()
+
+	sendAndCheck(t, r, &addROSpec{*spec}, &addROSpecResponse{})
+	sendAndCheck(t, r, &enableROSpec{ROSpecID: spec.ROSpecID}, &enableROSpecResponse{})
+
+	// give it some time to send messages
+	time.Sleep(10 * time.Second)
+
+	sendAndCheck(t, r, &disableROSpec{ROSpecID: spec.ROSpecID}, &disableROSpecResponse{})
+	sendAndCheck(t, r, &deleteROSpec{ROSpecID: spec.ROSpecID}, &deleteROSpecResponse{})
+
+	closeConn(t, r)
+
+	ec.checkErrs(t)
+}
+
+type testingLogger struct {
+	*testing.T
+}
+
+func (tl testingLogger) Println(v ...interface{}) {
+	tl.Log(v...)
+}
+
+func (tl testingLogger) Printf(format string, v ...interface{}) {
+	tl.Logf(format, v...)
+}
+
+// errorCollector is a concurrency-safe error collector.
+// By default, its checkErrs method will ignore
+// LLRP's MsgVersionUnsupported (since it's assumed to come from version negotiation)
+// and ErrReaderClosed (since it's assumed to be the normal exit condition).
+type errorCollector struct {
+	errors []error
+	mux    sync.Mutex
+
+	// these only apply during checkErrs
+	reportReaderClosed       bool
+	reportVersionUnsupported bool
+}
+
+func (teh *errorCollector) addErr(err error) {
+	if err == nil {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn))
-	if err != nil {
-		t.Fatal(err)
+	teh.mux.Lock()
+	teh.errors = append(teh.errors, err)
+	teh.mux.Unlock()
+}
+
+func (teh *errorCollector) checkErrs(t *testing.T) {
+	t.Helper()
+	teh.mux.Lock()
+	defer teh.mux.Unlock()
+
+	for _, err := range teh.errors {
+		if !teh.reportVersionUnsupported {
+			se := &statusError{}
+			if errors.As(err, &se) && se.Status == StatusMsgVerUnsupported {
+				continue
+			}
+		}
+
+		if !teh.reportReaderClosed && errors.Is(err, ErrReaderClosed) {
+			continue
+		}
+
+		t.Errorf("%+v", err)
+	}
+}
+
+// handleMessage can be set as a handler for LLRP ErrorMessages.
+func (teh *errorCollector) handleMessage(_ *Reader, msg Message) {
+	em := &errorMessage{}
+	if err := msg.Unmarshal(em); err != nil {
+		teh.addErr(err)
+		return
 	}
 
-	connErrs := make(chan error, 1)
-	go func() {
-		defer close(connErrs)
-		connErrs <- r.Connect()
-	}()
+	teh.addErr(em.LLRPStatus.Err())
+}
 
-	spec := addROSpec{
-		ROSpec: roSpec{
-			ROSpecID:           1,
-			Priority:           0,
-			ROSpecCurrentState: ROSpecStateDisabled,
-			ROBoundarySpec: roBoundarySpec{
-				ROSpecStartTrigger: roSpecStartTrigger{
-					ROSpecStartTriggerType: ROStartTriggerImmediate,
-				},
-				ROSpecStopTrigger: roSpecStopTrigger{
-					ROSpecStopTriggerType: ROStopTriggerDuration,
-					DurationTriggerValue:  milliSecs32(60000),
-				},
-			},
-			AISpecs: []aiSpec{{
-				AntennaIDs: []antennaID{0},
-				AISpecStopTrigger: aiSpecStopTrigger{
-					AISpecStopTriggerType: AIStopTriggerNone,
-				},
-				InventoryParameterSpecs: []inventoryParameterSpec{{
-					InventoryParameterSpecID: 1,
-					AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
-				}},
-			}},
-		},
-	}
-
-	if js, err := json.MarshalIndent(spec, "", "\t"); err != nil {
-		t.Error(err)
+func prettyPrint(t *testing.T, v interface{}) {
+	t.Helper()
+	if pretty, err := json.MarshalIndent(v, "", "\t"); err != nil {
+		t.Errorf("can't pretty print %+v: %+v", v, err)
 	} else {
-		t.Logf("%s", js)
+		t.Logf("%s", pretty)
 	}
+}
 
-	payload, err := spec.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("%# 02x", payload[50:])
+func sendAndCheck(t *testing.T, r *Reader, out outgoing, in incoming) {
+	t.Helper()
+	prettyPrint(t, out)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mt, resp, err := r.SendMessage(ctx, AddROSpec, payload)
-	cancel()
 
-	if err != nil {
-		t.Error(err)
-	} else if resp == nil {
-		t.Error("expected non-nil response")
-	}
-
-	switch mt {
-	default:
-		t.Errorf("expected %v; got %v", AddROSpecResponse, mt)
-	case ErrorMessage:
-		readErr(t, resp)
-	case AddROSpecResponse:
-		var roRsp addROSpecResponse
-		if err := roRsp.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := roRsp.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		} else {
-			t.Logf("%+v", roRsp)
-		}
-
-		if r, err := json.MarshalIndent(roRsp, "", "\t"); err != nil {
-			t.Error(err)
-		} else {
-			t.Log(string(r))
-		}
-	}
-
-	enableSpec, err := (&enableROSpec{ROSpecID: 1}).MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	mt, resp, err = r.SendMessage(ctx, EnableROSpec, enableSpec)
-	cancel()
-	if err != nil {
+	if err := r.sendFor(ctx, out, in); err != nil {
 		t.Error(err)
 	}
 
-	switch mt {
-	default:
-		t.Errorf("expected %v; got %v", EnableROSpecResponse, mt)
-	case ErrorMessage:
-		readErr(t, resp)
-	case EnableROSpecResponse:
-		enableRsp := enableROSpecResponse{}
-		if err := enableRsp.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := enableRsp.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		}
-	}
+	prettyPrint(t, in)
+}
 
-	time.Sleep(10 * time.Second)
+func closeConn(t *testing.T, r *Reader) {
+	t.Helper()
 
-	disableRO(t, r)
-	deleteRO(t, r)
-
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
 		t.Errorf("%+v", err)
 		if err := r.Close(); err != nil {
 			t.Errorf("%+v", err)
-		}
-	}
-
-	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
-			t.Errorf("%+v", err)
-		}
-	}
-}
-
-func enableAccSpec(t *testing.T, r *Reader) {
-	t.Helper()
-
-	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
-	if err != nil {
-		t.Error(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	switch mt {
-	default:
-		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
-	case ErrorMessage:
-		readErr(t, resp)
-	case DisableROSpecResponse:
-		disableRsp := disableROSpecResponse{}
-		if err := disableRsp.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := disableRsp.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		}
-	}
-}
-
-func disableRO(t *testing.T, r *Reader) {
-	t.Helper()
-
-	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
-	if err != nil {
-		t.Error(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	switch mt {
-	default:
-		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
-	case ErrorMessage:
-		readErr(t, resp)
-	case DisableROSpecResponse:
-		disableRsp := disableROSpecResponse{}
-		if err := disableRsp.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := disableRsp.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		}
-	}
-}
-
-func deleteRO(t *testing.T, r *Reader) {
-	t.Helper()
-
-	deleteSpec, err := (&deleteROSpec{ROSpecID: 1}).MarshalBinary()
-	if err != nil {
-		t.Error(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	mt, resp, err := r.SendMessage(ctx, DeleteROSpec, deleteSpec)
-
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	switch mt {
-	default:
-		t.Errorf("expected %v; got %v", DeleteROSpecResponse, mt)
-	case ErrorMessage:
-		readErr(t, resp)
-	case DeleteROSpecResponse:
-		rsp := deleteROSpecResponse{}
-		if err := rsp.UnmarshalBinary(resp); err != nil {
-			t.Errorf("%+v", err)
-			t.Logf("%# 02x", resp)
-		} else if err := rsp.LLRPStatus.Err(); err != nil {
-			t.Error(err)
-		}
-	}
-}
-
-func readErr(t *testing.T, resp []byte) {
-	t.Helper()
-	errMsg := &errorMessage{}
-	if err := errMsg.UnmarshalBinary(resp); err != nil {
-		t.Error(err)
-		t.Logf("%# 02x", resp)
-	} else if err := errMsg.LLRPStatus.Err(); err != nil {
-		t.Logf("%+v", errMsg)
-		t.Error(err)
-	} else {
-		if r, err := json.MarshalIndent(errMsg, "", "\t"); err != nil {
-			t.Error(err)
-		} else {
-			t.Log(string(r))
 		}
 	}
 }

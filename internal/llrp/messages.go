@@ -9,6 +9,8 @@ package llrp
 
 import (
 	"bytes"
+	"context"
+	"encoding"
 	"encoding/binary"
 	"fmt"
 	"github.com/pkg/errors"
@@ -315,4 +317,252 @@ func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 // msgErr returns a new error for LLRP message issues.
 func msgErr(why string, v ...interface{}) error {
 	return errors.Errorf("invalid LLRP message: "+why, v...)
+}
+
+func (m Message) CheckErr() error {
+	var statusUnmarshaler interface {
+		encoding.BinaryUnmarshaler
+		Status() llrpStatus
+	}
+
+	switch m.typ {
+	default:
+		return nil
+	case ErrorMessage:
+		statusUnmarshaler = &errorMessage{}
+	case GetSupportedVersionResponse:
+		statusUnmarshaler = &getSupportedVersionResponse{}
+	}
+
+	data, err := m.data()
+	if err != nil {
+		return err
+	}
+
+	if err := statusUnmarshaler.UnmarshalBinary(data); err != nil {
+		return errors.Wrapf(err, "failed to unmarshal %v", m)
+	}
+
+	status := statusUnmarshaler.Status()
+	return status.Err()
+}
+
+func (m *errorMessage) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *getSupportedVersionResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *setProtocolVersionResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *getReaderCapabilitiesResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *addROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *deleteROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *startROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *stopROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *enableROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *disableROSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *getROSpecsResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *addAccessSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *deleteAccessSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *disableAccessSpecResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *getAccessSpecsResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *setReaderConfigResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m *closeConnectionResponse) Status() llrpStatus {
+	return m.LLRPStatus
+}
+
+func (m Message) data() ([]byte, error) {
+	if m.payload == nil {
+		return nil, nil
+	}
+
+	if b, ok := m.payload.(interface{ Bytes() []byte }); ok {
+		return b.Bytes(), nil
+	}
+
+	if m.payloadLen > maxBufferedPayloadSz {
+		return nil, errors.Errorf("message payload exceeds buffer limit: %d > %d",
+			m.payloadLen, maxBufferedPayloadSz)
+	}
+
+	data := make([]byte, m.payloadLen)
+	if _, err := io.ReadFull(m.payload, data); err != nil {
+		return nil, errors.Wrapf(err, "failed to read data for %v", m)
+	}
+
+	return data, nil
+}
+
+func (m Message) Unmarshal(v encoding.BinaryUnmarshaler) error {
+	data, err := m.data()
+	if err != nil {
+		return err
+	}
+
+	return v.UnmarshalBinary(data)
+}
+
+type statusable interface {
+	Status() llrpStatus
+}
+
+type incoming interface {
+	encoding.BinaryUnmarshaler
+	Type() MessageType
+}
+
+type outgoing interface {
+	encoding.BinaryMarshaler
+	Type() MessageType
+}
+
+func (*addROSpec) Type() MessageType {
+	return AddROSpec
+}
+
+func (*enableROSpec) Type() MessageType {
+	return EnableROSpec
+}
+
+func (*disableROSpec) Type() MessageType {
+	return DisableROSpec
+}
+
+func (*deleteROSpec) Type() MessageType {
+	return DeleteROSpec
+}
+
+func (*stopROSpec) Type() MessageType {
+	return StopROSpec
+}
+
+func (*addROSpecResponse) Type() MessageType {
+	return AddROSpecResponse
+}
+
+func (*enableROSpecResponse) Type() MessageType {
+	return EnableROSpecResponse
+}
+
+func (*disableROSpecResponse) Type() MessageType {
+	return DisableROSpecResponse
+}
+
+func (*deleteROSpecResponse) Type() MessageType {
+	return DeleteROSpecResponse
+}
+
+func (*stopROSpecResponse) Type() MessageType {
+	return StopROSpecResponse
+}
+
+func (*getReaderConfigResponse) Type() MessageType {
+	return GetReaderConfigResponse
+}
+
+func (*getReaderConfig) Type() MessageType {
+	return GetReaderConfig
+}
+
+func (r *Reader) sendFor(ctx context.Context, out outgoing, in incoming) error {
+	outData, err := out.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	respT, respV, err := r.SendMessage(ctx, out.Type(), outData)
+
+	if err != nil {
+		return err
+	}
+
+	expT := in.Type()
+	switch respT {
+	case expT:
+	default:
+		return errors.Errorf("expected message response %v, but got %v", expT, respT)
+	}
+
+	if err := in.UnmarshalBinary(respV); err != nil {
+		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
+			respT, respV, in)
+	}
+
+	if st, ok := in.(statusable); ok {
+		s := st.Status()
+		return s.Err()
+	}
+
+	return nil
+}
+
+// NewROSpec returns a valid, basic ROSpec parameter.
+func NewROSpec() *roSpec {
+	return &roSpec{
+		ROSpecID:           1,
+		Priority:           0,
+		ROSpecCurrentState: ROSpecStateDisabled,
+		ROBoundarySpec: roBoundarySpec{
+			ROSpecStartTrigger: roSpecStartTrigger{
+				ROSpecStartTriggerType: ROStartTriggerImmediate,
+			},
+			ROSpecStopTrigger: roSpecStopTrigger{
+				ROSpecStopTriggerType: ROStopTriggerNone,
+			},
+		},
+		AISpecs: []aiSpec{{
+			AntennaIDs: []antennaID{0},
+			AISpecStopTrigger: aiSpecStopTrigger{
+				AISpecStopTriggerType: AIStopTriggerNone,
+			},
+			InventoryParameterSpecs: []inventoryParameterSpec{{
+				InventoryParameterSpecID: 1,
+				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
+			}},
+		}},
+	}
 }
