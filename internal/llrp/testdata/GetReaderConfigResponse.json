@@ -9,7 +9,7 @@
 		"IDType": 0,
 		"ReaderID": "ABYl//8RJdY="
 	},
-	"AntennaProperties": [
+	"AntennaPropertiess": [
 		{
 			"AntennaConnected": true,
 			"AntennaID": 1,
@@ -31,7 +31,7 @@
 			"AntennaGain": 0
 		}
 	],
-	"AntennaConfiguration": [
+	"AntennaConfigurations": [
 		{
 			"AntennaID": 1,
 			"RFReceiver": 1,
@@ -40,10 +40,10 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommand": [
+			"C1G2InventoryCommands": [
 				{
 					"C1G2InventoryCommandFlags": 0,
-					"C1G2Filter": null,
+					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
 						"Tari": 0
@@ -67,10 +67,10 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommand": [
+			"C1G2InventoryCommands": [
 				{
 					"C1G2InventoryCommandFlags": 0,
-					"C1G2Filter": null,
+					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
 						"Tari": 0
@@ -94,10 +94,10 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommand": [
+			"C1G2InventoryCommands": [
 				{
 					"C1G2InventoryCommandFlags": 0,
-					"C1G2Filter": null,
+					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
 						"Tari": 0
@@ -121,10 +121,10 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommand": [
+			"C1G2InventoryCommands": [
 				{
 					"C1G2InventoryCommandFlags": 0,
-					"C1G2Filter": null,
+					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
 						"Tari": 0
@@ -142,7 +142,7 @@
 		}
 	],
 	"ReaderEventNotificationSpec": {
-		"EventNotificationState": [
+		"EventNotificationStates": [
 			{
 				"ReaderEventType": 0,
 				"NotificationEnabled": false
@@ -195,18 +195,18 @@
 			"EnableLastSeenTimestamp": false,
 			"EnableTagSeenCount": false,
 			"EnableAccessSpecID": false,
-			"C1G2EPCMemorySelector": "AA==",
+			"C1G2EPCMemorySelectors": "AA==",
 			"Custom": null
 		},
 		"Custom": null
 	},
 	"AccessReportSpec": 1,
-	"LLRPConfigurationStateValue": 2091054395,
+	"LLRPConfigurationStateValue": 667274216,
 	"KeepAliveSpec": {
 		"KeepAliveTriggerType": 0,
 		"Interval": 0
 	},
-	"GPIPortCurrentState": [
+	"GPIPortCurrentStates": [
 		{
 			"GPIPort": 1,
 			"GPIPortEnabled": false,
@@ -228,7 +228,7 @@
 			"GPIState": 0
 		}
 	],
-	"GPOWriteData": [
+	"GPOWriteDatas": [
 		{
 			"GPOPort": 1,
 			"GPOData": false

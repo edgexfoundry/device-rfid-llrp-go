@@ -387,10 +387,10 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 // Once a message header is written,
 // length bytes must also be written to the stream,
 // or the connection will be in an invalid state and should be closed.
-func (r *Reader) writeHeader(h header) error {
-	header := make([]byte, headerSz)
+func (r *Reader) writeHeader(h Header) error {
+	header := make([]byte, HeaderSz)
 	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
-	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+headerSz)
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
 	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
 	_, err := r.conn.Write(header)
 	return errors.Wrapf(err, "failed to write header")
@@ -404,7 +404,7 @@ func (r *Reader) writeHeader(h header) error {
 // If the Reader has a timeout, this will set the read deadline before reading.
 // This method blocks until it reads enough bytes to fill the header buffer
 // unless the underlying connection is closed or times out.
-func (r *Reader) readHeader() (mh header, err error) {
+func (r *Reader) readHeader() (mh Header, err error) {
 	if r.timeout > 0 {
 		if err = r.conn.SetReadDeadline(time.Now().Add(r.timeout)); err != nil {
 			err = errors.Wrap(err, "failed to set read deadline")
@@ -412,7 +412,7 @@ func (r *Reader) readHeader() (mh header, err error) {
 		}
 	}
 
-	buf := make([]byte, headerSz)
+	buf := make([]byte, HeaderSz)
 	if _, err = io.ReadFull(r.conn, buf); err != nil {
 		err = errors.Wrap(err, "failed to read header")
 		return
@@ -432,7 +432,7 @@ func (r *Reader) nextMessage() (Message, error) {
 		return Message{}, err
 	}
 	p := io.LimitReader(r.conn, int64(hdr.payloadLen))
-	return Message{header: hdr, payload: p}, nil
+	return Message{Header: hdr, payload: p}, nil
 }
 
 // handleIncoming handles the read side of the connection.
@@ -523,13 +523,13 @@ func (r *Reader) handleOutgoing() error {
 		case <-r.done:
 			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 		case mid := <-r.ackQueue:
-			msg = Message{header: header{id: mid, typ: KeepAliveAck}}
+			msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 			case mid := <-r.ackQueue:
-				msg = Message{header: header{id: mid, typ: KeepAliveAck}}
+				msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -579,7 +579,7 @@ func (r *Reader) handleOutgoing() error {
 		}
 
 		r.logger.Printf("<<< %v", msg)
-		if err := r.writeHeader(msg.header); err != nil {
+		if err := r.writeHeader(msg.Header); err != nil {
 			return err
 		}
 
