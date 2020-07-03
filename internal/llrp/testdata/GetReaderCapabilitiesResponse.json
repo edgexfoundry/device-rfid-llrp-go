@@ -221,7 +221,7 @@
 		"CountryCode": 840,
 		"CommunicationsStandard": 1,
 		"UHFBandCapabilities": {
-			"TransmitPowerLevelTableEntry": [
+			"TransmitPowerLevelTableEntrys": [
 				{
 					"Index": 1,
 					"TransmitPowerValue": 1000
@@ -547,10 +547,10 @@
 					"TransmitPowerValue": 3000
 				}
 			],
-			"FrequencyInformation": [
+			"FrequencyInformations": [
 				{
 					"HoppingFlags": 128,
-					"FrequencyHopTable": [
+					"FrequencyHopTables": [
 						{
 							"HopTableID": 1,
 							"Frequencies": [
@@ -610,9 +610,9 @@
 					"FixedFrequencyTable": null
 				}
 			],
-			"UHFC1G2RFModeTable": [
+			"UHFC1G2RFModeTables": [
 				{
-					"UHFC1G2RFModeTableEntry": [
+					"UHFC1G2RFModeTableEntrys": [
 						{
 							"ModeID": 0,
 							"UHFC1G2RFModeFlags": 128,
