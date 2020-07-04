@@ -1890,6 +1890,12 @@ messages:
         optional: true
         repeatable: true
   - name: AddROSpec
+    description: |-
+      AddROSpec adds an Reader Operation Specification.
+
+      ROSpecs must be added in the Disabled state,
+      and it's up to the client to set the ROSpecID.
+      That ID is used to reference the spec in other messages.
     type_id: 20
     parameters:
       - type: ROSpec
@@ -1919,6 +1925,9 @@ messages:
     parameters:
       - type: LLRPStatus
   - name: StopROSpec
+    description: |-
+      StopROSpec stops a spec if it's currently executing,
+      overriding all other priorities and moving it to Inactive.
     type_id: 23
     fields:
       - name: ROSpecID
@@ -1929,6 +1938,14 @@ messages:
     parameters:
       - type: LLRPStatus
   - name: EnableROSpec
+    description: |-
+      EnableROSpec moves and ROSpec from Disabled to Inactive.
+
+      The SpecID may be 0, in which case all ROSpecs will be enabled.
+      If the ROSpec has an Immediate start trigger,
+      enabling it will also activate it,
+      provided no other necessary prevent it from starting
+      (e.g., its priority is lower than another enabled spec).
     type_id: 24
     fields:
       - name: ROSpecID

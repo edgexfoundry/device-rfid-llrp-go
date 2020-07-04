@@ -15,6 +15,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -26,6 +28,7 @@ import (
 // if using Goland, put that in the 'program arguments' part of the test config
 var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables functional tests")
 var update = flag.Bool("update", false, "rather than testing, record messages to the testdata directory")
+var roDirectory = flag.String("ro-access-dir", "roAccessReports", "subdirectory of testdata for storing RO Access Reports")
 
 func TestReaderFunctional(t *testing.T) {
 	addr := *readerAddr
@@ -34,9 +37,18 @@ func TestReaderFunctional(t *testing.T) {
 	}
 
 	if *update {
-		if err := collectData(); err != nil && !errors.Is(err, ErrReaderClosed) {
+		if err := os.MkdirAll("testdata", 0755); err != nil {
 			t.Fatal(err)
 		}
+
+		t.Run("collectData", func(t *testing.T) {
+			if err := collectData(); err != nil && !errors.Is(err, ErrReaderClosed) {
+				t.Fatal(err)
+			}
+		})
+
+		t.Run("addROSpec", testGatherTagReads)
+
 		t.Skip("collected data instead of running tests")
 		return
 	}
@@ -150,12 +162,13 @@ func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, re
 		return errors.Errorf("expected %v; got %v", expR, mt)
 	}
 
-	return writeCapture(0, result, resultT, resultValue)
+	return writeCapture("testdata", 0, result, resultT, resultValue)
 }
 
-func writeCapture(idx uint32, result []byte, typ MessageType, decoder encoding.BinaryUnmarshaler) error {
-	bfn := fmt.Sprintf("testdata/%v-%03d.bytes", typ, idx)
-	jfn := fmt.Sprintf("testdata/%v-%03d.json", typ, idx)
+func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decoder encoding.BinaryUnmarshaler) error {
+	baseName := fmt.Sprintf("%v-%03d", typ, idx)
+	bfn := filepath.Join(dir, baseName+".bytes")
+	jfn := filepath.Join(dir, baseName+".json")
 
 	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
 		return err
@@ -362,18 +375,23 @@ func testGatherTagReads(t *testing.T) {
 	}
 
 	if *update {
+		dir := filepath.Join("testdata", *roDirectory)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
 		var i uint32
+
 		opts = append(opts, WithMessageHandler(ROAccessReport, messageHandlerFunc(
 			func(r *Reader, msg Message) {
-				atomic.AddUint32(&i, 1)
-
 				data, err := msg.data()
 				if err != nil {
 					ec.addErr(err)
 					return
 				}
 
-				ec.addErr(writeCapture(i, data, ROAccessReport, &roAccessReport{}))
+				atomic.AddUint32(&i, 1)
+				ec.addErr(writeCapture(dir, i, data, ROAccessReport, &roAccessReport{}))
 			})))
 	}
 

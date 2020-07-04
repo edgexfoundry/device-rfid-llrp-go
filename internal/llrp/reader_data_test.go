@@ -10,13 +10,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
 
 func TestReader_withRecordedData(t *testing.T) {
-	files, err := ioutil.ReadDir("testdata")
+	testRecordedData(t, "testdata")
+	if *roDirectory != "" {
+		testRecordedData(t, filepath.Join("testdata", *roDirectory))
+	}
+}
+
+func testRecordedData(t *testing.T, dir string) {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,12 +34,13 @@ func TestReader_withRecordedData(t *testing.T) {
 			continue
 		}
 
-		msg := f.Name()[:len(f.Name())-len(".json")]
-		t.Run(msg, compareMessages(msg))
+		prefix := f.Name()[:len(f.Name())-len(".json")]
+		msg := strings.SplitN(f.Name(), "-", 2)[0]
+		t.Run(prefix, compareMessages(msg, filepath.Join(dir, prefix)))
 	}
 }
 
-func compareMessages(msgName string) func(t *testing.T) {
+func compareMessages(msgName, prefix string) func(t *testing.T) {
 	type binRoundTrip interface {
 		UnmarshalBinary(data []byte) error
 		MarshalBinary() ([]byte, error)
@@ -48,6 +57,8 @@ func compareMessages(msgName string) func(t *testing.T) {
 		v = &getROSpecsResponse{}
 	case CloseConnectionResponse.String():
 		v = &closeConnectionResponse{}
+	case ROAccessReport.String():
+		v = &roAccessReport{}
 	}
 
 	// This tests the following two conversions using data captured from a reader:
@@ -58,22 +69,22 @@ func compareMessages(msgName string) func(t *testing.T) {
 			t.Fatalf("unknown message type: %s", msgName)
 		}
 
-		var jsonData, byteData, marshaledBin, marshaledJSON []byte
+		var originalJSON, originalBin, marshaledBin, marshaledJSON []byte
 		var err error
 
 		// load data files
-		jsonData, err = ioutil.ReadFile("testdata/" + msgName + ".json")
+		originalJSON, err = ioutil.ReadFile(prefix + ".json")
 		if err != nil {
 			t.Fatalf("can't read .json file: %v", err)
 		}
 
-		byteData, err = ioutil.ReadFile("testdata/" + msgName + ".bytes")
+		originalBin, err = ioutil.ReadFile(prefix + ".bytes")
 		if err != nil {
 			t.Fatalf("can't read .bytes file: %v", err)
 		}
 
 		// unmarshal original JSON form
-		if err = json.Unmarshal(jsonData, v); err != nil {
+		if err = json.Unmarshal(originalJSON, v); err != nil {
 			t.Fatal(err)
 		}
 
@@ -83,7 +94,7 @@ func compareMessages(msgName string) func(t *testing.T) {
 		}
 
 		// confirm binary matches original
-		checkBytesEq(t, byteData, marshaledBin)
+		checkBytesEq(t, originalBin, marshaledBin)
 
 		// get a new v (so we're not duplicating list items)
 		v = reflect.New(reflect.TypeOf(v).Elem()).Interface().(binRoundTrip)
@@ -100,7 +111,7 @@ func compareMessages(msgName string) func(t *testing.T) {
 		}
 
 		// confirm JSON data matches original
-		if !checkJSONEq(t, jsonData, marshaledJSON) {
+		if !checkJSONEq(t, originalJSON, marshaledJSON) {
 			t.Logf("%s", marshaledJSON)
 		}
 	}
@@ -179,19 +190,19 @@ func checkJSONEq(t *testing.T, jsonData, marshaled []byte) (matched bool) {
 	return
 }
 
-func checkBytesEq(t *testing.T, b1, b2 []byte) (matched bool) {
+func checkBytesEq(t *testing.T, original, marshaled []byte) (matched bool) {
 	t.Helper()
 
-	matched = len(b1) == len(b2)
-	smaller := len(b2)
-	if len(b1) < len(b2) {
-		smaller = len(b1)
+	matched = len(original) == len(marshaled)
+	smaller := len(marshaled)
+	if len(original) < len(marshaled) {
+		smaller = len(original)
 		matched = false
 	}
 
 	firstDiff := 0
 	for ; firstDiff < smaller; firstDiff++ {
-		if b1[firstDiff] != b2[firstDiff] {
+		if original[firstDiff] != marshaled[firstDiff] {
 			matched = false
 			break
 		}
@@ -207,16 +218,17 @@ func checkBytesEq(t *testing.T, b1, b2 []byte) (matched bool) {
 	}
 
 	end := start + 8
-	if end > len(b1)-1 {
-		end = len(b1) - 1
+	if end > len(original)-1 {
+		end = len(original) - 1
 	}
 
-	if end > len(b2)-1 {
-		end = len(b2) - 1
+	if end > len(marshaled)-1 {
+		end = len(marshaled) - 1
 	}
 
 	t.Errorf("byte data mismatched starting at byte %d; surrounding bytes:\n"+
-		"%# 02x\n"+
-		"%# 02x", firstDiff, b1[start:end], b2[start:end])
+		" original: %# 02x\n"+
+		"marshaled: %# 02x",
+		firstDiff, original[start:end], marshaled[start:end])
 	return
 }
