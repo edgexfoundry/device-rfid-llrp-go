@@ -6,15 +6,15 @@
 				"EPC": null
 			},
 			"EPC96": {
-				"EPC": "MBQwpVwKxAAAAAAA"
+				"EPC": "MBQwpVwKxAAAAAAF"
 			},
 			"ROSpecID": null,
 			"SpecIndex": null,
 			"InventoryParameterSpecID": null,
 			"AntennaID": 1,
-			"PeakRSSI": -69,
+			"PeakRSSI": -66,
 			"ChannelIndex": null,
-			"FirstSeenUTC": 1593818664380617,
+			"FirstSeenUTC": 1593818664406067,
 			"FirstSeenUptime": null,
 			"LastSeenUTC": null,
 			"LastSeenUptime": null,
