@@ -1762,47 +1762,43 @@ def main():
     import subprocess
 
     parser = argparse.ArgumentParser(
-        description='A python script to read a YAML description '
+        description='This is a python script to read a YAML description '
                     'of binary LLRP messages to generate Go code '
-                    'to convert them into JSON'
+                    'that converts them to and from JSON.'
     )
-    parser.add_argument('-i', '--input', help='input file (default: STDIN)',
+    parser.add_argument('-i', '--input', help='input YAML file (default: STDIN)',
                         type=argparse.FileType('r'), default=sys.stdin)
 
-    parser.add_argument('-u', '--unmarshal-file', default='-',
-                        help='output file for unmarshaling code (by default, "-" for STDOUT)')
-    parser.add_argument('-m', '--marshal-file', default='-',
-                        help='output file for marshaling code (by default, "-" for STDOUT)')
-    parser.add_argument('-e', '--encode-file', default='-',
-                        help='output file for encoder code (by default, "-" for STDOUT)')
-    parser.add_argument('-t', '--test-file', default='-',
-                        help='output file for test code (by default, "-" for STDOUT)')
+    def add_out_file(kind: str):
+        parser.add_argument(
+            f'-{kind[0]}',
+            f'--{kind}-file',
+            default='-',
+            help=f'output file for {kind} code (default: STDOUT)')
 
-    parser.add_argument('--unmarshal', default=True, action='store_true',
-                        help='write unmarshaling code')
-    parser.add_argument('--marshal', default=True, action='store_true',
-                        help='write marshaling code')
-    parser.add_argument('--encode', default=True, action='store_true',
-                        help='write encoding code')
-    parser.add_argument('--test', default=True, action='store_true',
-                        help='write testing code')
+    add_out_file('unmarshal')
+    add_out_file('marshal')
+    add_out_file('encode')
+    add_out_file('test')
 
-    parser.add_argument('--no-unmarshal', dest='unmarshal', action='store_false',
-                        help='skip writing unmarshaling code')
-    parser.add_argument('--no-marshal', dest='marshal', action='store_false',
-                        help='skip writing encoder code')
-    parser.add_argument('--no-encode', dest='encode', action='store_false',
-                        help='skip writing testing code')
-    parser.add_argument('--no-test', dest='test', action='store_false',
-                        help='skip writing testing code')
+    def add_flag(name: str, help: str):
+        parser.add_argument(
+            f'--{name}', default=True, action='store_true',
+            help=f'{help} (default true)')
+        parser.add_argument(
+            f'--no-{name}', dest=name, action='store_false',
+            help=f"don't {help}")
 
-    parser.add_argument('--gofmt', default=True, action='store_true',
-                        help='pipe output through gofmt')
-    parser.add_argument('--no-gofmt', dest='gofmt', action='store_false',
-                        help='skip piping output through gofmt')
+    add_flag('unmarshal', 'write unmarshaling code')
+    add_flag('marshal', 'write marshaling code')
+    add_flag('encode', 'write encoder code')
+    add_flag('test', 'write test code')
+    add_flag('gofmt', 'pipe output through gofmt')
 
-    parser.add_argument('--parameter', help='output only specific parameters',
-                        action='append')
+    parser.add_argument(
+        '--parameter',
+        help='output only specific parameters (repeatable)',
+        action='append')
 
     args = parser.parse_args()
 
