@@ -180,9 +180,9 @@ type MessageHandler interface {
 	handleMessage(r *Reader, msg Message)
 }
 
-type messageHandlerFunc func(r *Reader, msg Message)
+type MessageHandlerFunc func(r *Reader, msg Message)
 
-func (mhf messageHandlerFunc) handleMessage(r *Reader, msg Message) {
+func (mhf MessageHandlerFunc) handleMessage(r *Reader, msg Message) {
 	mhf(r, msg)
 }
 
@@ -344,7 +344,7 @@ func (r *Reader) Close() error {
 	}
 }
 
-const maxBufferedPayloadSz = uint32((1 << 10) * 640)
+const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
@@ -647,9 +647,17 @@ func (r *Reader) passToHandler(hdr Header) error {
 	}
 
 	payload := io.LimitReader(r.conn, int64(hdr.payloadLen))
+	defer func() {
+		_, err := io.Copy(ioutil.Discard, payload)
+		if err != nil {
+			r.logger.Printf("failed to discard remaining payload: %+v", err)
+		}
+	}()
+
 	if needsReply {
 		// TODO: this is mostly tech-debt from an earlier implementation
-		if hdr.payloadLen > maxBufferedPayloadSz {
+		//   needs some refactoring
+		if hdr.payloadLen > MaxBufferedPayloadSz {
 			// SendMessage will reject it
 			replyChan <- Message{Header: hdr}
 		} else {
@@ -659,8 +667,8 @@ func (r *Reader) passToHandler(hdr Header) error {
 				return nil
 			}
 
-			payload = bytes.NewReader(buffResponse) // replace the now-read payload
-			replyChan <- Message{Header: hdr, payload: bytes.NewReader(buffResponse)}
+			payload = bytes.NewBuffer(buffResponse) // replace the now-read payload
+			replyChan <- Message{Header: hdr, payload: bytes.NewBuffer(buffResponse)}
 		}
 
 		close(replyChan)

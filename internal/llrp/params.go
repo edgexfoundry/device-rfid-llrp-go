@@ -319,13 +319,13 @@ func (pe *parameterError) Error() string {
 	return msg
 }
 
-// statusError wraps an llrpStatus to implement the error interface.
+// StatusError wraps an llrpStatus to implement the error interface.
 // This is used separately from a regular llrpStatus
 // because the latter can also represent success.
-type statusError llrpStatus
+type StatusError llrpStatus
 
 // Error implements the error interface for a statusError.
-func (se *statusError) Error() string {
+func (se *StatusError) Error() string {
 	msg := se.Status.defaultText()
 	if se.ErrorDescription != "" {
 		msg += ": " + se.ErrorDescription
@@ -353,7 +353,7 @@ func (ls *llrpStatus) Err() error {
 		return nil
 	}
 
-	return (*statusError)(ls)
+	return (*StatusError)(ls)
 }
 
 func (ren *readerEventNotification) isConnectSuccess() bool {

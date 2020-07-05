@@ -382,7 +382,7 @@ func testGatherTagReads(t *testing.T) {
 
 		var i uint32
 
-		opts = append(opts, WithMessageHandler(ROAccessReport, messageHandlerFunc(
+		opts = append(opts, WithMessageHandler(ROAccessReport, MessageHandlerFunc(
 			func(r *Reader, msg Message) {
 				data, err := msg.data()
 				if err != nil {
@@ -462,7 +462,7 @@ func (teh *errorCollector) checkErrs(t *testing.T) {
 
 	for _, err := range teh.errors {
 		if !teh.reportVersionUnsupported {
-			se := &statusError{}
+			se := &StatusError{}
 			if errors.As(err, &se) && se.Status == StatusMsgVerUnsupported {
 				continue
 			}
@@ -496,14 +496,14 @@ func prettyPrint(t *testing.T, v interface{}) {
 	}
 }
 
-func sendAndCheck(t *testing.T, r *Reader, out outgoing, in incoming) {
+func sendAndCheck(t *testing.T, r *Reader, out Outgoing, in Incoming) {
 	t.Helper()
 	prettyPrint(t, out)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := r.sendFor(ctx, out, in); err != nil {
+	if err := r.SendFor(ctx, out, in); err != nil {
 		t.Error(err)
 	}
 

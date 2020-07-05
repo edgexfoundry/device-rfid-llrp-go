@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
+	"time"
 )
 
 // MessageType corresponds to the LLRP binary encoding for message headers.
@@ -319,34 +320,175 @@ func msgErr(why string, v ...interface{}) error {
 	return errors.Errorf("invalid LLRP message: "+why, v...)
 }
 
-func (m Message) CheckErr() error {
-	var statusUnmarshaler interface {
-		encoding.BinaryUnmarshaler
-		Status() llrpStatus
+type byteProvider interface {
+	Bytes() []byte
+}
+
+// data buffers and returns the Message payload data.
+//
+// If the Message is not yet buffered, it is read from the underlying connection.
+// This can fail for all the usual reasons, as well as
+// if the header's payload length field indicates the message exceeds
+// the MaxBufferedPayloadSz, which is an arbitrary, compile-time constant.
+// In practice, however, few messages are likely to reach this size,
+// and its more likely an indication of a bug.
+//
+// If the Message is already buffered, it returns a slice that aliases the data:
+// that is, modifications to the returned buffer are visible to all readers.
+// If the caller wishes to modify the data, they should make a local copy.
+func (m *Message) data() ([]byte, error) {
+	if m.payload == nil {
+		return nil, nil
 	}
 
-	switch m.typ {
-	default:
-		return nil
-	case ErrorMessage:
-		statusUnmarshaler = &errorMessage{}
-	case GetSupportedVersionResponse:
-		statusUnmarshaler = &getSupportedVersionResponse{}
+	if b, ok := m.payload.(byteProvider); ok {
+		return b.Bytes(), nil
 	}
 
+	if m.payloadLen > MaxBufferedPayloadSz {
+		return nil, errors.Errorf("message payload exceeds buffer limit: %d > %d",
+			m.payloadLen, MaxBufferedPayloadSz)
+	}
+
+	data := make([]byte, m.payloadLen)
+	if _, err := io.ReadFull(m.payload, data); err != nil {
+		return nil, errors.Wrapf(err, "failed to read data for %v", m)
+	}
+
+	m.payload = bytes.NewBuffer(data)
+	return data, nil
+}
+
+func (m Message) Unmarshal(v encoding.BinaryUnmarshaler) error {
 	data, err := m.data()
 	if err != nil {
 		return err
 	}
 
-	if err := statusUnmarshaler.UnmarshalBinary(data); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal %v", m)
-	}
-
-	status := statusUnmarshaler.Status()
-	return status.Err()
+	return v.UnmarshalBinary(data)
 }
 
+type statusable interface {
+	Status() llrpStatus
+}
+
+type Incoming interface {
+	encoding.BinaryUnmarshaler
+	Type() MessageType
+}
+
+type Outgoing interface {
+	encoding.BinaryMarshaler
+	Type() MessageType
+}
+
+type Responder interface {
+	Response() Incoming
+}
+
+type Request interface {
+	Outgoing
+	Responder
+}
+
+func (r *Reader) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
+	outData, err := out.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	respT, respV, err := r.SendMessage(ctx, out.Type(), outData)
+
+	if err != nil {
+		return err
+	}
+
+	expT := in.Type()
+	switch respT {
+	case expT:
+	default:
+		return errors.Errorf("expected message response %v, but got %v", expT, respT)
+	}
+
+	if err := in.UnmarshalBinary(respV); err != nil {
+		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
+			respT, respV, in)
+	}
+
+	if st, ok := in.(statusable); ok {
+		s := st.Status()
+		return s.Err()
+	}
+
+	return nil
+}
+
+func NewErrorMessage() *errorMessage {
+	return &errorMessage{}
+}
+
+type ReaderOpSpec = *roSpec
+
+// NewROSpec returns a valid, basic ROSpec parameter.
+func NewROSpec() ReaderOpSpec {
+	return &roSpec{
+		ROSpecID:           1,
+		Priority:           0,
+		ROSpecCurrentState: ROSpecStateDisabled,
+		ROBoundarySpec: roBoundarySpec{
+			ROSpecStartTrigger: roSpecStartTrigger{
+				ROSpecStartTriggerType: ROStartTriggerImmediate,
+			},
+			ROSpecStopTrigger: roSpecStopTrigger{
+				ROSpecStopTriggerType: ROStopTriggerNone,
+			},
+		},
+		AISpecs: []aiSpec{{
+			AntennaIDs: []antennaID{0},
+			AISpecStopTrigger: aiSpecStopTrigger{
+				AISpecStopTriggerType: AIStopTriggerNone,
+			},
+			InventoryParameterSpecs: []inventoryParameterSpec{{
+				InventoryParameterSpecID: 1,
+				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
+			}},
+		}},
+	}
+}
+
+func NewAccessReport() *roAccessReport {
+	return &roAccessReport{}
+}
+
+func (ros *roSpec) SetPeriodic(period time.Duration) {
+	ros.ROBoundarySpec.ROSpecStopTrigger = roSpecStopTrigger{
+		ROSpecStopTriggerType: ROStopTriggerDuration,
+		DurationTriggerValue:  milliSecs32(period.Milliseconds()),
+	}
+
+	if ros.ROReportSpec == nil {
+		ros.ROReportSpec = &roReportSpec{}
+	}
+
+	ros.ROReportSpec.ROReportTriggerType = ROReportTriggerType(2)
+	ros.ROReportSpec.N = 0
+	ros.ROReportSpec.TagReportContentSelector = tagReportContentSelector{
+		EnableROSpecID:             false,
+		EnableSpecIndex:            false,
+		EnableInventoryParamSpecID: false,
+		EnableAntennaID:            false,
+		EnableChannelIndex:         false,
+		EnablePeakRSSI:             true,
+		EnableFirstSeenTimestamp:   false,
+		EnableLastSeenTimestamp:    false,
+		EnableTagSeenCount:         false,
+		EnableAccessSpecID:         false,
+		C1G2EPCMemorySelectors:     nil,
+		Custom:                     nil,
+	}
+}
+
+// TODO: generate this code
 func (m *errorMessage) Status() llrpStatus {
 	return m.LLRPStatus
 }
@@ -415,51 +557,6 @@ func (m *closeConnectionResponse) Status() llrpStatus {
 	return m.LLRPStatus
 }
 
-func (m Message) data() ([]byte, error) {
-	if m.payload == nil {
-		return nil, nil
-	}
-
-	if b, ok := m.payload.(interface{ Bytes() []byte }); ok {
-		return b.Bytes(), nil
-	}
-
-	if m.payloadLen > maxBufferedPayloadSz {
-		return nil, errors.Errorf("message payload exceeds buffer limit: %d > %d",
-			m.payloadLen, maxBufferedPayloadSz)
-	}
-
-	data := make([]byte, m.payloadLen)
-	if _, err := io.ReadFull(m.payload, data); err != nil {
-		return nil, errors.Wrapf(err, "failed to read data for %v", m)
-	}
-
-	return data, nil
-}
-
-func (m Message) Unmarshal(v encoding.BinaryUnmarshaler) error {
-	data, err := m.data()
-	if err != nil {
-		return err
-	}
-
-	return v.UnmarshalBinary(data)
-}
-
-type statusable interface {
-	Status() llrpStatus
-}
-
-type incoming interface {
-	encoding.BinaryUnmarshaler
-	Type() MessageType
-}
-
-type outgoing interface {
-	encoding.BinaryMarshaler
-	Type() MessageType
-}
-
 func (*addROSpec) Type() MessageType {
 	return AddROSpec
 }
@@ -508,61 +605,34 @@ func (*getReaderConfig) Type() MessageType {
 	return GetReaderConfig
 }
 
-func (r *Reader) sendFor(ctx context.Context, out outgoing, in incoming) error {
-	outData, err := out.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	respT, respV, err := r.SendMessage(ctx, out.Type(), outData)
-
-	if err != nil {
-		return err
-	}
-
-	expT := in.Type()
-	switch respT {
-	case expT:
-	default:
-		return errors.Errorf("expected message response %v, but got %v", expT, respT)
-	}
-
-	if err := in.UnmarshalBinary(respV); err != nil {
-		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
-			respT, respV, in)
-	}
-
-	if st, ok := in.(statusable); ok {
-		s := st.Status()
-		return s.Err()
-	}
-
-	return nil
+func (ros *roSpec) Add() *addROSpec {
+	return &addROSpec{ROSpec: *ros}
 }
 
-// NewROSpec returns a valid, basic ROSpec parameter.
-func NewROSpec() *roSpec {
-	return &roSpec{
-		ROSpecID:           1,
-		Priority:           0,
-		ROSpecCurrentState: ROSpecStateDisabled,
-		ROBoundarySpec: roBoundarySpec{
-			ROSpecStartTrigger: roSpecStartTrigger{
-				ROSpecStartTriggerType: ROStartTriggerImmediate,
-			},
-			ROSpecStopTrigger: roSpecStopTrigger{
-				ROSpecStopTriggerType: ROStopTriggerNone,
-			},
-		},
-		AISpecs: []aiSpec{{
-			AntennaIDs: []antennaID{0},
-			AISpecStopTrigger: aiSpecStopTrigger{
-				AISpecStopTriggerType: AIStopTriggerNone,
-			},
-			InventoryParameterSpecs: []inventoryParameterSpec{{
-				InventoryParameterSpecID: 1,
-				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
-			}},
-		}},
-	}
+func (ros *roSpec) Enable() *enableROSpec {
+	return &enableROSpec{ROSpecID: ros.ROSpecID}
+}
+
+func (ros *roSpec) Disable() *disableROSpec {
+	return &disableROSpec{ROSpecID: ros.ROSpecID}
+}
+
+func (ros *roSpec) Delete() *deleteROSpec {
+	return &deleteROSpec{ROSpecID: ros.ROSpecID}
+}
+
+func (*deleteROSpec) Response() Incoming {
+	return &deleteROSpecResponse{}
+}
+
+func (*enableROSpec) Response() Incoming {
+	return &enableROSpecResponse{}
+}
+
+func (*addROSpec) Response() Incoming {
+	return &addROSpecResponse{}
+}
+
+func (*disableROSpec) Response() Incoming {
+	return &disableROSpecResponse{}
 }
