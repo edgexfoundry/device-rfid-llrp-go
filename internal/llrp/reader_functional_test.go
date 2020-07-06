@@ -12,12 +12,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/pkg/errors"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -53,12 +51,21 @@ func TestReaderFunctional(t *testing.T) {
 		return
 	}
 
-	t.Run("hangup", testHangUp)
-	t.Run("addROSpec", testGatherTagReads)
-
-	for i := 0; i < 1; i++ {
-		t.Run("connect "+strconv.Itoa(i), testConnect)
+	for _, testConfig := range []struct {
+		req Request
+	}{
+		{&getReaderConfig{}},
+		{&getReaderCapabilities{}},
+		{&getROSpecs{}},
+	} {
+		t.Run(testConfig.req.Type().String(), func(t *testing.T) {
+			r, cleanup := getFunctionalReader(t)
+			defer cleanup()
+			sendAndCheck(t, r, testConfig.req)
+		})
 	}
+
+	t.Run("addROSpec", testGatherTagReads)
 }
 
 // collectData populates the testdata directory for use in future tests.
@@ -206,18 +213,6 @@ func BenchmarkReaderFunctional(b *testing.B) {
 	b.Run("Send", benchmarkSend)
 }
 
-func testHangUp(t *testing.T) {
-	conn, err := net.Dial("tcp", *readerAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b := [HeaderSz]byte{}
-	if _, err := io.ReadFull(conn, b[:]); err != nil {
-		t.Error(err)
-	}
-	conn.Close()
-}
-
 func benchmarkSend(b *testing.B) {
 	conn, err := net.Dial("tcp", *readerAddr)
 
@@ -332,34 +327,20 @@ func benchmarkConnect(b *testing.B) {
 	}
 }
 
-func testConnect(t *testing.T) {
-	conn, err := net.Dial("tcp", *readerAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+func testGatherTagReads(t *testing.T) {
+	r, cleanup := getFunctionalReader(t)
+	defer cleanup()
 
-	r, err := NewReader(WithConn(conn), WithTimeout(120*time.Second), WithLogger(testingLogger{T: t}))
-	if err != nil {
-		t.Fatal(err)
-	}
+	spec := NewROSpec()
 
-	connErrs := make(chan error, 1)
-	go func() {
-		defer close(connErrs)
-		connErrs <- r.Connect()
-	}()
-
-	sendAndCheck(t, r, &getReaderConfig{}, &getReaderConfigResponse{})
-	closeConn(t, r)
-
-	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
-			t.Errorf("%+v", err)
-		}
-	}
+	sendAndCheck(t, r, &addROSpec{*spec})
+	sendAndCheck(t, r, &enableROSpec{ROSpecID: spec.ROSpecID})
+	time.Sleep(10 * time.Second)
+	sendAndCheck(t, r, &disableROSpec{ROSpecID: spec.ROSpecID})
+	sendAndCheck(t, r, &deleteROSpec{ROSpecID: spec.ROSpecID})
 }
 
-func testGatherTagReads(t *testing.T) {
+func getFunctionalReader(t *testing.T) (r *Reader, cleanup func()) {
 	conn, err := net.Dial("tcp", *readerAddr)
 	if err != nil {
 		t.Fatal(err)
@@ -395,29 +376,16 @@ func testGatherTagReads(t *testing.T) {
 			})))
 	}
 
-	r, err := NewReader(opts...)
-	if err != nil {
+	if r, err = NewReader(opts...); err != nil {
 		t.Fatal(err)
 	}
 
-	go func() {
-		ec.addErr(r.Connect())
-	}()
+	go func() { ec.addErr(r.Connect()) }()
 
-	spec := NewROSpec()
-
-	sendAndCheck(t, r, &addROSpec{*spec}, &addROSpecResponse{})
-	sendAndCheck(t, r, &enableROSpec{ROSpecID: spec.ROSpecID}, &enableROSpecResponse{})
-
-	// give it some time to send messages
-	time.Sleep(10 * time.Second)
-
-	sendAndCheck(t, r, &disableROSpec{ROSpecID: spec.ROSpecID}, &disableROSpecResponse{})
-	sendAndCheck(t, r, &deleteROSpec{ROSpecID: spec.ROSpecID}, &deleteROSpecResponse{})
-
-	closeConn(t, r)
-
-	ec.checkErrs(t)
+	return r, func() {
+		closeConn(t, r)
+		ec.checkErrs(t)
+	}
 }
 
 type testingLogger struct {
@@ -496,13 +464,14 @@ func prettyPrint(t *testing.T, v interface{}) {
 	}
 }
 
-func sendAndCheck(t *testing.T, r *Reader, out Outgoing, in Incoming) {
+func sendAndCheck(t *testing.T, r *Reader, out Request) {
 	t.Helper()
 	prettyPrint(t, out)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	in := out.Response()
 	if err := r.SendFor(ctx, out, in); err != nil {
 		t.Error(err)
 	}

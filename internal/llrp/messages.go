@@ -102,6 +102,7 @@ func (mt MessageType) responseType() (MessageType, bool) {
 	return t, ok
 }
 
+// messageID is just a uint32, but aliased to make its purpose clear
 type messageID uint32
 
 type awaitMap = map[messageID]chan<- Message
@@ -467,25 +468,26 @@ func (ros *roSpec) SetPeriodic(period time.Duration) {
 	}
 
 	if ros.ROReportSpec == nil {
-		ros.ROReportSpec = &roReportSpec{}
+		ros.ROReportSpec = &roReportSpec{
+			TagReportContentSelector: tagReportContentSelector{
+				EnableROSpecID:             false,
+				EnableSpecIndex:            false,
+				EnableInventoryParamSpecID: false,
+				EnableAntennaID:            false,
+				EnableChannelIndex:         false,
+				EnablePeakRSSI:             true,
+				EnableFirstSeenTimestamp:   false,
+				EnableLastSeenTimestamp:    false,
+				EnableTagSeenCount:         false,
+				EnableAccessSpecID:         false,
+				C1G2EPCMemorySelectors:     nil,
+				Custom:                     nil,
+			},
+		}
 	}
 
 	ros.ROReportSpec.ROReportTriggerType = ROReportTriggerType(2)
 	ros.ROReportSpec.N = 0
-	ros.ROReportSpec.TagReportContentSelector = tagReportContentSelector{
-		EnableROSpecID:             false,
-		EnableSpecIndex:            false,
-		EnableInventoryParamSpecID: false,
-		EnableAntennaID:            false,
-		EnableChannelIndex:         false,
-		EnablePeakRSSI:             true,
-		EnableFirstSeenTimestamp:   false,
-		EnableLastSeenTimestamp:    false,
-		EnableTagSeenCount:         false,
-		EnableAccessSpecID:         false,
-		C1G2EPCMemorySelectors:     nil,
-		Custom:                     nil,
-	}
 }
 
 // TODO: generate this code
@@ -635,4 +637,32 @@ func (*addROSpec) Response() Incoming {
 
 func (*disableROSpec) Response() Incoming {
 	return &disableROSpecResponse{}
+}
+
+func (*getReaderConfig) Response() Incoming {
+	return &getReaderConfigResponse{}
+}
+
+func (*getReaderCapabilities) Response() Incoming {
+	return &getReaderCapabilitiesResponse{}
+}
+
+func (*getReaderCapabilities) Type() MessageType {
+	return GetReaderCapabilities
+}
+
+func (*getReaderCapabilitiesResponse) Type() MessageType {
+	return GetReaderCapabilitiesResponse
+}
+
+func (*getROSpecs) Type() MessageType {
+	return GetROSpecs
+}
+
+func (*getROSpecsResponse) Type() MessageType {
+	return GetROSpecsResponse
+}
+
+func (*getROSpecs) Response() Incoming {
+	return &getROSpecsResponse{}
 }

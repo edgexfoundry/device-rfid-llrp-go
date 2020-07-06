@@ -150,6 +150,10 @@ parameters:
       - type: MaximumReceiveSensitivity
         optional: true
         version: 2
+        description: |-
+          MaximumReceiveSensitivity is the maximum receive sensitivity
+          supported by the Reader. It's required if the Reader allows
+          receive sensitivity control, but otherwise optional.
   - name: ReceiveSensitivityTableEntry
     type_id: 139
     fields:
@@ -259,7 +263,39 @@ parameters:
         type: uint16
       - name: ReceiveSensitivityIndexMax
         type: uint16
+
   - name: ROSpec
+    description: |-
+      ROSpec is a Reader Operation Specification.
+
+      An ROSpec describes the operations executed at one or more antennas,
+      specified one or more AISpecs, RFSurveySpecs, or CustomSpecs.
+      Specs are executed in the order in which they appear,
+      and reports reference the relevant spec via a 1-indexed SpecIndex.
+      Not all devices support RFSurveySpecs.
+      LoopSpecs are only supported with LLRP version 1.1.
+
+      The RFID device picks which ROSpec to execute
+      based on a number of conditions (described below).
+      When it does so, the ROSpec transitions from Inactive to Active,
+      and the device may send an event notification (if configured to do so).
+      While Active, if the ROSpec's reporting conditions are satisfied,
+      the device sends ROAccessReports, which contain TagReportData
+      matching either the device's configured defaults report information,
+      or the TagReportContentSelector if the RO defines an ROReportSpec.
+
+      The client defines an ROSpec via the AddROSpec Message.
+      They must define the spec in the Disabled state,
+      with an ROSpecID >0, or the device must reject it.
+      Once defined, the client uses the ROSpecID to modify its state,
+      and the device may include the ROSpecID in reports that reference it.
+      Other relevant messages for controlling ROSpecs:
+          - Enable ROSpec
+          - Disable ROSpec
+          - Start ROSpec
+          - Stop ROSpec
+          - Delete ROSpec
+          - Get ROSpecs
     type_id: 177
     fields:
       - name: ROSpecID
@@ -286,6 +322,7 @@ parameters:
         optional: true
       - type: ROReportSpec
         optional: true
+
   - name: ROBoundarySpec
     type_id: 178
     parameters:
@@ -334,6 +371,18 @@ parameters:
         optional: true
   - name: AISpec
     type_id: 183
+    description: |-
+      AISpec defines antenna inventory operations,
+      which LLRP defines as "the smallest unit of interaction
+      between a Reader and tags in the antenna's field-of-view."
+
+      An AISpec gives a list of InventoryParameterSpecs,
+      which define how the RFID device should singulate tags.
+      It combines this with an stop trigger and list of antennas.
+      Each inventory spec is executed for each antenna,
+      and the stop condition applies to the aggregate of these AI operations.
+      The device chooses the order in which the operations are executed,
+      regardless of the order presented.
     fields:
       - name: AntennaIDs
         # type: '[]uint16'
@@ -1308,6 +1357,7 @@ parameters:
         type: '[]uint16'
         description: PermalockStatuses of each block requested.
   - name: MaximumReceiveSensitivity
+    version: 2
     type_id: 363
     fields:
       - name: MaxSensitivity
@@ -1578,6 +1628,7 @@ types:
   - name: AISpecStopTriggerType
     storage: uint8
     kind: enum
+    description: AISpecStopTriggerType specifies when an Antenna Operation should terminate.
     prefix: AIStopTrigger
     values:
       - None
