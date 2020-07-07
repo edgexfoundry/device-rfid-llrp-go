@@ -336,13 +336,13 @@ type Outgoing interface {
 	Type() MessageType
 }
 
-func (r *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
+func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	outData, err := out.MarshalBinary()
 	if err != nil {
 		return err
 	}
 
-	respT, respV, err := r.SendMessage(ctx, out.Type(), outData)
+	respT, respV, err := c.SendMessage(ctx, out.Type(), outData)
 
 	if err != nil {
 		return err

@@ -113,8 +113,8 @@ func (d *Driver) Stop(force bool) error {
 	}
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
-	for _, r := range d.clients {
-		go r.Close() // best effort
+	for _, c := range d.clients {
+		go c.Close() // best effort
 	}
 	d.clients = make(map[string]*llrp.Client)
 	return nil

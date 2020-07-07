@@ -465,28 +465,28 @@ func prettyPrint(t *testing.T, v interface{}) {
 	}
 }
 
-func sendAndCheck(t *testing.T, r *Client, out Outgoing, in Incoming) {
+func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 	t.Helper()
 	prettyPrint(t, out)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := r.SendFor(ctx, out, in); err != nil {
+	if err := c.SendFor(ctx, out, in); err != nil {
 		t.Error(err)
 	}
 
 	prettyPrint(t, in)
 }
 
-func closeConn(t *testing.T, r *Client) {
+func closeConn(t *testing.T, c *Client) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := r.Shutdown(ctx); err != nil {
+	if err := c.Shutdown(ctx); err != nil {
 		t.Errorf("%+v", err)
-		if err := r.Close(); err != nil {
+		if err := c.Close(); err != nil {
 			t.Errorf("%+v", err)
 		}
 	}
