@@ -193,8 +193,8 @@ func probe(ip string, port string) error {
 	err = h.UnmarshalBinary(buf)
 	log.Debugf("connection header: %+v", h)
 
-	if h.Type() != llrp.ReaderEventNotification {
-		return errors.Errorf("expected %v, got %v", llrp.ReaderEventNotification, h.Type())
+	if h.Type() != llrp.MsgReaderEventNotification {
+		return errors.Errorf("expected %v, got %v", llrp.MsgReaderEventNotification, h.Type())
 	}
 
 	driver.lc.Info("Reader successfully discovered @ " + addr)
