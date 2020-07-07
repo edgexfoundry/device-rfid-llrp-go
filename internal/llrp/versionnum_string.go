@@ -32,109 +32,109 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[GetReaderCapabilities-1]
-	_ = x[GetReaderConfig-2]
-	_ = x[SetReaderConfig-3]
-	_ = x[CloseConnectionResponse-4]
-	_ = x[GetReaderCapabilitiesResponse-11]
-	_ = x[GetReaderConfigResponse-12]
-	_ = x[SetReaderConfigResponse-13]
-	_ = x[CloseConnection-14]
-	_ = x[AddROSpec-20]
-	_ = x[DeleteROSpec-21]
-	_ = x[StartROSpec-22]
-	_ = x[StopROSpec-23]
-	_ = x[EnableROSpec-24]
-	_ = x[DisableROSpec-25]
-	_ = x[GetROSpecs-26]
-	_ = x[AddROSpecResponse-30]
-	_ = x[DeleteROSpecResponse-31]
-	_ = x[StartROSpecResponse-32]
-	_ = x[StopROSpecResponse-33]
-	_ = x[EnableROSpecResponse-34]
-	_ = x[DisableROSpecResponse-35]
-	_ = x[GetROSpecsResponse-36]
-	_ = x[AddAccessSpec-40]
-	_ = x[DeleteAccessSpec-41]
-	_ = x[EnableAccessSpec-42]
-	_ = x[DisableAccessSpec-43]
-	_ = x[GetAccessSpecs-44]
-	_ = x[ClientRequestOp-45]
-	_ = x[GetSupportedVersion-46]
-	_ = x[SetProtocolVersion-47]
-	_ = x[AddAccessSpecResponse-50]
-	_ = x[DeleteAccessSpecResponse-51]
-	_ = x[EnableAccessSpecResponse-52]
-	_ = x[DisableAccessSpecResponse-53]
-	_ = x[GetAccessSpecsResponse-54]
-	_ = x[ClientRequestOpResponse-55]
-	_ = x[GetSupportedVersionResponse-56]
-	_ = x[SetProtocolVersionResponse-57]
-	_ = x[GetReport-60]
-	_ = x[ROAccessReport-61]
-	_ = x[KeepAlive-62]
-	_ = x[ReaderEventNotification-63]
-	_ = x[EnableEventsAndReports-64]
-	_ = x[KeepAliveAck-72]
-	_ = x[ErrorMessage-100]
-	_ = x[CustomMessage-1023]
+	_ = x[MsgGetSupportedVersion-46]
+	_ = x[MsgGetSupportedVersionResponse-56]
+	_ = x[MsgSetProtocolVersion-47]
+	_ = x[MsgSetProtocolVersionResponse-57]
+	_ = x[MsgGetReaderCapabilities-1]
+	_ = x[MsgGetReaderCapabilitiesResponse-11]
+	_ = x[MsgAddROSpec-20]
+	_ = x[MsgAddROSpecResponse-30]
+	_ = x[MsgDeleteROSpec-21]
+	_ = x[MsgDeleteROSpecResponse-31]
+	_ = x[MsgStartROSpec-22]
+	_ = x[MsgStartROSpecResponse-32]
+	_ = x[MsgStopROSpec-23]
+	_ = x[MsgStopROSpecResponse-33]
+	_ = x[MsgEnableROSpec-24]
+	_ = x[MsgEnableROSpecResponse-34]
+	_ = x[MsgDisableROSpec-25]
+	_ = x[MsgDisableROSpecResponse-35]
+	_ = x[MsgGetROSpecs-26]
+	_ = x[MsgGetROSpecsResponse-36]
+	_ = x[MsgAddAccessSpec-40]
+	_ = x[MsgAddAccessSpecResponse-50]
+	_ = x[MsgDeleteAccessSpec-41]
+	_ = x[MsgDeleteAccessSpecResponse-51]
+	_ = x[MsgEnableAccessSpec-42]
+	_ = x[MsgEnableAccessSpecResponse-52]
+	_ = x[MsgDisableAccessSpec-43]
+	_ = x[MsgDisableAccessSpecResponse-53]
+	_ = x[MsgGetAccessSpecs-44]
+	_ = x[MsgGetAccessSpecsResponse-54]
+	_ = x[MsgClientRequestOp-45]
+	_ = x[MsgClientRequestOpResponse-55]
+	_ = x[MsgGetReport-60]
+	_ = x[MsgROAccessReport-61]
+	_ = x[MsgKeepAlive-62]
+	_ = x[MsgKeepAliveAck-72]
+	_ = x[MsgReaderEventNotification-63]
+	_ = x[MsgEnableEventsAndReports-64]
+	_ = x[MsgErrorMessage-100]
+	_ = x[MsgGetReaderConfig-2]
+	_ = x[MsgGetReaderConfigResponse-12]
+	_ = x[MsgSetReaderConfig-3]
+	_ = x[MsgSetReaderConfigResponse-13]
+	_ = x[MsgCloseConnection-14]
+	_ = x[MsgCloseConnectionResponse-4]
+	_ = x[MsgCustomMessage-1023]
 	_ = x[msgResvStart-900]
 	_ = x[msgResvEnd-999]
 	_ = x[msgTypeInvalid-0]
 }
 
-const _MessageType_name = "msgTypeInvalidGetReaderCapabilitiesGetReaderConfigSetReaderConfigCloseConnectionResponseGetReaderCapabilitiesResponseGetReaderConfigResponseSetReaderConfigResponseCloseConnectionAddROSpecDeleteROSpecStartROSpecStopROSpecEnableROSpecDisableROSpecGetROSpecsAddROSpecResponseDeleteROSpecResponseStartROSpecResponseStopROSpecResponseEnableROSpecResponseDisableROSpecResponseGetROSpecsResponseAddAccessSpecDeleteAccessSpecEnableAccessSpecDisableAccessSpecGetAccessSpecsClientRequestOpGetSupportedVersionSetProtocolVersionAddAccessSpecResponseDeleteAccessSpecResponseEnableAccessSpecResponseDisableAccessSpecResponseGetAccessSpecsResponseClientRequestOpResponseGetSupportedVersionResponseSetProtocolVersionResponseGetReportROAccessReportKeepAliveReaderEventNotificationEnableEventsAndReportsKeepAliveAckErrorMessagemsgResvStartmsgResvEndCustomMessage"
+const _MessageType_name = "msgTypeInvalidMsgGetReaderCapabilitiesMsgGetReaderConfigMsgSetReaderConfigMsgCloseConnectionResponseMsgGetReaderCapabilitiesResponseMsgGetReaderConfigResponseMsgSetReaderConfigResponseMsgCloseConnectionMsgAddROSpecMsgDeleteROSpecMsgStartROSpecMsgStopROSpecMsgEnableROSpecMsgDisableROSpecMsgGetROSpecsMsgAddROSpecResponseMsgDeleteROSpecResponseMsgStartROSpecResponseMsgStopROSpecResponseMsgEnableROSpecResponseMsgDisableROSpecResponseMsgGetROSpecsResponseMsgAddAccessSpecMsgDeleteAccessSpecMsgEnableAccessSpecMsgDisableAccessSpecMsgGetAccessSpecsMsgClientRequestOpMsgGetSupportedVersionMsgSetProtocolVersionMsgAddAccessSpecResponseMsgDeleteAccessSpecResponseMsgEnableAccessSpecResponseMsgDisableAccessSpecResponseMsgGetAccessSpecsResponseMsgClientRequestOpResponseMsgGetSupportedVersionResponseMsgSetProtocolVersionResponseMsgGetReportMsgROAccessReportMsgKeepAliveMsgReaderEventNotificationMsgEnableEventsAndReportsMsgKeepAliveAckMsgErrorMessagemsgResvStartmsgResvEndMsgCustomMessage"
 
 var _MessageType_map = map[MessageType]string{
 	0:    _MessageType_name[0:14],
-	1:    _MessageType_name[14:35],
-	2:    _MessageType_name[35:50],
-	3:    _MessageType_name[50:65],
-	4:    _MessageType_name[65:88],
-	11:   _MessageType_name[88:117],
-	12:   _MessageType_name[117:140],
-	13:   _MessageType_name[140:163],
-	14:   _MessageType_name[163:178],
-	20:   _MessageType_name[178:187],
-	21:   _MessageType_name[187:199],
-	22:   _MessageType_name[199:210],
-	23:   _MessageType_name[210:220],
-	24:   _MessageType_name[220:232],
-	25:   _MessageType_name[232:245],
-	26:   _MessageType_name[245:255],
-	30:   _MessageType_name[255:272],
-	31:   _MessageType_name[272:292],
-	32:   _MessageType_name[292:311],
-	33:   _MessageType_name[311:329],
-	34:   _MessageType_name[329:349],
-	35:   _MessageType_name[349:370],
-	36:   _MessageType_name[370:388],
-	40:   _MessageType_name[388:401],
-	41:   _MessageType_name[401:417],
-	42:   _MessageType_name[417:433],
-	43:   _MessageType_name[433:450],
-	44:   _MessageType_name[450:464],
-	45:   _MessageType_name[464:479],
-	46:   _MessageType_name[479:498],
-	47:   _MessageType_name[498:516],
-	50:   _MessageType_name[516:537],
-	51:   _MessageType_name[537:561],
-	52:   _MessageType_name[561:585],
-	53:   _MessageType_name[585:610],
-	54:   _MessageType_name[610:632],
-	55:   _MessageType_name[632:655],
-	56:   _MessageType_name[655:682],
-	57:   _MessageType_name[682:708],
-	60:   _MessageType_name[708:717],
-	61:   _MessageType_name[717:731],
-	62:   _MessageType_name[731:740],
-	63:   _MessageType_name[740:763],
-	64:   _MessageType_name[763:785],
-	72:   _MessageType_name[785:797],
-	100:  _MessageType_name[797:809],
-	900:  _MessageType_name[809:821],
-	999:  _MessageType_name[821:831],
-	1023: _MessageType_name[831:844],
+	1:    _MessageType_name[14:38],
+	2:    _MessageType_name[38:56],
+	3:    _MessageType_name[56:74],
+	4:    _MessageType_name[74:100],
+	11:   _MessageType_name[100:132],
+	12:   _MessageType_name[132:158],
+	13:   _MessageType_name[158:184],
+	14:   _MessageType_name[184:202],
+	20:   _MessageType_name[202:214],
+	21:   _MessageType_name[214:229],
+	22:   _MessageType_name[229:243],
+	23:   _MessageType_name[243:256],
+	24:   _MessageType_name[256:271],
+	25:   _MessageType_name[271:287],
+	26:   _MessageType_name[287:300],
+	30:   _MessageType_name[300:320],
+	31:   _MessageType_name[320:343],
+	32:   _MessageType_name[343:365],
+	33:   _MessageType_name[365:386],
+	34:   _MessageType_name[386:409],
+	35:   _MessageType_name[409:433],
+	36:   _MessageType_name[433:454],
+	40:   _MessageType_name[454:470],
+	41:   _MessageType_name[470:489],
+	42:   _MessageType_name[489:508],
+	43:   _MessageType_name[508:528],
+	44:   _MessageType_name[528:545],
+	45:   _MessageType_name[545:563],
+	46:   _MessageType_name[563:585],
+	47:   _MessageType_name[585:606],
+	50:   _MessageType_name[606:630],
+	51:   _MessageType_name[630:657],
+	52:   _MessageType_name[657:684],
+	53:   _MessageType_name[684:712],
+	54:   _MessageType_name[712:737],
+	55:   _MessageType_name[737:763],
+	56:   _MessageType_name[763:793],
+	57:   _MessageType_name[793:822],
+	60:   _MessageType_name[822:834],
+	61:   _MessageType_name[834:851],
+	62:   _MessageType_name[851:863],
+	63:   _MessageType_name[863:889],
+	64:   _MessageType_name[889:914],
+	72:   _MessageType_name[914:929],
+	100:  _MessageType_name[929:944],
+	900:  _MessageType_name[944:956],
+	999:  _MessageType_name[956:966],
+	1023: _MessageType_name[966:982],
 }
 
 func (i MessageType) String() string {

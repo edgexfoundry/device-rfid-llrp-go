@@ -10,26 +10,18 @@
 // and handles the protocol minutia like Keep-Alive acknowledgements
 // while providing types to facilitate handling messages you care about.
 //
-// A typical use of this package focuses on the Reader connection:
-// - Create a new Reader with connection details and message handlers.
+// A typical use of this package focuses on the Client connection:
+// - Create a new Client with connection details and message handlers.
 // - Establish and maintain an LLRP connection with an RFID device.
 // - Send and receive LLRP messages.
 // - At some point, gracefully close the connection.
 //
-// Some users may find value in the MsgReader and MsgBuilder types,
-// which provide efficient LLRP message translation among binary, Go types, and JSON.
+// The package provides methods that parse and validate
+// LLRP message to translate them among binary, Go types, and JSON.
 //
 // Note that names in LLRP are often verbose and sometimes overloaded.
 // These names have been judiciously translated when appropriate
-// to better match Go idioms and standards,
-// and follow the following conventions for ease of use:
-// - Messages' numeric type values are typed as MessageType
-//   and match their LLRP name, converted from UPPER_SNAKE to PascalCase.
-// - Parameters' numeric type values are typed as ParamType and prefixed with "Param";
-//   they typically match the LLRP name with the "Parameter" suffix omitted.
-// - LLRP Status Codes are typed as StatusCode and prefixed with "Status".
-// - ConnectionAttemptEventParameter's status field is typed as ConnectionStatus
-//   and prefixed with "Conn".
+// to better match Go idioms and standards.
 package llrp
 
 import (
@@ -49,17 +41,17 @@ import (
 	"time"
 )
 
-// Reader represents a connection to an LLRP-compatible RFID reader.
-type Reader struct {
+// Client represents a client connection to an LLRP-compatible RFID reader.
+type Client struct {
 	conn      net.Conn       // underlying network connection
-	done      chan struct{}  // closed when the Reader is closed
+	done      chan struct{}  // closed when the Client is closed
 	ready     chan struct{}  // closed when the connection is negotiated
 	isClosed  uint32         // used atomically to prevent duplicate closure of done
 	sendQueue chan request   // controls write-side of connection
 	ackQueue  chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
 	awaitMu   sync.Mutex     // synchronize awaiting map access
 	awaiting  awaitMap       // message IDs -> awaiting reply
-	logger    ReaderLogger   // reports pressure on the ACK queue
+	logger    ClientLogger   // reports pressure on the ACK queue
 	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
 
 	handlerMu      sync.RWMutex
@@ -74,14 +66,14 @@ const (
 	versionMax = Version1_1   // max version we support
 )
 
-// NewReader returns a Reader configured by the given options.
-func NewReader(opts ...ReaderOpt) (*Reader, error) {
+// NewClient returns a Client configured by the given options.
+func NewClient(opts ...ClientOpt) (*Client, error) {
 	// ackQueueSz is arbitrary, but if it fills,
 	// warnings are logged, as it likely indicates a Write problem.
 	// At some point, we might consider resetting the connection.
 	const ackQueueSz = 5
 
-	r := &Reader{
+	r := &Client{
 		version:   versionMax,
 		done:      make(chan struct{}),
 		ready:     make(chan struct{}),
@@ -101,7 +93,7 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 	}
 
 	if r.conn == nil {
-		return nil, errors.New("Reader has no connection")
+		return nil, errors.New("Client has no connection")
 	}
 
 	if r.version < versionMin || r.version > versionMax {
@@ -115,20 +107,20 @@ func NewReader(opts ...ReaderOpt) (*Reader, error) {
 	return r, nil
 }
 
-// ReaderOpt modifies a Reader during construction.
-type ReaderOpt interface {
-	do(*Reader) error // don't allow arbitrary implementations for now
+// ClientOpt modifies a Client during construction.
+type ClientOpt interface {
+	do(*Client) error // don't allow arbitrary implementations for now
 }
 
-type readerOpt func(r *Reader) error
+type clientOpt func(r *Client) error
 
-func (ro readerOpt) do(r *Reader) error {
+func (ro clientOpt) do(r *Client) error {
 	return ro(r)
 }
 
-// WithConn sets the Reader's connection.
-func WithConn(conn net.Conn) ReaderOpt {
-	return readerOpt(func(r *Reader) error {
+// WithConn sets the Client's connection.
+func WithConn(conn net.Conn) ClientOpt {
+	return clientOpt(func(r *Client) error {
 		r.conn = conn
 		return nil
 	})
@@ -137,11 +129,11 @@ func WithConn(conn net.Conn) ReaderOpt {
 // WithVersion sets the expected LLRP version number.
 // The actual version number used during communication is selected when connecting.
 // Currently, only version 1 is supported; others will panic.
-func WithVersion(v VersionNum) ReaderOpt {
+func WithVersion(v VersionNum) ClientOpt {
 	if v < versionMin || v > versionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
-	return readerOpt(func(r *Reader) error {
+	return clientOpt(func(r *Client) error {
 		r.version = v
 		return nil
 	})
@@ -149,17 +141,17 @@ func WithVersion(v VersionNum) ReaderOpt {
 
 // WithTimeout sets the connection timeout for all reads and writes.
 //
-// If non-zero, the reader will call SetReadDeadline and SetWriteDeadline
+// If non-zero, the client will call SetReadDeadline and SetWriteDeadline
 // before reading or writing respectively.
 //
 // Note that if set, the connection will automatically close
 // if the RFID device fails to send a message within the timeout.
 // As a result, this is most useful when combined with LLRP KeepAlive,
 // and set to an integer multiple of the KeepAlive interval plus a small grace.
-// In that case, the Reader will automatically close the connection
+// In that case, the client will automatically close the connection
 // if it fails to receive KeepAlive messages from the RFID device.
-func WithTimeout(d time.Duration) ReaderOpt {
-	return readerOpt(func(r *Reader) error {
+func WithTimeout(d time.Duration) ClientOpt {
+	return clientOpt(func(r *Client) error {
 		if d < 0 {
 			return errors.Errorf("timeout should be at least 0, but is %v", d)
 		}
@@ -168,21 +160,21 @@ func WithTimeout(d time.Duration) ReaderOpt {
 	})
 }
 
-// WithLogger sets a logger for the Reader.
-func WithLogger(l ReaderLogger) ReaderOpt {
-	return readerOpt(func(r *Reader) error {
+// WithLogger sets a logger for the Client.
+func WithLogger(l ClientLogger) ClientOpt {
+	return clientOpt(func(r *Client) error {
 		r.logger = l
 		return nil
 	})
 }
 
 type MessageHandler interface {
-	handleMessage(r *Reader, msg Message)
+	handleMessage(r *Client, msg Message)
 }
 
-type MessageHandlerFunc func(r *Reader, msg Message)
+type MessageHandlerFunc func(r *Client, msg Message)
 
-func (mhf MessageHandlerFunc) handleMessage(r *Reader, msg Message) {
+func (mhf MessageHandlerFunc) handleMessage(r *Client, msg Message) {
 	mhf(r, msg)
 }
 
@@ -195,7 +187,7 @@ func (mhf MessageHandlerFunc) handleMessage(r *Reader, msg Message) {
 // Setting a handler for the same message more than once
 // will overwrite previously recorded handlers.
 //
-// Readers are created with a handler for KeepAlive (it sends KeepAliveAck).
+// Clients are created with a handler for KeepAlive (it sends KeepAliveAck).
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 //
 // If a the incoming message is a response with a listener awaiting the rely,
@@ -203,12 +195,12 @@ func (mhf MessageHandlerFunc) handleMessage(r *Reader, msg Message) {
 // then dispatched to the handler.
 //
 // Currently, there isn't a way to remove a handler,
-// nor to add them after a Reader is created,
+// nor to add them after a Client is created,
 // though that may change in the future.
 //
 // Adding a nil handler clears it.
-func WithMessageHandler(mt MessageType, handler MessageHandler) ReaderOpt {
-	return readerOpt(func(r *Reader) error {
+func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
+	return clientOpt(func(r *Client) error {
 		if handler == nil {
 			delete(r.handlers, mt)
 		} else {
@@ -225,36 +217,36 @@ func WithMessageHandler(mt MessageType, handler MessageHandler) ReaderOpt {
 // though it may propagate the message to other handlers if desired.
 //
 // It may be set to nil, in which case unhandled messages are simply dropped.
-func WithDefaultHandler(handler MessageHandler) ReaderOpt {
-	return readerOpt(func(r *Reader) error {
+func WithDefaultHandler(handler MessageHandler) ClientOpt {
+	return clientOpt(func(r *Client) error {
 		r.defaultHandler = handler
 		return nil
 	})
 }
 
-// ReaderLogger is used by the Reader to log certain status messages.
-type ReaderLogger interface {
+// ClientLogger is used by the Client to log certain status messages.
+type ClientLogger interface {
 	Println(v ...interface{})
 	Printf(fmt string, v ...interface{})
 }
 
 var (
-	// ErrReaderClosed is returned if an operation is attempted on a closed Reader.
+	// ErrClientClosed is returned if an operation is attempted on a closed Client.
 	// It may be wrapped, so to check for it, use errors.Is.
-	ErrReaderClosed = goErrs.New("reader closed")
+	ErrClientClosed = goErrs.New("client closed")
 )
 
-// Connect to a Reader and start processing messages.
+// Connect to an LLRP-capable device and start processing messages.
 //
 // This takes ownership of the connection,
 // which it assumes is already dialed.
 // It will serve the connection's incoming and outgoing messages
-// until it encounters an error or the Reader is closed.
+// until it encounters an error or the Client is closed.
 // Before returning, it closes the connection.
 //
-// If the Reader is closed, this returns ErrReaderClosed;
+// If the Client is closed, this returns ErrClientClosed;
 // otherwise, it returns the first error it encounters.
-func (r *Reader) Connect() error {
+func (r *Client) Connect() error {
 	defer r.conn.Close()
 	defer r.Close()
 
@@ -278,7 +270,7 @@ func (r *Reader) Connect() error {
 	select {
 	case err = <-errs:
 	case <-r.done:
-		err = ErrReaderClosed
+		err = ErrClientClosed
 	}
 
 	return err
@@ -294,29 +286,28 @@ func (r *Reader) Connect() error {
 //     ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 //	   defer cancel()
 //	   if err := r.Shutdown(ctx); err != nil {
-//	       if err := r.Close(); err != nil && !errors.Is(err, ErrReaderClosed) {
+//	       if err := r.Close(); err != nil && !errors.Is(err, ErrClientClosed) {
 //		       panic(err)
 //         }
-//         panic(err)
 //     }
-func (r *Reader) Shutdown(ctx context.Context) error {
+func (r *Client) Shutdown(ctx context.Context) error {
 	r.logger.Println("putting CloseConnection in send queue")
-	rTyp, resp, err := r.SendMessage(ctx, CloseConnection, nil)
+	rTyp, resp, err := r.SendMessage(ctx, MsgCloseConnection, nil)
 	if err != nil {
 		return err
 	}
 
 	r.logger.Println("handling response to CloseConnection")
 
-	ls := llrpStatus{}
+	ls := LLRPStatus{}
 	switch rTyp {
-	case CloseConnectionResponse:
-		ccr := closeConnectionResponse{}
+	case MsgCloseConnectionResponse:
+		ccr := CloseConnectionResponse{}
 		if err := ccr.UnmarshalBinary(resp); err != nil {
 			return errors.WithMessage(err, "unable to read CloseConnectionResponse")
 		}
 		ls = ccr.LLRPStatus
-	case ErrorMessage:
+	case MsgErrorMessage:
 		if err := ls.UnmarshalBinary(resp); err != nil {
 			return errors.WithMessage(err, "unable to read ErrorMessage response")
 		}
@@ -331,16 +322,16 @@ func (r *Reader) Shutdown(ctx context.Context) error {
 	return r.Close()
 }
 
-// Close closes the Reader immediately.
+// Close closes the Client's connection to the reader immediately.
 //
 // See Shutdown for an attempt to close the connection gracefully.
-// After closing, the Reader can no longer serve connections.
-func (r *Reader) Close() error {
+// After closing, the Client can no longer serve connections.
+func (r *Client) Close() error {
 	if atomic.CompareAndSwapUint32(&r.isClosed, 0, 1) {
 		close(r.done)
 		return nil
 	} else {
-		return errors.Wrap(ErrReaderClosed, "close")
+		return errors.Wrap(ErrClientClosed, "close")
 	}
 }
 
@@ -348,11 +339,11 @@ const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendMessage sends the given data, assuming it matches the type.
 // It returns the response data or an error.
-func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) (MessageType, []byte, error) {
+func (r *Client) SendMessage(ctx context.Context, typ MessageType, data []byte) (MessageType, []byte, error) {
 	select {
 	case <-r.ready: // ensure the connection is negotiated
 	case <-r.done:
-		return 0, nil, errors.Wrap(ErrReaderClosed, "message not sent")
+		return 0, nil, errors.Wrap(ErrClientClosed, "message not sent")
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
 	}
@@ -389,7 +380,7 @@ func (r *Reader) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 // Once a message header is written,
 // length bytes must also be written to the stream,
 // or the connection will be in an invalid state and should be closed.
-func (r *Reader) writeHeader(h Header) error {
+func (r *Client) writeHeader(h Header) error {
 	header := make([]byte, HeaderSz)
 	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
 	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
@@ -403,10 +394,10 @@ func (r *Reader) writeHeader(h Header) error {
 // It assumes that the next bytes on the incoming stream are a header,
 // and that nothing else is attempting to read from the connection.
 //
-// If the Reader has a timeout, this will set the read deadline before reading.
+// If the Client has a timeout, this will set the read deadline before reading.
 // This method blocks until it reads enough bytes to fill the header buffer
 // unless the underlying connection is closed or times out.
-func (r *Reader) readHeader() (mh Header, err error) {
+func (r *Client) readHeader() (mh Header, err error) {
 	if r.timeout > 0 {
 		if err = r.conn.SetReadDeadline(time.Now().Add(r.timeout)); err != nil {
 			err = errors.Wrap(err, "failed to set read deadline")
@@ -425,10 +416,10 @@ func (r *Reader) readHeader() (mh Header, err error) {
 }
 
 // nextMessage is a convenience method to get a message
-// with the payload pointing to the reader's connection.
-// It should only be used by internal clients,
+// with the payload pointing to the client's connection.
+// It should only be used by internal callers,
 // as the current message must be read before continuing.
-func (r *Reader) nextMessage() (Message, error) {
+func (r *Client) nextMessage() (Message, error) {
 	hdr, err := r.readHeader()
 	if err != nil {
 		return Message{}, err
@@ -440,13 +431,13 @@ func (r *Reader) nextMessage() (Message, error) {
 // handleIncoming handles the read side of the connection.
 //
 // If it encounters an error, it stops and returns it.
-// Otherwise, it serves messages until the Reader is closed,
-// at which point it and all future calls return ErrReaderClosed.
+// Otherwise, it serves messages until the Client is closed,
+// at which point it and all future calls return ErrClientClosed.
 //
 // If this function sees a CloseConnectionResponse,
 // it will attempt to continue reading from the connection,
 // but if reading a header results in EOF and no data,
-// it will return ErrReaderClosed.
+// it will return ErrClientClosed.
 //
 // Responses to requests are streamed to their sender.
 // See send for information about sending messages/receiving responses.
@@ -454,12 +445,12 @@ func (r *Reader) nextMessage() (Message, error) {
 // KeepAlive messages are acknowledged automatically as soon as possible.
 //
 // todo: handle asynchronous reports
-func (r *Reader) handleIncoming() error {
+func (r *Client) handleIncoming() error {
 	receivedClosed := false
 	for {
 		select {
 		case <-r.done:
-			return errors.Wrap(ErrReaderClosed, "stopping incoming")
+			return errors.Wrap(ErrClientClosed, "stopping incoming")
 		default:
 		}
 
@@ -476,12 +467,12 @@ func (r *Reader) handleIncoming() error {
 
 			r.logger.Println("detected EOF/io.Timeout after CloseConnection; waiting for reader to close")
 			<-r.done
-			return errors.Wrap(ErrReaderClosed, "client connection closed")
+			return errors.Wrap(ErrClientClosed, "client connection closed")
 		}
 
 		r.logger.Printf(">>> message{%v}", hdr)
 
-		if hdr.typ == CloseConnectionResponse {
+		if hdr.typ == MsgCloseConnectionResponse {
 			receivedClosed = true
 		}
 
@@ -508,13 +499,13 @@ func (r *Reader) handleIncoming() error {
 // See send for information about sending a message.
 //
 // If it encounters an error, it stops and returns it.
-// Otherwise, it serves messages until the Reader is closed,
-// at which point it and all future calls return ErrReaderClosed.
+// Otherwise, it serves messages until the Client is closed,
+// at which point it and all future calls return ErrClientClosed.
 // If this see CloseConnection, it stops processing messages.
 //
 // While the connection is open,
 // KeepAliveAck messages are prioritized.
-func (r *Reader) handleOutgoing() error {
+func (r *Client) handleOutgoing() error {
 	var nextMsgID messageID
 
 	for {
@@ -523,15 +514,15 @@ func (r *Reader) handleOutgoing() error {
 
 		select {
 		case <-r.done:
-			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
+			return errors.Wrap(ErrClientClosed, "stopping outgoing")
 		case mid := <-r.ackQueue:
-			msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
+			msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
-				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
+				return errors.Wrap(ErrClientClosed, "stopping outgoing")
 			case mid := <-r.ackQueue:
-				msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
+				msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -567,7 +558,7 @@ func (r *Reader) handleOutgoing() error {
 			}
 		}
 
-		if msg.typ == GetSupportedVersion || msg.typ == SetProtocolVersion {
+		if msg.typ == MsgGetSupportedVersion || msg.typ == MsgSetProtocolVersion {
 			// these messages are required to use version 1.1
 			msg.version = Version1_1
 		} else {
@@ -586,12 +577,12 @@ func (r *Reader) handleOutgoing() error {
 		}
 
 		// stop processing messages
-		if msg.typ == CloseConnection {
+		if msg.typ == MsgCloseConnection {
 			r.logger.Println("CloseConnection sent; waiting for reader to close.")
 			select {
 			case <-r.done:
 			}
-			return errors.Wrap(ErrReaderClosed, "client closed connection")
+			return errors.Wrap(ErrClientClosed, "client closed connection")
 		}
 
 		if msg.payloadLen == 0 {
@@ -610,27 +601,27 @@ func (r *Reader) handleOutgoing() error {
 
 // sendAck acknowledges a KeepAlive message with the given message ID.
 //
-// If the Reader's connection is hung writing for some reason,
+// If the Client's connection is hung writing for some reason,
 // it's possible the acknowledgement queue fills up,
 // in which case it drops the ACK and logs the issue.
-func (r *Reader) sendAck(mid messageID) {
+func (r *Client) sendAck(mid messageID) {
 	select {
 	case r.ackQueue <- mid:
 		r.logger.Println("KeepAlive received.")
 	default:
 		r.logger.Println("Discarding KeepAliveAck as queue is full. " +
-			"This may indicate the Reader's write side is broken " +
+			"This may indicate the Client's write side is broken " +
 			"yet not timing out.")
 	}
 }
 
 type ackHandler struct{}
 
-func (ackHandler) handleMessage(r *Reader, msg Message) {
+func (ackHandler) handleMessage(r *Client, msg Message) {
 	r.sendAck(msg.id)
 }
 
-func (r *Reader) passToHandler(hdr Header) error {
+func (r *Client) passToHandler(hdr Header) io.Writer {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
 	handler := r.handlers[hdr.typ]
@@ -692,7 +683,7 @@ func (r *Reader) passToHandler(hdr Header) error {
 
 type roHandler struct{}
 
-func (roHandler) handleMessage(r *Reader, m Message) {
+func (roHandler) handleMessage(r *Client, m Message) {
 	roar := &roAccessReport{}
 	buff := make([]byte, m.payloadLen)
 	if _, err := io.ReadFull(r.conn, buff); err != nil {
@@ -730,7 +721,7 @@ type sendToken struct {
 }
 
 // send a message as soon as possible and wait for its response.
-// The reader must be connected and serving the incoming/outgoing queues.
+// The client must be connected and serving the incoming/outgoing queues.
 //
 // It is the caller's responsibility to read the data or close the response.
 // If the caller is slow or may panic, it should buffer its data.
@@ -739,8 +730,8 @@ type sendToken struct {
 // likewise, once you receive a response, you must read or close it.
 //
 // If you cancel the context successfully, you'll receive (nil, ctx.Err()).
-// If the reader closes while you're waiting to send or awaiting the reply,
-// you'll receive an error wrapping ErrReaderClosed.
+// If the connection closes while you're waiting to send or awaiting the reply,
+// you'll receive an error wrapping ErrClientClosed.
 //
 // This method is meant primarily as an internal building block
 // (see SendMessage for the primary external API).
@@ -753,17 +744,17 @@ type sendToken struct {
 //
 // If err is non-nil, the response payload is non-nil;
 // however, if payloadLen is zero, it will return EOF immediately.
-func (r *Reader) send(ctx context.Context, m Message) (Message, error) {
+func (r *Client) send(ctx context.Context, m Message) (Message, error) {
 	// The write coordinator sends us a token to read or cancel the reply.
 	// We shouldn't close this channel once the request is accepted.
 	tokenChan := make(chan sendToken, 1)
 	req := request{msg: m, tokenChan: tokenChan}
 
-	// Wait until the message is sent, unless the Reader is closed.
+	// Wait until the message is sent, unless the Client is closed.
 	select {
 	case <-r.done:
 		close(tokenChan)
-		return Message{}, errors.Wrap(ErrReaderClosed, "message not sent")
+		return Message{}, errors.Wrap(ErrClientClosed, "message not sent")
 	case <-ctx.Done():
 		close(tokenChan)
 		return Message{}, ctx.Err()
@@ -777,7 +768,7 @@ func (r *Reader) send(ctx context.Context, m Message) (Message, error) {
 	select {
 	case <-r.done:
 		token.cancel()
-		return Message{}, errors.Wrap(ErrReaderClosed, "message sent, but not awaited")
+		return Message{}, errors.Wrap(ErrClientClosed, "message sent, but not awaited")
 	case <-ctx.Done():
 		token.cancel()
 		return Message{}, ctx.Err()
@@ -786,7 +777,7 @@ func (r *Reader) send(ctx context.Context, m Message) (Message, error) {
 	}
 }
 
-func (r *Reader) checkInitialMessage() error {
+func (r *Client) checkInitialMessage() error {
 	m, err := r.nextMessage()
 	if err != nil {
 		return err
@@ -794,8 +785,8 @@ func (r *Reader) checkInitialMessage() error {
 	defer m.Close()
 
 	r.logger.Printf(">>> (initial) %v", m)
-	if m.typ != ReaderEventNotification {
-		return errors.Errorf("expected %v, but got %v", ReaderEventNotification, m.typ)
+	if m.typ != MsgReaderEventNotification {
+		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, m.typ)
 	}
 
 	buf := make([]byte, m.payloadLen)
@@ -803,7 +794,7 @@ func (r *Reader) checkInitialMessage() error {
 		return errors.Wrap(err, "failed to read message payload")
 	}
 
-	ren := readerEventNotification{}
+	ren := ReaderEventNotification{}
 	if err := ren.UnmarshalBinary(buf); err != nil {
 		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
 	}
@@ -826,8 +817,8 @@ func (r *Reader) checkInitialMessage() error {
 // but this method handles that case and returns a valid SupportedVersion struct.
 // As a result, error is only not nil when network communication or message processing fails;
 // if the error is not nil, the returned struct will indicate the correct version information.
-func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionResponse, error) {
-	resp, err := r.send(ctx, NewHdrOnlyMsg(GetSupportedVersion))
+func (r *Client) getSupportedVersion(ctx context.Context) (*GetSupportedVersionResponse, error) {
+	resp, err := r.send(ctx, NewHdrOnlyMsg(MsgGetSupportedVersion))
 	if err != nil {
 		return nil, err
 	}
@@ -842,7 +833,7 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	}
 
 	// By default, we'll return version 1.0.1.
-	sv := getSupportedVersionResponse{
+	sv := GetSupportedVersionResponse{
 		CurrentVersion:      Version1_0_1,
 		MaxSupportedVersion: Version1_0_1,
 	}
@@ -853,9 +844,9 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	// As a result, we have to check the type to know what parts to decode.
 	switch resp.typ {
 	default:
-		return nil, errors.Errorf("unexpected response to %v: %v", GetSupportedVersion, resp)
-	case ErrorMessage:
-		errMsg := errorMessage{}
+		return nil, errors.Errorf("unexpected response to %v: %v", MsgGetSupportedVersion, resp)
+	case MsgErrorMessage:
+		errMsg := ErrorMessage{}
 		// If the reader only supports v1.0.1, it returns VersionUnsupported.
 		// In that case, we'll drop the error so we can treat all results identically.
 		if err := errMsg.UnmarshalBinary(data); err != nil {
@@ -865,10 +856,10 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 		sv.LLRPStatus = errMsg.LLRPStatus
 
 		if sv.LLRPStatus.Status == StatusMsgVerUnsupported {
-			sv.LLRPStatus = llrpStatus{Status: StatusSuccess}
+			sv.LLRPStatus = LLRPStatus{Status: StatusSuccess}
 		}
 
-	case GetSupportedVersionResponse:
+	case MsgGetSupportedVersionResponse:
 		if err := sv.UnmarshalBinary(data); err != nil {
 			return nil, err
 		}
@@ -879,25 +870,25 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 
 // negotiate LLRP versions with the RFID device.
 //
-// Upon success, this sets the Reader's version to match the negotiated value.
-// The Reader will use the lesser of its configured version and the device's version,
+// Upon success, this sets the Client's version to match the negotiated value.
+// The Client will use the lesser of its configured version and the device's version,
 // or LLRP v1.0.1 if the device does not support version negotiation.
-// By default, newly created Readers use the max version supported by this package.
-func (r *Reader) negotiate() error {
+// By default, newly created Clients use the max version supported by this package.
+func (r *Client) negotiate() error {
 	sv, err := r.getSupportedVersion(context.Background())
 	if err != nil {
 		return err
 	}
 
 	if sv.CurrentVersion == r.version {
-		r.logger.Printf("device version matches Reader: %v", r.version)
+		r.logger.Printf("device version matches Client: %v", r.version)
 		return nil
 	}
 
 	ver := r.version
 	if r.version > sv.MaxSupportedVersion {
 		ver = sv.MaxSupportedVersion
-		r.logger.Printf("downgrading Reader version to match device max: %v", ver)
+		r.logger.Printf("downgrading Client version to match device max: %v", ver)
 		r.version = ver
 
 		// if the device is already using this, no need to set it
@@ -908,7 +899,7 @@ func (r *Reader) negotiate() error {
 
 	r.logger.Printf("requesting device use version %v", ver)
 
-	m, err := NewByteMessage(SetProtocolVersion, []byte{uint8(r.version)})
+	m, err := NewByteMessage(MsgSetProtocolVersion, []byte{uint8(r.version)})
 	if err != nil {
 		return err
 	}
@@ -919,7 +910,7 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.Close()
 
-	if err := resp.isResponseTo(SetProtocolVersion); err != nil {
+	if err := resp.isResponseTo(MsgSetProtocolVersion); err != nil {
 		return err
 	}
 

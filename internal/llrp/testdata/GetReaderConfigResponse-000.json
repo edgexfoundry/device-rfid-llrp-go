@@ -42,7 +42,7 @@
 			},
 			"C1G2InventoryCommands": [
 				{
-					"C1G2InventoryCommandFlags": 0,
+					"TagInventoryStateAware": false,
 					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
@@ -69,7 +69,7 @@
 			},
 			"C1G2InventoryCommands": [
 				{
-					"C1G2InventoryCommandFlags": 0,
+					"TagInventoryStateAware": false,
 					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
@@ -96,7 +96,7 @@
 			},
 			"C1G2InventoryCommands": [
 				{
-					"C1G2InventoryCommandFlags": 0,
+					"TagInventoryStateAware": false,
 					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
@@ -123,7 +123,7 @@
 			},
 			"C1G2InventoryCommands": [
 				{
-					"C1G2InventoryCommandFlags": 0,
+					"TagInventoryStateAware": false,
 					"C1G2Filters": null,
 					"C1G2RFControl": {
 						"IndexIntoUHFC1G2RFModeTable": 1000,
@@ -195,13 +195,19 @@
 			"EnableLastSeenTimestamp": false,
 			"EnableTagSeenCount": false,
 			"EnableAccessSpecID": false,
-			"C1G2EPCMemorySelectors": "AA==",
+			"C1G2EPCMemorySelectors": [
+				{
+					"CRCEnabled": false,
+					"PCBitsEnabled": false,
+					"XPCBitsEnabled": false
+				}
+			],
 			"Custom": null
 		},
 		"Custom": null
 	},
 	"AccessReportSpec": 1,
-	"LLRPConfigurationStateValue": 983142754,
+	"LLRPConfigurationStateValue": 895681436,
 	"KeepAliveSpec": {
 		"KeepAliveTriggerType": 0,
 		"Interval": 0
@@ -228,7 +234,7 @@
 			"GPIState": 0
 		}
 	],
-	"GPOWriteDatas": [
+	"GPOWriteData": [
 		{
 			"GPOPort": 1,
 			"GPOData": false

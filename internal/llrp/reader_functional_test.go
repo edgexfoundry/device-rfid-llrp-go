@@ -28,7 +28,7 @@ var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables f
 var update = flag.Bool("update", false, "rather than testing, record messages to the testdata directory")
 var roDirectory = flag.String("ro-access-dir", "roAccessReports", "subdirectory of testdata for storing RO Access Reports")
 
-func TestReaderFunctional(t *testing.T) {
+func TestClientFunctional(t *testing.T) {
 	addr := *readerAddr
 	if addr == "" {
 		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
@@ -40,7 +40,7 @@ func TestReaderFunctional(t *testing.T) {
 		}
 
 		t.Run("collectData", func(t *testing.T) {
-			if err := collectData(); err != nil && !errors.Is(err, ErrReaderClosed) {
+			if err := collectData(); err != nil && !errors.Is(err, ErrClientClosed) {
 				t.Fatal(err)
 			}
 		})
@@ -59,7 +59,7 @@ func TestReaderFunctional(t *testing.T) {
 		{&getROSpecs{}},
 	} {
 		t.Run(testConfig.req.Type().String(), func(t *testing.T) {
-			r, cleanup := getFunctionalReader(t)
+			r, cleanup := getFunctionalClient(t)
 			defer cleanup()
 			sendAndCheck(t, r, testConfig.req)
 		})
@@ -79,7 +79,7 @@ func collectData() error {
 		return err
 	}
 
-	r, err := NewReader(WithConn(conn))
+	r, err := NewClient(WithConn(conn))
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func collectData() error {
 	}
 
 	if r.version > Version1_0_1 {
-		if err := getAndWrite(r, GetSupportedVersion, nil, &getSupportedVersionResponse{}); err != nil {
+		if err := getAndWrite(r, MsgGetSupportedVersion, nil, &GetSupportedVersionResponse{}); err != nil {
 			return err
 		}
 	}
@@ -109,12 +109,12 @@ func collectData() error {
 		out encoding.BinaryMarshaler
 		in  encoding.BinaryUnmarshaler
 	}{
-		{GetReaderConfig, &getReaderConfig{}, &getReaderConfigResponse{}},
-		{GetReaderCapabilities, &getReaderCapabilities{}, &getReaderCapabilitiesResponse{}},
-		{GetROSpecs, nil, &getROSpecsResponse{}},
-		{GetAccessSpecs, nil, &getAccessSpecsResponse{}},
-		{GetReport, nil, &roAccessReport{}},
-		{CloseConnection, nil, &closeConnectionResponse{}},
+		{MsgGetReaderConfig, &GetReaderConfig{}, &GetReaderConfigResponse{}},
+		{MsgGetReaderCapabilities, &GetReaderCapabilities{}, &GetReaderCapabilitiesResponse{}},
+		{MsgGetROSpecs, nil, &GetROSpecsResponse{}},
+		{MsgGetAccessSpecs, nil, &GetAccessSpecsResponse{}},
+		{MsgGetReport, nil, &ROAccessReport{}},
+		{MsgCloseConnection, nil, &CloseConnectionResponse{}},
 	} {
 		if err := getAndWrite(r, toSend.mt, toSend.out, toSend.in); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -146,7 +146,7 @@ func collectData() error {
 	return <-connErrs
 }
 
-func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
+func getAndWrite(r *Client, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
 	var data []byte
 	if payload != nil {
 		var err error
@@ -173,7 +173,7 @@ func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, re
 }
 
 func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decoder encoding.BinaryUnmarshaler) error {
-	baseName := fmt.Sprintf("%v-%03d", typ, idx)
+	baseName := fmt.Sprintf("%v-%03d", typ.String()[len("Msg"):], idx)
 	bfn := filepath.Join(dir, baseName+".bytes")
 	jfn := filepath.Join(dir, baseName+".json")
 
@@ -197,7 +197,7 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 	return nil
 }
 
-func BenchmarkReaderFunctional(b *testing.B) {
+func BenchmarkClientFunctional(b *testing.B) {
 	addr := *readerAddr
 	if addr == "" {
 		b.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
@@ -225,7 +225,7 @@ func benchmarkSend(b *testing.B) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func benchmarkSend(b *testing.B) {
 	defer func() {
 		_ = r.Close()
 		for err := range connErrs {
-			if !errors.Is(err, ErrReaderClosed) {
+			if !errors.Is(err, ErrClientClosed) {
 				b.Fatalf("%+v", err)
 			}
 		}
@@ -251,9 +251,9 @@ func benchmarkSend(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mt, m, err := r.SendMessage(ctx, GetSupportedVersion, nil)
-		if GetSupportedVersionResponse != mt {
-			b.Errorf("expected %v; got %v", GetSupportedVersionResponse, mt)
+		mt, m, err := r.SendMessage(ctx, MsgGetSupportedVersion, nil)
+		if MsgGetSupportedVersionResponse != mt {
+			b.Errorf("expected %v; got %v", MsgGetSupportedVersionResponse, mt)
 		}
 		if err != nil {
 			b.Fatal(err)
@@ -288,7 +288,7 @@ func benchmarkConnect(b *testing.B) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func benchmarkConnect(b *testing.B) {
 	defer func() {
 		_ = r.Close()
 		for err := range connErrs {
-			if !errors.Is(err, ErrReaderClosed) {
+			if !errors.Is(err, ErrClientClosed) {
 				b.Fatalf("%+v", err)
 			}
 		}
@@ -310,7 +310,7 @@ func benchmarkConnect(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, _, err = r.SendMessage(ctx, GetSupportedVersion, nil)
+	_, _, err = r.SendMessage(ctx, MsgGetSupportedVersion, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -328,7 +328,7 @@ func benchmarkConnect(b *testing.B) {
 }
 
 func testGatherTagReads(t *testing.T) {
-	r, cleanup := getFunctionalReader(t)
+	r, cleanup := getFunctionalClient(t)
 	defer cleanup()
 
 	spec := NewROSpec()
@@ -340,7 +340,7 @@ func testGatherTagReads(t *testing.T) {
 	sendAndCheck(t, r, &deleteROSpec{ROSpecID: spec.ROSpecID})
 }
 
-func getFunctionalReader(t *testing.T) (r *Reader, cleanup func()) {
+func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 	conn, err := net.Dial("tcp", *readerAddr)
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +348,7 @@ func getFunctionalReader(t *testing.T) (r *Reader, cleanup func()) {
 
 	ec := &errorCollector{}
 
-	opts := []ReaderOpt{
+	opts := []ClientOpt{
 		WithConn(conn),
 		WithLogger(testingLogger{T: t}),
 		WithMessageHandler(ErrorMessage, ec),
@@ -364,7 +364,7 @@ func getFunctionalReader(t *testing.T) (r *Reader, cleanup func()) {
 		var i uint32
 
 		opts = append(opts, WithMessageHandler(ROAccessReport, MessageHandlerFunc(
-			func(r *Reader, msg Message) {
+			func(r *Client, msg Message) {
 				data, err := msg.data()
 				if err != nil {
 					ec.addErr(err)
@@ -376,7 +376,7 @@ func getFunctionalReader(t *testing.T) (r *Reader, cleanup func()) {
 			})))
 	}
 
-	if r, err = NewReader(opts...); err != nil {
+	if r, err = NewClient(opts...); err != nil {
 		t.Fatal(err)
 	}
 
@@ -403,13 +403,13 @@ func (tl testingLogger) Printf(format string, v ...interface{}) {
 // errorCollector is a concurrency-safe error collector.
 // By default, its checkErrs method will ignore
 // LLRP's MsgVersionUnsupported (since it's assumed to come from version negotiation)
-// and ErrReaderClosed (since it's assumed to be the normal exit condition).
+// and ErrClientClosed (since it's assumed to be the normal exit condition).
 type errorCollector struct {
 	errors []error
 	mux    sync.Mutex
 
 	// these only apply during checkErrs
-	reportReaderClosed       bool
+	reportClientClosed       bool
 	reportVersionUnsupported bool
 }
 
@@ -436,7 +436,7 @@ func (teh *errorCollector) checkErrs(t *testing.T) {
 			}
 		}
 
-		if !teh.reportReaderClosed && errors.Is(err, ErrReaderClosed) {
+		if !teh.reportClientClosed && errors.Is(err, ErrClientClosed) {
 			continue
 		}
 
@@ -445,7 +445,7 @@ func (teh *errorCollector) checkErrs(t *testing.T) {
 }
 
 // handleMessage can be set as a handler for LLRP ErrorMessages.
-func (teh *errorCollector) handleMessage(_ *Reader, msg Message) {
+func (teh *errorCollector) handleMessage(_ *Client, msg Message) {
 	em := &errorMessage{}
 	if err := msg.Unmarshal(em); err != nil {
 		teh.addErr(err)
@@ -464,7 +464,7 @@ func prettyPrint(t *testing.T, v interface{}) {
 	}
 }
 
-func sendAndCheck(t *testing.T, r *Reader, out Request) {
+func sendAndCheck(t *testing.T, r *Client, out Request) {
 	t.Helper()
 	prettyPrint(t, out)
 
@@ -479,7 +479,7 @@ func sendAndCheck(t *testing.T, r *Reader, out Request) {
 	prettyPrint(t, in)
 }
 
-func closeConn(t *testing.T, r *Reader) {
+func closeConn(t *testing.T, r *Client) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

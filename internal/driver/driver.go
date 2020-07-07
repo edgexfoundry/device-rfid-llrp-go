@@ -31,8 +31,8 @@ type Driver struct {
 	asyncCh  chan<- *dsModels.AsyncValues
 	deviceCh chan<- []dsModels.DiscoveredDevice
 
-	readers     map[string]*llrp.Reader
-	readerMapMu sync.RWMutex
+	clients      map[string]*llrp.Client
+	clientsMapMu sync.RWMutex
 
 	svc ServiceWrapper
 }
@@ -40,7 +40,7 @@ type Driver struct {
 func NewProtocolDriver() dsModels.ProtocolDriver {
 	once.Do(func() {
 		driver = &Driver{
-			readers: make(map[string]*llrp.Reader),
+			clients: make(map[string]*llrp.Client),
 		}
 	})
 	return driver
@@ -82,7 +82,7 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	_, err := d.getReader(devName, p)
+	_, err := d.getClient(devName, p)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +111,12 @@ func (d *Driver) Stop(force bool) error {
 	if d.lc != nil {
 		d.lc.Debug(fmt.Sprintf("LLRP-Driver.Stop called: force=%v", force))
 	}
-	d.readerMapMu.Lock()
-	defer d.readerMapMu.Unlock()
-	for _, r := range d.readers {
+	d.clientsMapMu.Lock()
+	defer d.clientsMapMu.Unlock()
+	for _, r := range d.clients {
 		go r.Close() // best effort
 	}
-	d.readers = make(map[string]*llrp.Reader)
+	d.clients = make(map[string]*llrp.Client)
 	return nil
 }
 
@@ -125,7 +125,7 @@ func (d *Driver) Stop(force bool) error {
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
-	_, err := d.getReader(deviceName, protocols)
+	_, err := d.getClient(deviceName, protocols)
 	return err
 }
 
@@ -141,20 +141,20 @@ func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminSta
 // when a Device associated with this Device Service is removed
 func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
-	d.removeReader(deviceName)
+	d.removeClient(deviceName)
 	return nil
 }
 
-// getOrCreate returns a Reader, creating one if needed.
+// getOrCreate returns a Client, creating one if needed.
 //
-// If a Reader with this name already exists, it returns it.
-// Otherwise, calls the createNew function to get a new Reader,
+// If a Client with this name already exists, it returns it.
+// Otherwise, calls the createNew function to get a new Client,
 // which it adds to the map and then returns.
-func (d *Driver) getReader(name string, p protocolMap) (*llrp.Reader, error) {
+func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	// Try with just a read lock.
-	d.readerMapMu.RLock()
-	r, ok := d.readers[name]
-	d.readerMapMu.RUnlock()
+	d.clientsMapMu.RLock()
+	r, ok := d.clients[name]
+	d.clientsMapMu.RUnlock()
 	if ok {
 		return r, nil
 	}
@@ -165,53 +165,51 @@ func (d *Driver) getReader(name string, p protocolMap) (*llrp.Reader, error) {
 		return nil, err
 	}
 
-	// It's important it holds the lock while creating a new Reader
-	// as multiple concurrent connection attempts can reset the Reader.
-	d.readerMapMu.Lock()
-	defer d.readerMapMu.Unlock()
+	// It's important it holds the lock while creating a new Client.
+	d.clientsMapMu.Lock()
+	defer d.clientsMapMu.Unlock()
 
-	// Check if something else created the Reader before we got the lock.
-	r, ok = d.readers[name]
+	// Check if something else created the Client before we got the lock.
+	r, ok = d.clients[name]
 	if ok {
 		return r, nil
 	}
 
-	// todo: configurable timeouts
 	conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err = llrp.NewReader(llrp.WithConn(conn))
+	r, err = llrp.NewClient(llrp.WithConn(conn))
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
-		// blocks until the Reader is closed
+		// blocks until the Client is closed
 		err = r.Connect()
 
-		if err == nil || errors.Is(err, llrp.ErrReaderClosed) {
+		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
 		}
 
 		d.lc.Error(err.Error())
-		// todo: retry the connection
+		// todo: retry the connection?
 	}()
 
-	d.readers[name] = r
+	d.clients[name] = r
 	return r, nil
 }
 
-// removeReader deletes a Reader from the readers map.
-func (d *Driver) removeReader(deviceName string) {
-	d.readerMapMu.Lock()
-	r, ok := d.readers[deviceName]
+// removeClient deletes a Client from the clients map.
+func (d *Driver) removeClient(deviceName string) {
+	d.clientsMapMu.Lock()
+	r, ok := d.clients[deviceName]
 	if ok {
 		go r.Close() // best effort
 	}
-	delete(d.readers, deviceName)
-	d.readerMapMu.Unlock()
+	delete(d.clients, deviceName)
+	d.clientsMapMu.Unlock()
 	return
 }
 

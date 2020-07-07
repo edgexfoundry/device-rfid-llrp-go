@@ -9,6 +9,7 @@
 package llrp
 
 import (
+	"github.com/pkg/errors"
 	"strconv"
 )
 
@@ -297,12 +298,12 @@ var statusDeviceErrs = [...]string{
 }
 var _ = statusDeviceErrs[statusDeviceEnd-statusDeviceStart] // compile error == missing message
 
-func (fe fieldError) Error() string {
+func (fe FieldError) Error() string {
 	return fe.ErrorCode.defaultText() + " at index " + strconv.Itoa(int(fe.FieldIndex))
 }
 
 // Error constructs a string from the parameter's error.
-func (pe *parameterError) Error() string {
+func (pe *ParameterError) Error() string {
 	msg := pe.ErrorCode.defaultText() + " " + pe.ParameterType.String()
 	if pe.ParameterType.isValid() {
 		msg += " (type " + strconv.Itoa(int(pe.ParameterType)) + ")"
@@ -348,7 +349,7 @@ func (se *StatusError) Error() string {
 
 // Err returns an error represented by this LLRPStatus, if any.
 // If the Status is Success, this returns nil.
-func (ls *llrpStatus) Err() error {
+func (ls *LLRPStatus) Err() error {
 	if ls.Status == StatusSuccess {
 		return nil
 	}
@@ -356,7 +357,7 @@ func (ls *llrpStatus) Err() error {
 	return (*StatusError)(ls)
 }
 
-func (ren *readerEventNotification) isConnectSuccess() bool {
+func (ren *ReaderEventNotification) isConnectSuccess() bool {
 	if ren == nil || ren.ReaderEventNotificationData.ConnectionAttemptEvent == nil {
 		return false
 	}

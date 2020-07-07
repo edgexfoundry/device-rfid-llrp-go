@@ -46,18 +46,20 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 		MarshalBinary() ([]byte, error)
 	}
 	var v binRoundTrip
-	switch msgName {
-	case GetReaderCapabilitiesResponse.String():
-		v = &getReaderCapabilitiesResponse{}
-	case GetReaderConfigResponse.String():
-		v = &getReaderConfigResponse{}
-	case GetAccessSpecsResponse.String():
-		v = &getAccessSpecsResponse{}
-	case GetROSpecsResponse.String():
-		v = &getROSpecsResponse{}
-	case CloseConnectionResponse.String():
+	switch "Msg" + msgName {
+	case MsgGetReaderCapabilitiesResponse.String():
+		v = &GetReaderCapabilitiesResponse{}
+	case MsgGetReaderConfigResponse.String():
+		v = &GetReaderConfigResponse{}
+	case MsgGetAccessSpecsResponse.String():
+		v = &GetAccessSpecsResponse{}
+	case MsgGetROSpecsResponse.String():
+		v = &GetROSpecsResponse{}
+	case MsgCloseConnectionResponse.String():
+		v = &CloseConnectionResponse{}
+	case MsgCloseConnectionResponse.String():
 		v = &closeConnectionResponse{}
-	case ROAccessReport.String():
+	case MsgROAccessReport.String():
 		v = &roAccessReport{}
 	}
 
