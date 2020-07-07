@@ -161,6 +161,17 @@ const (
 
 type AccessReportTriggerType uint8
 type ROReportTriggerType uint8
+
+const (
+	None            = ROReportTriggerType(0)
+	NTagsOrAIEnd    = ROReportTriggerType(1)
+	NTagsOrROEnd    = ROReportTriggerType(2)
+	NSecondsOrAIEnd = ROReportTriggerType(3)
+	NSecondsOrROEnd = ROReportTriggerType(4)
+	NMillisOrAIEnd  = ROReportTriggerType(5)
+	NMillisOrROEnd  = ROReportTriggerType(6)
+)
+
 type ConnectionAttemptEventType uint16
 
 const (
@@ -203,6 +214,7 @@ const (
 	RFSurveyStopTriggerNIteration = RFSurveySpecStopTriggerType(2)
 )
 
+// AISpecStopTriggerType specifies when an Antenna Operation should terminate.
 type AISpecStopTriggerType uint8
 
 const (
@@ -706,6 +718,11 @@ paramGroup2:
 }
 
 // AddROSpec is Message 20, AddROSpec.
+//
+// AddROSpec adds an Reader Operation Specification.
+//
+// ROSpecs must be added in the Disabled state, and it's up to the client to set the
+// ROSpecID. That ID is used to reference the spec in other messages.
 type AddROSpec struct {
 	ROSpec ROSpec
 }
@@ -867,6 +884,9 @@ func (m *StartROSpecResponse) UnmarshalBinary(data []byte) error {
 }
 
 // StopROSpec is Message 23, StopROSpec.
+//
+// StopROSpec stops a spec if it's currently executing, overriding all other priorities
+// and moving it to Inactive.
 type StopROSpec struct {
 	ROSpecID uint32
 }
@@ -915,6 +935,12 @@ func (m *StopROSpecResponse) UnmarshalBinary(data []byte) error {
 }
 
 // EnableROSpec is Message 24, EnableROSpec.
+//
+// EnableROSpec moves and ROSpec from Disabled to Inactive.
+//
+// The SpecID may be 0, in which case all ROSpecs will be enabled. If the ROSpec has an
+// Immediate start trigger, enabling it will also activate it, provided no other necessary
+// prevent it from starting (e.g., its priority is lower than another enabled spec).
 type EnableROSpec struct {
 	ROSpecID uint32
 }
@@ -2925,6 +2951,37 @@ func (p *PerAntennaReceiveSensitivityRange) UnmarshalBinary(data []byte) error {
 }
 
 // ROSpec is Parameter 177, ROSpec.
+//
+// ROSpec is a Reader Operation Specification.
+//
+// An ROSpec describes the operations executed at one or more antennas, specified one or
+// more AISpecs, RFSurveySpecs, or CustomSpecs. Specs are executed in the order in which
+// they appear, and reports reference the relevant spec via a 1-indexed SpecIndex. Not all
+// devices support RFSurveySpecs. LoopSpecs are only supported with LLRP version 1.1.
+//
+// The RFID device picks which ROSpec to execute based on a number of conditions
+// (described below). When it does so, the ROSpec transitions from Inactive to Active, and
+// the device may send an event notification (if configured to do so). While Active, if
+// the ROSpec's reporting conditions are satisfied, the device sends ROAccessReports,
+// which contain TagReportData matching either the device's configured defaults report
+// information, or the TagReportContentSelector if the RO defines an ROReportSpec.
+//
+// The client defines an ROSpec via the AddROSpec Message. They must define the spec in
+// the Disabled state, with an ROSpecID >0, or the device must reject it. Once defined,
+// the client uses the ROSpecID to modify its state, and the device may include the
+// ROSpecID in reports that reference it. Other relevant messages for controlling ROSpecs:
+//
+//     - Enable ROSpec
+//
+//     - Disable ROSpec
+//
+//     - Start ROSpec
+//
+//     - Stop ROSpec
+//
+//     - Delete ROSpec
+//
+//     - Get ROSpecs
 type ROSpec struct {
 	ROSpecID           uint32
 	Priority           uint8
@@ -3223,6 +3280,15 @@ func (p *ROSpecStopTrigger) UnmarshalBinary(data []byte) error {
 }
 
 // AISpec is Parameter 183, AISpec.
+//
+// AISpec defines antenna inventory operations, which LLRP defines as "the smallest unit
+// of interaction between a Reader and tags in the antenna's field-of-view."
+//
+// An AISpec gives a list of InventoryParameterSpecs, which define how the RFID device
+// should singulate tags. It combines this with an stop trigger and list of antennas. Each
+// inventory spec is executed for each antenna, and the stop condition applies to the
+// aggregate of these AI operations. The device chooses the order in which the operations
+// are executed, regardless of the order presented.
 type AISpec struct {
 	// AntennaIDs tells the device which antennas to use. If any of them are zero, then
 	// they're all used, regardless of any other value in the array.
@@ -6417,6 +6483,9 @@ func (p *C1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 }
 
 // MaximumReceiveSensitivity is Parameter 363, MaximumReceiveSensitivity.
+//
+// MaximumReceiveSensitivity is the maximum receive sensitivity supported by the Reader.
+// It's required if the Reader allows receive sensitivity control, but otherwise optional.
 type MaximumReceiveSensitivity dBm16
 
 // UnmarshalBinary Parameter 363, MaximumReceiveSensitivity.

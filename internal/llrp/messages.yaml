@@ -168,10 +168,6 @@ parameters:
       - type: MaximumReceiveSensitivity
         optional: true
         version: 2
-        description: |-
-          MaximumReceiveSensitivity is the maximum receive sensitivity
-          supported by the Reader. It's required if the Reader allows
-          receive sensitivity control, but otherwise optional.
   - name: ReceiveSensitivityTableEntry
     type_id: 139
     fields:
@@ -309,7 +305,7 @@ parameters:
         type: uint16
 
   - name: ROSpec
-    description: |-
+    description: >-
       ROSpec is a Reader Operation Specification.
 
       An ROSpec describes the operations executed at one or more antennas,
@@ -417,7 +413,7 @@ parameters:
 
   - name: AISpec
     type_id: 183
-    description: |-
+    description: >-
       AISpec defines antenna inventory operations,
       which LLRP defines as "the smallest unit of interaction
       between a Reader and tags in the antenna's field-of-view."
@@ -1567,6 +1563,10 @@ parameters:
         description: PermalockStatuses of each block requested.
 
   - name: MaximumReceiveSensitivity
+    description: >-
+      MaximumReceiveSensitivity is the maximum receive sensitivity
+      supported by the Reader. It's required if the Reader allows
+      receive sensitivity control, but otherwise optional.
     version: 2
     type_id: 363
     fields:
@@ -1803,6 +1803,14 @@ types:
   - name: ROReportTriggerType
     storage: uint8
     kind: enum
+    values:
+      - None
+      - NTagsOrAIEnd
+      - NTagsOrROEnd
+      - NSecondsOrAIEnd
+      - NSecondsOrROEnd
+      - NMillisOrAIEnd
+      - NMillisOrROEnd
 
   - name: ConnectionAttemptEventType
     storage: uint16
@@ -2156,7 +2164,7 @@ messages:
         optional: true
         repeatable: true
   - name: AddROSpec
-    description: |-
+    description: >-
       AddROSpec adds an Reader Operation Specification.
 
       ROSpecs must be added in the Disabled state,
@@ -2191,7 +2199,7 @@ messages:
     parameters:
       - type: LLRPStatus
   - name: StopROSpec
-    description: |-
+    description: >-
       StopROSpec stops a spec if it's currently executing,
       overriding all other priorities and moving it to Inactive.
     type_id: 23
@@ -2204,7 +2212,7 @@ messages:
     parameters:
       - type: LLRPStatus
   - name: EnableROSpec
-    description: |-
+    description: >-
       EnableROSpec moves and ROSpec from Disabled to Inactive.
 
       The SpecID may be 0, in which case all ROSpecs will be enabled.

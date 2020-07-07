@@ -2148,7 +2148,7 @@ func TestEventsAndReports_roundTrip(t *testing.T) {
 // Test Parameter 237, ROReportSpec.
 func TestROReportSpec_roundTrip(t *testing.T) {
 	p := ROReportSpec{
-		ROReportTriggerType: 0,
+		ROReportTriggerType: NSecondsOrAIEnd,
 		N:                   32768,
 		TagReportContentSelector: TagReportContentSelector{
 			EnableROSpecID:             true,

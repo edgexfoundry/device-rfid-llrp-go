@@ -811,7 +811,10 @@ class ParamSpec:
                 y['name'] += 's'
         y['param_name'] = y['type']
         del y['type']
-        return ParamSpec(**y)
+        try:
+            return ParamSpec(**y)
+        except TypeError as e:
+            raise DefinitionError(y) from e
 
     def struct_field(self) -> str:
         if self.repeatable:
@@ -848,6 +851,7 @@ class Container:
     has_required: bool = False  # true if has required parameters
 
     description: Optional[str] = None
+    version: Optional[int] = 1
 
     @classmethod
     def from_yaml(cls, y, types: Dict[str, DataType]) -> 'Container':
@@ -865,7 +869,10 @@ class Container:
         except KeyError:
             y['parameters'] = []
 
-        return cls(**y)
+        try:
+            return cls(**y)
+        except TypeError as e:
+            raise DefinitionError(y) from e
 
     @property
     def type_name(self) -> str:
