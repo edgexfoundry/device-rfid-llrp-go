@@ -81,8 +81,8 @@ func NewClient(opts ...ClientOpt) (*Client, error) {
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
 		handlers: map[MessageType]MessageHandler{
-			KeepAlive:      ackHandler{},
-			ROAccessReport: roHandler{},
+			MsgKeepAlive:      ackHandler{},
+			MsgROAccessReport: roHandler{},
 		},
 	}
 
@@ -621,7 +621,7 @@ func (ackHandler) handleMessage(r *Client, msg Message) {
 	r.sendAck(msg.id)
 }
 
-func (r *Client) passToHandler(hdr Header) io.Writer {
+func (r *Client) passToHandler(hdr Header) error {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
 	handler := r.handlers[hdr.typ]
@@ -684,7 +684,7 @@ func (r *Client) passToHandler(hdr Header) io.Writer {
 type roHandler struct{}
 
 func (roHandler) handleMessage(r *Client, m Message) {
-	roar := &roAccessReport{}
+	roar := &ROAccessReport{}
 	buff := make([]byte, m.payloadLen)
 	if _, err := io.ReadFull(r.conn, buff); err != nil {
 		r.logger.Printf("error: %+v", err)

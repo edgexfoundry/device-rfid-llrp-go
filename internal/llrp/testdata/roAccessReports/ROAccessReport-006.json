@@ -1,5 +1,5 @@
 {
-	"TagReportDatas": [
+	"TagReportData": [
 		{
 			"EPCData": {
 				"EPCNumBits": 0,
@@ -12,9 +12,9 @@
 			"SpecIndex": null,
 			"InventoryParameterSpecID": null,
 			"AntennaID": 1,
-			"PeakRSSI": -66,
+			"PeakRSSI": -62,
 			"ChannelIndex": null,
-			"FirstSeenUTC": 1593818664397347,
+			"FirstSeenUTC": 1594100642105525,
 			"FirstSeenUptime": null,
 			"LastSeenUTC": null,
 			"LastSeenUptime": null,
@@ -37,6 +37,6 @@
 			"Custom": null
 		}
 	],
-	"RFSurveyReportDatas": null,
+	"RFSurveyReportData": null,
 	"Custom": null
 }

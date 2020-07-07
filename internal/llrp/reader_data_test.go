@@ -58,9 +58,9 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 	case MsgCloseConnectionResponse.String():
 		v = &CloseConnectionResponse{}
 	case MsgCloseConnectionResponse.String():
-		v = &closeConnectionResponse{}
+		v = &CloseConnectionResponse{}
 	case MsgROAccessReport.String():
-		v = &roAccessReport{}
+		v = &ROAccessReport{}
 	}
 
 	// This tests the following two conversions using data captured from a reader:
@@ -211,6 +211,13 @@ func checkBytesEq(t *testing.T, original, marshaled []byte) (matched bool) {
 	}
 
 	if matched {
+		return
+	}
+
+	if len(original) == 0 || len(marshaled) == 0 {
+		t.Errorf("byte data mismatched: one is empty: \n"+
+			" original: %# 02x\n"+
+			"marshaled: %# 02x", original, marshaled)
 		return
 	}
 

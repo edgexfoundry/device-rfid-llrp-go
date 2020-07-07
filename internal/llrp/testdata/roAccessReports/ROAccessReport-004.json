@@ -1,20 +1,20 @@
 {
-	"TagReportDatas": [
+	"TagReportData": [
 		{
 			"EPCData": {
 				"EPCNumBits": 0,
 				"EPC": null
 			},
 			"EPC96": {
-				"EPC": "MBQwpVwKwwAAAAAH"
+				"EPC": "MACrze8AAAAAAAAF"
 			},
 			"ROSpecID": null,
 			"SpecIndex": null,
 			"InventoryParameterSpecID": null,
 			"AntennaID": 1,
-			"PeakRSSI": -67,
+			"PeakRSSI": -62,
 			"ChannelIndex": null,
-			"FirstSeenUTC": 1593818664392075,
+			"FirstSeenUTC": 1594100642099624,
 			"FirstSeenUptime": null,
 			"LastSeenUTC": null,
 			"LastSeenUptime": null,
@@ -37,6 +37,6 @@
 			"Custom": null
 		}
 	],
-	"RFSurveyReportDatas": null,
+	"RFSurveyReportData": null,
 	"Custom": null
 }

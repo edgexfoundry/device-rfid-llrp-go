@@ -52,16 +52,17 @@ func TestClientFunctional(t *testing.T) {
 	}
 
 	for _, testConfig := range []struct {
-		req Request
+		Incoming
+		Outgoing
 	}{
-		{&getReaderConfig{}},
-		{&getReaderCapabilities{}},
-		{&getROSpecs{}},
+		{&GetReaderConfig{}, &GetReaderConfigResponse{}},
+		{&GetReaderCapabilities{}, &GetReaderCapabilitiesResponse{}},
+		{&GetROSpecs{}, &GetROSpecsResponse{}},
 	} {
-		t.Run(testConfig.req.Type().String(), func(t *testing.T) {
+		t.Run(testConfig.Incoming.Type().String(), func(t *testing.T) {
 			r, cleanup := getFunctionalClient(t)
 			defer cleanup()
-			sendAndCheck(t, r, testConfig.req)
+			sendAndCheck(t, r, testConfig.Outgoing, testConfig.Incoming)
 		})
 	}
 
@@ -333,11 +334,11 @@ func testGatherTagReads(t *testing.T) {
 
 	spec := NewROSpec()
 
-	sendAndCheck(t, r, &addROSpec{*spec})
-	sendAndCheck(t, r, &enableROSpec{ROSpecID: spec.ROSpecID})
+	sendAndCheck(t, r, &AddROSpec{*spec}, &AddROSpecResponse{})
+	sendAndCheck(t, r, &EnableROSpec{ROSpecID: spec.ROSpecID}, &EnableROSpecResponse{})
 	time.Sleep(10 * time.Second)
-	sendAndCheck(t, r, &disableROSpec{ROSpecID: spec.ROSpecID})
-	sendAndCheck(t, r, &deleteROSpec{ROSpecID: spec.ROSpecID})
+	sendAndCheck(t, r, &DisableROSpec{ROSpecID: spec.ROSpecID}, &DisableROSpecResponse{})
+	sendAndCheck(t, r, &DeleteROSpec{ROSpecID: spec.ROSpecID}, &DeleteROSpecResponse{})
 }
 
 func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
@@ -351,7 +352,7 @@ func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 	opts := []ClientOpt{
 		WithConn(conn),
 		WithLogger(testingLogger{T: t}),
-		WithMessageHandler(ErrorMessage, ec),
+		WithMessageHandler(MsgErrorMessage, ec),
 		WithTimeout(300 * time.Second),
 	}
 
@@ -363,7 +364,7 @@ func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 
 		var i uint32
 
-		opts = append(opts, WithMessageHandler(ROAccessReport, MessageHandlerFunc(
+		opts = append(opts, WithMessageHandler(MsgROAccessReport, MessageHandlerFunc(
 			func(r *Client, msg Message) {
 				data, err := msg.data()
 				if err != nil {
@@ -372,7 +373,7 @@ func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 				}
 
 				atomic.AddUint32(&i, 1)
-				ec.addErr(writeCapture(dir, i, data, ROAccessReport, &roAccessReport{}))
+				ec.addErr(writeCapture(dir, i, data, MsgROAccessReport, &ROAccessReport{}))
 			})))
 	}
 
@@ -446,7 +447,7 @@ func (teh *errorCollector) checkErrs(t *testing.T) {
 
 // handleMessage can be set as a handler for LLRP ErrorMessages.
 func (teh *errorCollector) handleMessage(_ *Client, msg Message) {
-	em := &errorMessage{}
+	em := &ErrorMessage{}
 	if err := msg.Unmarshal(em); err != nil {
 		teh.addErr(err)
 		return
@@ -464,14 +465,13 @@ func prettyPrint(t *testing.T, v interface{}) {
 	}
 }
 
-func sendAndCheck(t *testing.T, r *Client, out Request) {
+func sendAndCheck(t *testing.T, r *Client, out Outgoing, in Incoming) {
 	t.Helper()
 	prettyPrint(t, out)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	in := out.Response()
 	if err := r.SendFor(ctx, out, in); err != nil {
 		t.Error(err)
 	}

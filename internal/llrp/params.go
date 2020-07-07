@@ -9,7 +9,6 @@
 package llrp
 
 import (
-	"github.com/pkg/errors"
 	"strconv"
 )
 
@@ -320,10 +319,10 @@ func (pe *ParameterError) Error() string {
 	return msg
 }
 
-// StatusError wraps an llrpStatus to implement the error interface.
-// This is used separately from a regular llrpStatus
+// StatusError wraps an LLRPStatus to implement the error interface.
+// This is used separately from a regular LLRPStatus
 // because the latter can also represent success.
-type StatusError llrpStatus
+type StatusError LLRPStatus
 
 // Error implements the error interface for a statusError.
 func (se *StatusError) Error() string {

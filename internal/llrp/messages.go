@@ -323,7 +323,7 @@ func (m Message) Unmarshal(v encoding.BinaryUnmarshaler) error {
 }
 
 type statusable interface {
-	Status() llrpStatus
+	Status() LLRPStatus
 }
 
 type Incoming interface {
@@ -336,16 +336,7 @@ type Outgoing interface {
 	Type() MessageType
 }
 
-type Responder interface {
-	Response() Incoming
-}
-
-type Request interface {
-	Outgoing
-	Responder
-}
-
-func (r *Reader) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
+func (r *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	outData, err := out.MarshalBinary()
 	if err != nil {
 		return err
@@ -377,32 +368,30 @@ func (r *Reader) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	return nil
 }
 
-func NewErrorMessage() *errorMessage {
-	return &errorMessage{}
+func NewErrorMessage() *ErrorMessage {
+	return &ErrorMessage{}
 }
 
-type ReaderOpSpec = *roSpec
-
 // NewROSpec returns a valid, basic ROSpec parameter.
-func NewROSpec() ReaderOpSpec {
-	return &roSpec{
+func NewROSpec() *ROSpec {
+	return &ROSpec{
 		ROSpecID:           1,
 		Priority:           0,
 		ROSpecCurrentState: ROSpecStateDisabled,
-		ROBoundarySpec: roBoundarySpec{
-			ROSpecStartTrigger: roSpecStartTrigger{
+		ROBoundarySpec: ROBoundarySpec{
+			ROSpecStartTrigger: ROSpecStartTrigger{
 				ROSpecStartTriggerType: ROStartTriggerImmediate,
 			},
-			ROSpecStopTrigger: roSpecStopTrigger{
+			ROSpecStopTrigger: ROSpecStopTrigger{
 				ROSpecStopTriggerType: ROStopTriggerNone,
 			},
 		},
-		AISpecs: []aiSpec{{
-			AntennaIDs: []antennaID{0},
-			AISpecStopTrigger: aiSpecStopTrigger{
+		AISpecs: []AISpec{{
+			AntennaIDs: []AntennaID{0},
+			AISpecStopTrigger: AISpecStopTrigger{
 				AISpecStopTriggerType: AIStopTriggerNone,
 			},
-			InventoryParameterSpecs: []inventoryParameterSpec{{
+			InventoryParameterSpecs: []InventoryParameterSpec{{
 				InventoryParameterSpecID: 1,
 				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
 			}},
@@ -410,19 +399,19 @@ func NewROSpec() ReaderOpSpec {
 	}
 }
 
-func NewAccessReport() *roAccessReport {
-	return &roAccessReport{}
+func NewAccessReport() *ROAccessReport {
+	return &ROAccessReport{}
 }
 
-func (ros *roSpec) SetPeriodic(period time.Duration) {
-	ros.ROBoundarySpec.ROSpecStopTrigger = roSpecStopTrigger{
+func (ros *ROSpec) SetPeriodic(period time.Duration) {
+	ros.ROBoundarySpec.ROSpecStopTrigger = ROSpecStopTrigger{
 		ROSpecStopTriggerType: ROStopTriggerDuration,
 		DurationTriggerValue:  milliSecs32(period.Milliseconds()),
 	}
 
 	if ros.ROReportSpec == nil {
-		ros.ROReportSpec = &roReportSpec{
-			TagReportContentSelector: tagReportContentSelector{
+		ros.ROReportSpec = &ROReportSpec{
+			TagReportContentSelector: TagReportContentSelector{
 				EnableROSpecID:             false,
 				EnableSpecIndex:            false,
 				EnableInventoryParamSpecID: false,
@@ -444,178 +433,150 @@ func (ros *roSpec) SetPeriodic(period time.Duration) {
 }
 
 // TODO: generate this code
-func (m *errorMessage) Status() llrpStatus {
+func (m *ErrorMessage) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *getSupportedVersionResponse) Status() llrpStatus {
+func (m *GetSupportedVersionResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *setProtocolVersionResponse) Status() llrpStatus {
+func (m *SetProtocolVersionResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *getReaderCapabilitiesResponse) Status() llrpStatus {
+func (m *GetReaderCapabilitiesResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *addROSpecResponse) Status() llrpStatus {
+func (m *AddROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *deleteROSpecResponse) Status() llrpStatus {
+func (m *DeleteROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *startROSpecResponse) Status() llrpStatus {
+func (m *StartROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *stopROSpecResponse) Status() llrpStatus {
+func (m *StopROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *enableROSpecResponse) Status() llrpStatus {
+func (m *EnableROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *disableROSpecResponse) Status() llrpStatus {
+func (m *DisableROSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *getROSpecsResponse) Status() llrpStatus {
+func (m *GetROSpecsResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *addAccessSpecResponse) Status() llrpStatus {
+func (m *AddAccessSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *deleteAccessSpecResponse) Status() llrpStatus {
+func (m *DeleteAccessSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *disableAccessSpecResponse) Status() llrpStatus {
+func (m *DisableAccessSpecResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *getAccessSpecsResponse) Status() llrpStatus {
+func (m *GetAccessSpecsResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *setReaderConfigResponse) Status() llrpStatus {
+func (m *SetReaderConfigResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (m *closeConnectionResponse) Status() llrpStatus {
+func (m *CloseConnectionResponse) Status() LLRPStatus {
 	return m.LLRPStatus
 }
 
-func (*addROSpec) Type() MessageType {
-	return AddROSpec
+func (*AddROSpec) Type() MessageType {
+	return MsgAddROSpec
 }
 
-func (*enableROSpec) Type() MessageType {
-	return EnableROSpec
+func (*EnableROSpec) Type() MessageType {
+	return MsgEnableROSpec
 }
 
-func (*disableROSpec) Type() MessageType {
-	return DisableROSpec
+func (*DisableROSpec) Type() MessageType {
+	return MsgDisableROSpec
 }
 
-func (*deleteROSpec) Type() MessageType {
-	return DeleteROSpec
+func (*DeleteROSpec) Type() MessageType {
+	return MsgDeleteROSpec
 }
 
-func (*stopROSpec) Type() MessageType {
-	return StopROSpec
+func (*StopROSpec) Type() MessageType {
+	return MsgStopROSpec
 }
 
-func (*addROSpecResponse) Type() MessageType {
-	return AddROSpecResponse
+func (*AddROSpecResponse) Type() MessageType {
+	return MsgAddROSpecResponse
 }
 
-func (*enableROSpecResponse) Type() MessageType {
-	return EnableROSpecResponse
+func (*EnableROSpecResponse) Type() MessageType {
+	return MsgEnableROSpecResponse
 }
 
-func (*disableROSpecResponse) Type() MessageType {
-	return DisableROSpecResponse
+func (*DisableROSpecResponse) Type() MessageType {
+	return MsgDisableROSpecResponse
 }
 
-func (*deleteROSpecResponse) Type() MessageType {
-	return DeleteROSpecResponse
+func (*DeleteROSpecResponse) Type() MessageType {
+	return MsgDeleteROSpecResponse
 }
 
-func (*stopROSpecResponse) Type() MessageType {
-	return StopROSpecResponse
+func (*StopROSpecResponse) Type() MessageType {
+	return MsgStopROSpecResponse
 }
 
-func (*getReaderConfigResponse) Type() MessageType {
-	return GetReaderConfigResponse
+func (*GetReaderConfigResponse) Type() MessageType {
+	return MsgGetReaderConfigResponse
 }
 
-func (*getReaderConfig) Type() MessageType {
-	return GetReaderConfig
+func (*GetReaderConfig) Type() MessageType {
+	return MsgGetReaderConfig
 }
 
-func (ros *roSpec) Add() *addROSpec {
-	return &addROSpec{ROSpec: *ros}
+func (*GetReaderCapabilities) Type() MessageType {
+	return MsgGetReaderCapabilities
 }
 
-func (ros *roSpec) Enable() *enableROSpec {
-	return &enableROSpec{ROSpecID: ros.ROSpecID}
+func (*GetReaderCapabilitiesResponse) Type() MessageType {
+	return MsgGetReaderCapabilitiesResponse
 }
 
-func (ros *roSpec) Disable() *disableROSpec {
-	return &disableROSpec{ROSpecID: ros.ROSpecID}
+func (*GetROSpecs) Type() MessageType {
+	return MsgGetROSpecs
 }
 
-func (ros *roSpec) Delete() *deleteROSpec {
-	return &deleteROSpec{ROSpecID: ros.ROSpecID}
+func (*GetROSpecsResponse) Type() MessageType {
+	return MsgGetROSpecsResponse
 }
 
-func (*deleteROSpec) Response() Incoming {
-	return &deleteROSpecResponse{}
+func (ros *ROSpec) Add() *AddROSpec {
+	return &AddROSpec{ROSpec: *ros}
 }
 
-func (*enableROSpec) Response() Incoming {
-	return &enableROSpecResponse{}
+func (ros *ROSpec) Enable() *EnableROSpec {
+	return &EnableROSpec{ROSpecID: ros.ROSpecID}
 }
 
-func (*addROSpec) Response() Incoming {
-	return &addROSpecResponse{}
+func (ros *ROSpec) Disable() *DisableROSpec {
+	return &DisableROSpec{ROSpecID: ros.ROSpecID}
 }
 
-func (*disableROSpec) Response() Incoming {
-	return &disableROSpecResponse{}
-}
-
-func (*getReaderConfig) Response() Incoming {
-	return &getReaderConfigResponse{}
-}
-
-func (*getReaderCapabilities) Response() Incoming {
-	return &getReaderCapabilitiesResponse{}
-}
-
-func (*getReaderCapabilities) Type() MessageType {
-	return GetReaderCapabilities
-}
-
-func (*getReaderCapabilitiesResponse) Type() MessageType {
-	return GetReaderCapabilitiesResponse
-}
-
-func (*getROSpecs) Type() MessageType {
-	return GetROSpecs
-}
-
-func (*getROSpecsResponse) Type() MessageType {
-	return GetROSpecsResponse
-}
-
-func (*getROSpecs) Response() Incoming {
-	return &getROSpecsResponse{}
+func (ros *ROSpec) Delete() *DeleteROSpec {
+	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
 }
