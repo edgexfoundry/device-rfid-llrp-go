@@ -10,8 +10,7 @@ import (
 	"bytes"
 )
 
-// b2b converts a bool to a byte, because Go doesn't have a built-in
-// for it.
+// b2b converts a bool to a byte, because Go doesn't have a built-in for it.
 func b2b(b bool) byte {
 	if b {
 		return 1
@@ -20,7 +19,7 @@ func b2b(b bool) byte {
 }
 
 // MarshalBinary Message 46, GetSupportedVersion.
-func (m *getSupportedVersion) MarshalBinary() ([]byte, error) {
+func (m *GetSupportedVersion) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -29,7 +28,7 @@ func (m *getSupportedVersion) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 56, GetSupportedVersionResponse.
-func (m *getSupportedVersionResponse) MarshalBinary() ([]byte, error) {
+func (m *GetSupportedVersionResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -41,7 +40,7 @@ func (m *getSupportedVersionResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 47, SetProtocolVersion.
-func (m *setProtocolVersion) MarshalBinary() ([]byte, error) {
+func (m *SetProtocolVersion) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -50,7 +49,7 @@ func (m *setProtocolVersion) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 57, SetProtocolVersionResponse.
-func (m *setProtocolVersionResponse) MarshalBinary() ([]byte, error) {
+func (m *SetProtocolVersionResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -62,7 +61,7 @@ func (m *setProtocolVersionResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 1, GetReaderCapabilities.
-func (m *getReaderCapabilities) MarshalBinary() ([]byte, error) {
+func (m *GetReaderCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -76,7 +75,7 @@ func (m *getReaderCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 11, GetReaderCapabilitiesResponse.
-func (m *getReaderCapabilitiesResponse) MarshalBinary() ([]byte, error) {
+func (m *GetReaderCapabilitiesResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -113,7 +112,7 @@ func (m *getReaderCapabilitiesResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 20, AddROSpec.
-func (m *addROSpec) MarshalBinary() ([]byte, error) {
+func (m *AddROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -125,7 +124,7 @@ func (m *addROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 30, AddROSpecResponse.
-func (m *addROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *AddROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -137,7 +136,7 @@ func (m *addROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 21, DeleteROSpec.
-func (m *deleteROSpec) MarshalBinary() ([]byte, error) {
+func (m *DeleteROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -146,7 +145,7 @@ func (m *deleteROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 31, DeleteROSpecResponse.
-func (m *deleteROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *DeleteROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -158,7 +157,7 @@ func (m *deleteROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 22, StartROSpec.
-func (m *startROSpec) MarshalBinary() ([]byte, error) {
+func (m *StartROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -167,7 +166,7 @@ func (m *startROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 32, StartROSpecResponse.
-func (m *startROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *StartROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -179,7 +178,7 @@ func (m *startROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 23, StopROSpec.
-func (m *stopROSpec) MarshalBinary() ([]byte, error) {
+func (m *StopROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -188,7 +187,7 @@ func (m *stopROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 33, StopROSpecResponse.
-func (m *stopROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *StopROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -200,7 +199,7 @@ func (m *stopROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 24, EnableROSpec.
-func (m *enableROSpec) MarshalBinary() ([]byte, error) {
+func (m *EnableROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -209,7 +208,7 @@ func (m *enableROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 34, EnableROSpecResponse.
-func (m *enableROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *EnableROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -221,7 +220,7 @@ func (m *enableROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 25, DisableROSpec.
-func (m *disableROSpec) MarshalBinary() ([]byte, error) {
+func (m *DisableROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -230,7 +229,7 @@ func (m *disableROSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 35, DisableROSpecResponse.
-func (m *disableROSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *DisableROSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -242,7 +241,7 @@ func (m *disableROSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 26, GetROSpecs.
-func (m *getROSpecs) MarshalBinary() ([]byte, error) {
+func (m *GetROSpecs) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -251,7 +250,7 @@ func (m *getROSpecs) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 36, GetROSpecsResponse.
-func (m *getROSpecsResponse) MarshalBinary() ([]byte, error) {
+func (m *GetROSpecsResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -268,7 +267,7 @@ func (m *getROSpecsResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 40, AddAccessSpec.
-func (m *addAccessSpec) MarshalBinary() ([]byte, error) {
+func (m *AddAccessSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -280,7 +279,7 @@ func (m *addAccessSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 50, AddAccessSpecResponse.
-func (m *addAccessSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *AddAccessSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -292,7 +291,7 @@ func (m *addAccessSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 41, DeleteAccessSpec.
-func (m *deleteAccessSpec) MarshalBinary() ([]byte, error) {
+func (m *DeleteAccessSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -301,7 +300,7 @@ func (m *deleteAccessSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 51, DeleteAccessSpecResponse.
-func (m *deleteAccessSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *DeleteAccessSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -313,7 +312,7 @@ func (m *deleteAccessSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 42, EnableAccessSpec.
-func (m *enableAccessSpec) MarshalBinary() ([]byte, error) {
+func (m *EnableAccessSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -322,7 +321,7 @@ func (m *enableAccessSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 52, EnableAccessSpecResponse.
-func (m *enableAccessSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *EnableAccessSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -334,7 +333,7 @@ func (m *enableAccessSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 43, DisableAccessSpec.
-func (m *disableAccessSpec) MarshalBinary() ([]byte, error) {
+func (m *DisableAccessSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -343,7 +342,7 @@ func (m *disableAccessSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 53, DisableAccessSpecResponse.
-func (m *disableAccessSpecResponse) MarshalBinary() ([]byte, error) {
+func (m *DisableAccessSpecResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -355,7 +354,7 @@ func (m *disableAccessSpecResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 44, GetAccessSpecs.
-func (m *getAccessSpecs) MarshalBinary() ([]byte, error) {
+func (m *GetAccessSpecs) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -364,7 +363,7 @@ func (m *getAccessSpecs) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 54, GetAccessSpecsResponse.
-func (m *getAccessSpecsResponse) MarshalBinary() ([]byte, error) {
+func (m *GetAccessSpecsResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -381,7 +380,7 @@ func (m *getAccessSpecsResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 45, ClientRequestOp.
-func (m *clientRequestOp) MarshalBinary() ([]byte, error) {
+func (m *ClientRequestOp) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -393,7 +392,7 @@ func (m *clientRequestOp) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 55, ClientRequestOpResponse.
-func (m *clientRequestOpResponse) MarshalBinary() ([]byte, error) {
+func (m *ClientRequestOpResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -405,7 +404,7 @@ func (m *clientRequestOpResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 60, GetReport.
-func (m *getReport) MarshalBinary() ([]byte, error) {
+func (m *GetReport) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -414,18 +413,18 @@ func (m *getReport) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 61, ROAccessReport.
-func (m *roAccessReport) MarshalBinary() ([]byte, error) {
+func (m *ROAccessReport) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
 	}
-	for i := range m.TagReportDatas {
-		if err := encodeParams(&b, m.TagReportDatas[i].getHeader()); err != nil {
+	for i := range m.TagReportData {
+		if err := encodeParams(&b, m.TagReportData[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}
-	for i := range m.RFSurveyReportDatas {
-		if err := encodeParams(&b, m.RFSurveyReportDatas[i].getHeader()); err != nil {
+	for i := range m.RFSurveyReportData {
+		if err := encodeParams(&b, m.RFSurveyReportData[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}
@@ -438,7 +437,7 @@ func (m *roAccessReport) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 62, KeepAlive.
-func (m *keepAlive) MarshalBinary() ([]byte, error) {
+func (m *KeepAlive) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -446,8 +445,8 @@ func (m *keepAlive) MarshalBinary() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// MarshalBinary Message 72, KeepAliveACK.
-func (m *keepAliveACK) MarshalBinary() ([]byte, error) {
+// MarshalBinary Message 72, KeepAliveAck.
+func (m *KeepAliveAck) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -456,7 +455,7 @@ func (m *keepAliveACK) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 63, ReaderEventNotification.
-func (m *readerEventNotification) MarshalBinary() ([]byte, error) {
+func (m *ReaderEventNotification) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -468,7 +467,7 @@ func (m *readerEventNotification) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 64, EnableEventsAndReports.
-func (m *enableEventsAndReports) MarshalBinary() ([]byte, error) {
+func (m *EnableEventsAndReports) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -477,7 +476,7 @@ func (m *enableEventsAndReports) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 100, ErrorMessage.
-func (m *errorMessage) MarshalBinary() ([]byte, error) {
+func (m *ErrorMessage) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -489,7 +488,7 @@ func (m *errorMessage) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 2, GetReaderConfig.
-func (m *getReaderConfig) MarshalBinary() ([]byte, error) {
+func (m *GetReaderConfig) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -503,7 +502,7 @@ func (m *getReaderConfig) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 12, GetReaderConfigResponse.
-func (m *getReaderConfigResponse) MarshalBinary() ([]byte, error) {
+func (m *GetReaderConfigResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -556,8 +555,8 @@ func (m *getReaderConfigResponse) MarshalBinary() ([]byte, error) {
 			return nil, err
 		}
 	}
-	for i := range m.GPOWriteDatas {
-		if err := encodeParams(&b, m.GPOWriteDatas[i].getHeader()); err != nil {
+	for i := range m.GPOWriteData {
+		if err := encodeParams(&b, m.GPOWriteData[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}
@@ -575,7 +574,7 @@ func (m *getReaderConfigResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 3, SetReaderConfig.
-func (m *setReaderConfig) MarshalBinary() ([]byte, error) {
+func (m *SetReaderConfig) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -610,8 +609,8 @@ func (m *setReaderConfig) MarshalBinary() ([]byte, error) {
 			return nil, err
 		}
 	}
-	for i := range m.GPOWriteDatas {
-		if err := encodeParams(&b, m.GPOWriteDatas[i].getHeader()); err != nil {
+	for i := range m.GPOWriteData {
+		if err := encodeParams(&b, m.GPOWriteData[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}
@@ -634,7 +633,7 @@ func (m *setReaderConfig) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 13, SetReaderConfigResponse.
-func (m *setReaderConfigResponse) MarshalBinary() ([]byte, error) {
+func (m *SetReaderConfigResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -646,7 +645,7 @@ func (m *setReaderConfigResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 14, CloseConnection.
-func (m *closeConnection) MarshalBinary() ([]byte, error) {
+func (m *CloseConnection) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -655,7 +654,7 @@ func (m *closeConnection) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 4, CloseConnectionResponse.
-func (m *closeConnectionResponse) MarshalBinary() ([]byte, error) {
+func (m *CloseConnectionResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -667,7 +666,7 @@ func (m *closeConnectionResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Message 1023, CustomMessage.
-func (m *customMessage) MarshalBinary() ([]byte, error) {
+func (m *CustomMessage) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := m.EncodeFields(&b); err != nil {
 		return nil, err
@@ -676,7 +675,7 @@ func (m *customMessage) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 1, AntennaID.
-func (p *antennaID) MarshalBinary() ([]byte, error) {
+func (p *AntennaID) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -685,7 +684,7 @@ func (p *antennaID) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 2, FirstSeenUTC.
-func (p *firstSeenUTC) MarshalBinary() ([]byte, error) {
+func (p *FirstSeenUTC) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -694,7 +693,7 @@ func (p *firstSeenUTC) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 3, FirstSeenUptime.
-func (p *firstSeenUptime) MarshalBinary() ([]byte, error) {
+func (p *FirstSeenUptime) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -703,7 +702,7 @@ func (p *firstSeenUptime) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 4, LastSeenUTC.
-func (p *lastSeenUTC) MarshalBinary() ([]byte, error) {
+func (p *LastSeenUTC) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -712,7 +711,7 @@ func (p *lastSeenUTC) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 5, LastSeenUptime.
-func (p *lastSeenUptime) MarshalBinary() ([]byte, error) {
+func (p *LastSeenUptime) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -721,7 +720,7 @@ func (p *lastSeenUptime) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 6, PeakRSSI.
-func (p *peakRSSI) MarshalBinary() ([]byte, error) {
+func (p *PeakRSSI) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -730,7 +729,7 @@ func (p *peakRSSI) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 7, ChannelIndex.
-func (p *channelIndex) MarshalBinary() ([]byte, error) {
+func (p *ChannelIndex) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -739,7 +738,7 @@ func (p *channelIndex) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 8, TagSeenCount.
-func (p *tagSeenCount) MarshalBinary() ([]byte, error) {
+func (p *TagSeenCount) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -748,7 +747,7 @@ func (p *tagSeenCount) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 9, ROSpecID.
-func (p *roSpecID) MarshalBinary() ([]byte, error) {
+func (p *ROSpecID) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -757,7 +756,7 @@ func (p *roSpecID) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 10, InventoryParameterSpecID.
-func (p *inventoryParameterSpecID) MarshalBinary() ([]byte, error) {
+func (p *InventoryParameterSpecID) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -766,7 +765,7 @@ func (p *inventoryParameterSpecID) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 11, C1G2CRC.
-func (p *c1G2CRC) MarshalBinary() ([]byte, error) {
+func (p *C1G2CRC) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -775,7 +774,7 @@ func (p *c1G2CRC) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 12, C1G2PC.
-func (p *c1G2PC) MarshalBinary() ([]byte, error) {
+func (p *C1G2PC) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -784,7 +783,7 @@ func (p *c1G2PC) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 13, EPC96.
-func (p *epc96) MarshalBinary() ([]byte, error) {
+func (p *EPC96) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -793,7 +792,7 @@ func (p *epc96) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 14, SpecIndex.
-func (p *specIndex) MarshalBinary() ([]byte, error) {
+func (p *SpecIndex) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -802,7 +801,7 @@ func (p *specIndex) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 15, ClientRequestOpSpecResult.
-func (p *clientRequestOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *ClientRequestOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -811,7 +810,7 @@ func (p *clientRequestOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 16, AccessSpecID.
-func (p *accessSpecID) MarshalBinary() ([]byte, error) {
+func (p *AccessSpecID) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -820,7 +819,7 @@ func (p *accessSpecID) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 17, OpSpecID.
-func (p *opSpecID) MarshalBinary() ([]byte, error) {
+func (p *OpSpecID) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -829,7 +828,7 @@ func (p *opSpecID) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 18, C1G2SingulationDetails.
-func (p *c1G2SingulationDetails) MarshalBinary() ([]byte, error) {
+func (p *C1G2SingulationDetails) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -838,7 +837,7 @@ func (p *c1G2SingulationDetails) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 19, C1G2XPCW1.
-func (p *c1G2XPCW1) MarshalBinary() ([]byte, error) {
+func (p *C1G2XPCW1) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -847,7 +846,7 @@ func (p *c1G2XPCW1) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 20, C1G2XPCW2.
-func (p *c1G2XPCW2) MarshalBinary() ([]byte, error) {
+func (p *C1G2XPCW2) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -856,7 +855,7 @@ func (p *c1G2XPCW2) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 128, UTCTimestamp.
-func (p *utcTimestamp) MarshalBinary() ([]byte, error) {
+func (p *UTCTimestamp) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -865,7 +864,7 @@ func (p *utcTimestamp) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 129, Uptime.
-func (p *uptime) MarshalBinary() ([]byte, error) {
+func (p *Uptime) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -874,7 +873,7 @@ func (p *uptime) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 137, GeneralDeviceCapabilities.
-func (p *generalDeviceCapabilities) MarshalBinary() ([]byte, error) {
+func (p *GeneralDeviceCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -883,7 +882,7 @@ func (p *generalDeviceCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 139, ReceiveSensitivityTableEntry.
-func (p *receiveSensitivityTableEntry) MarshalBinary() ([]byte, error) {
+func (p *ReceiveSensitivityTableEntry) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -892,7 +891,7 @@ func (p *receiveSensitivityTableEntry) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 140, PerAntennaAirProtocol.
-func (p *perAntennaAirProtocol) MarshalBinary() ([]byte, error) {
+func (p *PerAntennaAirProtocol) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -901,7 +900,7 @@ func (p *perAntennaAirProtocol) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 141, GPIOCapabilities.
-func (p *gpioCapabilities) MarshalBinary() ([]byte, error) {
+func (p *GPIOCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -910,7 +909,7 @@ func (p *gpioCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 142, LLRPCapabilities.
-func (p *llrpCapabilities) MarshalBinary() ([]byte, error) {
+func (p *LLRPCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -919,7 +918,7 @@ func (p *llrpCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 143, RegulatoryCapabilities.
-func (p *regulatoryCapabilities) MarshalBinary() ([]byte, error) {
+func (p *RegulatoryCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -928,7 +927,7 @@ func (p *regulatoryCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 144, UHFBandCapabilities.
-func (p *uhfBandCapabilities) MarshalBinary() ([]byte, error) {
+func (p *UHFBandCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -937,7 +936,7 @@ func (p *uhfBandCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 145, TransmitPowerLevelTableEntry.
-func (p *transmitPowerLevelTableEntry) MarshalBinary() ([]byte, error) {
+func (p *TransmitPowerLevelTableEntry) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -946,7 +945,7 @@ func (p *transmitPowerLevelTableEntry) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 146, FrequencyInformation.
-func (p *frequencyInformation) MarshalBinary() ([]byte, error) {
+func (p *FrequencyInformation) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -955,7 +954,7 @@ func (p *frequencyInformation) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 147, FrequencyHopTable.
-func (p *frequencyHopTable) MarshalBinary() ([]byte, error) {
+func (p *FrequencyHopTable) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -964,7 +963,7 @@ func (p *frequencyHopTable) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 148, FixedFrequencyTable.
-func (p *fixedFrequencyTable) MarshalBinary() ([]byte, error) {
+func (p *FixedFrequencyTable) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -973,7 +972,7 @@ func (p *fixedFrequencyTable) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 149, PerAntennaReceiveSensitivityRange.
-func (p *perAntennaReceiveSensitivityRange) MarshalBinary() ([]byte, error) {
+func (p *PerAntennaReceiveSensitivityRange) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -982,7 +981,7 @@ func (p *perAntennaReceiveSensitivityRange) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 177, ROSpec.
-func (p *roSpec) MarshalBinary() ([]byte, error) {
+func (p *ROSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -991,7 +990,7 @@ func (p *roSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 178, ROBoundarySpec.
-func (p *roBoundarySpec) MarshalBinary() ([]byte, error) {
+func (p *ROBoundarySpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1000,7 +999,7 @@ func (p *roBoundarySpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 179, ROSpecStartTrigger.
-func (p *roSpecStartTrigger) MarshalBinary() ([]byte, error) {
+func (p *ROSpecStartTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1009,7 +1008,7 @@ func (p *roSpecStartTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 180, PeriodicTriggerValue.
-func (p *periodicTriggerValue) MarshalBinary() ([]byte, error) {
+func (p *PeriodicTriggerValue) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1018,7 +1017,7 @@ func (p *periodicTriggerValue) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 181, GPITriggerValue.
-func (p *gpiTriggerValue) MarshalBinary() ([]byte, error) {
+func (p *GPITriggerValue) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1027,7 +1026,7 @@ func (p *gpiTriggerValue) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 182, ROSpecStopTrigger.
-func (p *roSpecStopTrigger) MarshalBinary() ([]byte, error) {
+func (p *ROSpecStopTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1036,7 +1035,7 @@ func (p *roSpecStopTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 183, AISpec.
-func (p *aiSpec) MarshalBinary() ([]byte, error) {
+func (p *AISpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1045,7 +1044,7 @@ func (p *aiSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 184, AISpecStopTrigger.
-func (p *aiSpecStopTrigger) MarshalBinary() ([]byte, error) {
+func (p *AISpecStopTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1054,7 +1053,7 @@ func (p *aiSpecStopTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 185, TagObservationTrigger.
-func (p *tagObservationTrigger) MarshalBinary() ([]byte, error) {
+func (p *TagObservationTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1063,7 +1062,7 @@ func (p *tagObservationTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 186, InventoryParameterSpec.
-func (p *inventoryParameterSpec) MarshalBinary() ([]byte, error) {
+func (p *InventoryParameterSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1072,7 +1071,7 @@ func (p *inventoryParameterSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 187, RFSurveySpec.
-func (p *rfSurveySpec) MarshalBinary() ([]byte, error) {
+func (p *RFSurveySpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1081,7 +1080,7 @@ func (p *rfSurveySpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 188, RFSurveySpecStopTrigger.
-func (p *rfSurveySpecStopTrigger) MarshalBinary() ([]byte, error) {
+func (p *RFSurveySpecStopTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1090,7 +1089,7 @@ func (p *rfSurveySpecStopTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 207, AccessSpec.
-func (p *accessSpec) MarshalBinary() ([]byte, error) {
+func (p *AccessSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1099,7 +1098,7 @@ func (p *accessSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 208, AccessSpecStopTrigger.
-func (p *accessSpecStopTrigger) MarshalBinary() ([]byte, error) {
+func (p *AccessSpecStopTrigger) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1108,7 +1107,7 @@ func (p *accessSpecStopTrigger) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 209, AccessCommand.
-func (p *accessCommand) MarshalBinary() ([]byte, error) {
+func (p *AccessCommand) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1117,7 +1116,7 @@ func (p *accessCommand) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 210, ClientRequestOpSpec.
-func (p *clientRequestOpSpec) MarshalBinary() ([]byte, error) {
+func (p *ClientRequestOpSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1126,7 +1125,7 @@ func (p *clientRequestOpSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 211, ClientRequestResponse.
-func (p *clientRequestResponse) MarshalBinary() ([]byte, error) {
+func (p *ClientRequestResponse) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1135,7 +1134,7 @@ func (p *clientRequestResponse) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 217, LLRPConfigurationStateValue.
-func (p *llrpConfigurationStateValue) MarshalBinary() ([]byte, error) {
+func (p *LLRPConfigurationStateValue) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1144,7 +1143,7 @@ func (p *llrpConfigurationStateValue) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 218, Identification.
-func (p *identification) MarshalBinary() ([]byte, error) {
+func (p *Identification) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1153,7 +1152,7 @@ func (p *identification) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 219, GPOWriteData.
-func (p *gpoWriteData) MarshalBinary() ([]byte, error) {
+func (p *GPOWriteData) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1162,7 +1161,7 @@ func (p *gpoWriteData) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 220, KeepAliveSpec.
-func (p *keepAliveSpec) MarshalBinary() ([]byte, error) {
+func (p *KeepAliveSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1171,7 +1170,7 @@ func (p *keepAliveSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 221, AntennaProperties.
-func (p *antennaProperties) MarshalBinary() ([]byte, error) {
+func (p *AntennaProperties) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1180,7 +1179,7 @@ func (p *antennaProperties) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 222, AntennaConfiguration.
-func (p *antennaConfiguration) MarshalBinary() ([]byte, error) {
+func (p *AntennaConfiguration) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1189,7 +1188,7 @@ func (p *antennaConfiguration) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 223, RFReceiver.
-func (p *rfReceiver) MarshalBinary() ([]byte, error) {
+func (p *RFReceiver) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1198,7 +1197,7 @@ func (p *rfReceiver) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 224, RFTransmitter.
-func (p *rfTransmitter) MarshalBinary() ([]byte, error) {
+func (p *RFTransmitter) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1207,7 +1206,7 @@ func (p *rfTransmitter) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 225, GPIPortCurrentState.
-func (p *gpiPortCurrentState) MarshalBinary() ([]byte, error) {
+func (p *GPIPortCurrentState) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1216,7 +1215,7 @@ func (p *gpiPortCurrentState) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 226, EventsAndReports.
-func (p *eventsAndReports) MarshalBinary() ([]byte, error) {
+func (p *EventsAndReports) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1225,7 +1224,7 @@ func (p *eventsAndReports) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 237, ROReportSpec.
-func (p *roReportSpec) MarshalBinary() ([]byte, error) {
+func (p *ROReportSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1234,7 +1233,7 @@ func (p *roReportSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 238, TagReportContentSelector.
-func (p *tagReportContentSelector) MarshalBinary() ([]byte, error) {
+func (p *TagReportContentSelector) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1243,7 +1242,7 @@ func (p *tagReportContentSelector) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 239, AccessReportSpec.
-func (p *accessReportSpec) MarshalBinary() ([]byte, error) {
+func (p *AccessReportSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1252,7 +1251,7 @@ func (p *accessReportSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 240, TagReportData.
-func (p *tagReportData) MarshalBinary() ([]byte, error) {
+func (p *TagReportData) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1261,7 +1260,7 @@ func (p *tagReportData) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 241, EPCData.
-func (p *epcData) MarshalBinary() ([]byte, error) {
+func (p *EPCData) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1270,7 +1269,7 @@ func (p *epcData) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 242, RFSurveyReportData.
-func (p *rfSurveyReportData) MarshalBinary() ([]byte, error) {
+func (p *RFSurveyReportData) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1279,7 +1278,7 @@ func (p *rfSurveyReportData) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 243, FrequencyRSSILevelEntry.
-func (p *frequencyRSSILevelEntry) MarshalBinary() ([]byte, error) {
+func (p *FrequencyRSSILevelEntry) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1288,7 +1287,7 @@ func (p *frequencyRSSILevelEntry) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 244, ReaderEventNotificationSpec.
-func (p *readerEventNotificationSpec) MarshalBinary() ([]byte, error) {
+func (p *ReaderEventNotificationSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1297,7 +1296,7 @@ func (p *readerEventNotificationSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 245, EventNotificationState.
-func (p *eventNotificationState) MarshalBinary() ([]byte, error) {
+func (p *EventNotificationState) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1306,7 +1305,7 @@ func (p *eventNotificationState) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 246, ReaderEventNotificationData.
-func (p *readerEventNotificationData) MarshalBinary() ([]byte, error) {
+func (p *ReaderEventNotificationData) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1315,7 +1314,7 @@ func (p *readerEventNotificationData) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 247, HoppingEvent.
-func (p *hoppingEvent) MarshalBinary() ([]byte, error) {
+func (p *HoppingEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1324,7 +1323,7 @@ func (p *hoppingEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 248, GPIEvent.
-func (p *gpiEvent) MarshalBinary() ([]byte, error) {
+func (p *GPIEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1333,7 +1332,7 @@ func (p *gpiEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 249, ROSpecEvent.
-func (p *roSpecEvent) MarshalBinary() ([]byte, error) {
+func (p *ROSpecEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1342,7 +1341,7 @@ func (p *roSpecEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 250, ReportBufferLevelWarningEvent.
-func (p *reportBufferLevelWarningEvent) MarshalBinary() ([]byte, error) {
+func (p *ReportBufferLevelWarningEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1351,7 +1350,7 @@ func (p *reportBufferLevelWarningEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 251, ReportBufferOverflowErrorEvent.
-func (p *reportBufferOverflowErrorEvent) MarshalBinary() ([]byte, error) {
+func (p *ReportBufferOverflowErrorEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1360,7 +1359,7 @@ func (p *reportBufferOverflowErrorEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 252, ReaderExceptionEvent.
-func (p *readerExceptionEvent) MarshalBinary() ([]byte, error) {
+func (p *ReaderExceptionEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1369,7 +1368,7 @@ func (p *readerExceptionEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 253, RFSurveyEvent.
-func (p *rfSurveyEvent) MarshalBinary() ([]byte, error) {
+func (p *RFSurveyEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1378,7 +1377,7 @@ func (p *rfSurveyEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 254, AISpecEvent.
-func (p *aiSpecEvent) MarshalBinary() ([]byte, error) {
+func (p *AISpecEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1387,7 +1386,7 @@ func (p *aiSpecEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 255, AntennaEvent.
-func (p *antennaEvent) MarshalBinary() ([]byte, error) {
+func (p *AntennaEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1396,7 +1395,7 @@ func (p *antennaEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 256, ConnectionAttemptEvent.
-func (p *connectionAttemptEvent) MarshalBinary() ([]byte, error) {
+func (p *ConnectionAttemptEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1405,7 +1404,7 @@ func (p *connectionAttemptEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 257, ConnectionCloseEvent.
-func (p *connectionCloseEvent) MarshalBinary() ([]byte, error) {
+func (p *ConnectionCloseEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1414,7 +1413,7 @@ func (p *connectionCloseEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 287, LLRPStatus.
-func (p *llrpStatus) MarshalBinary() ([]byte, error) {
+func (p *LLRPStatus) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1423,7 +1422,7 @@ func (p *llrpStatus) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 288, FieldError.
-func (p *fieldError) MarshalBinary() ([]byte, error) {
+func (p *FieldError) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1432,7 +1431,7 @@ func (p *fieldError) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 289, ParameterError.
-func (p *parameterError) MarshalBinary() ([]byte, error) {
+func (p *ParameterError) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1441,7 +1440,7 @@ func (p *parameterError) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 327, C1G2LLRPCapabilities.
-func (p *c1G2LLRPCapabilities) MarshalBinary() ([]byte, error) {
+func (p *C1G2LLRPCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1450,7 +1449,7 @@ func (p *c1G2LLRPCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 328, UHFC1G2RFModeTable.
-func (p *uhfc1G2RFModeTable) MarshalBinary() ([]byte, error) {
+func (p *UHFC1G2RFModeTable) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1459,7 +1458,7 @@ func (p *uhfc1G2RFModeTable) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 329, UHFC1G2RFModeTableEntry.
-func (p *uhfc1G2RFModeTableEntry) MarshalBinary() ([]byte, error) {
+func (p *UHFC1G2RFModeTableEntry) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1468,7 +1467,7 @@ func (p *uhfc1G2RFModeTableEntry) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 330, C1G2InventoryCommand.
-func (p *c1G2InventoryCommand) MarshalBinary() ([]byte, error) {
+func (p *C1G2InventoryCommand) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1477,7 +1476,7 @@ func (p *c1G2InventoryCommand) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 331, C1G2Filter.
-func (p *c1G2Filter) MarshalBinary() ([]byte, error) {
+func (p *C1G2Filter) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1486,7 +1485,7 @@ func (p *c1G2Filter) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 332, C1G2TagInventoryMask.
-func (p *c1G2TagInventoryMask) MarshalBinary() ([]byte, error) {
+func (p *C1G2TagInventoryMask) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1494,9 +1493,8 @@ func (p *c1G2TagInventoryMask) MarshalBinary() ([]byte, error) {
 	return b.Bytes()[4:], nil
 }
 
-// MarshalBinary Parameter 333,
-// C1G2TagInventoryStateAwareFilterAction.
-func (p *c1G2TagInventoryStateAwareFilterAction) MarshalBinary() ([]byte, error) {
+// MarshalBinary Parameter 333, C1G2TagInventoryStateAwareFilterAction.
+func (p *C1G2TagInventoryStateAwareFilterAction) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1504,9 +1502,8 @@ func (p *c1G2TagInventoryStateAwareFilterAction) MarshalBinary() ([]byte, error)
 	return b.Bytes()[4:], nil
 }
 
-// MarshalBinary Parameter 334,
-// C1G2TagInventoryStateUnawareFilterAction.
-func (p *c1G2TagInventoryStateUnawareFilterAction) MarshalBinary() ([]byte, error) {
+// MarshalBinary Parameter 334, C1G2TagInventoryStateUnawareFilterAction.
+func (p *C1G2TagInventoryStateUnawareFilterAction) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1515,7 +1512,7 @@ func (p *c1G2TagInventoryStateUnawareFilterAction) MarshalBinary() ([]byte, erro
 }
 
 // MarshalBinary Parameter 335, C1G2RFControl.
-func (p *c1G2RFControl) MarshalBinary() ([]byte, error) {
+func (p *C1G2RFControl) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1524,7 +1521,7 @@ func (p *c1G2RFControl) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 336, C1G2SingulationControl.
-func (p *c1G2SingulationControl) MarshalBinary() ([]byte, error) {
+func (p *C1G2SingulationControl) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1532,9 +1529,8 @@ func (p *c1G2SingulationControl) MarshalBinary() ([]byte, error) {
 	return b.Bytes()[4:], nil
 }
 
-// MarshalBinary Parameter 337,
-// C1G2TagInventoryStateAwareSingulationAction.
-func (p *c1G2TagInventoryStateAwareSingulationAction) MarshalBinary() ([]byte, error) {
+// MarshalBinary Parameter 337, C1G2TagInventoryStateAwareSingulationAction.
+func (p *C1G2TagInventoryStateAwareSingulationAction) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1543,7 +1539,7 @@ func (p *c1G2TagInventoryStateAwareSingulationAction) MarshalBinary() ([]byte, e
 }
 
 // MarshalBinary Parameter 338, C1G2TagSpec.
-func (p *c1G2TagSpec) MarshalBinary() ([]byte, error) {
+func (p *C1G2TagSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1552,7 +1548,7 @@ func (p *c1G2TagSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 339, C1G2TargetTag.
-func (p *c1G2TargetTag) MarshalBinary() ([]byte, error) {
+func (p *C1G2TargetTag) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1561,7 +1557,7 @@ func (p *c1G2TargetTag) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 341, C1G2Read.
-func (p *c1G2Read) MarshalBinary() ([]byte, error) {
+func (p *C1G2Read) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1570,7 +1566,7 @@ func (p *c1G2Read) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 342, C1G2Write.
-func (p *c1G2Write) MarshalBinary() ([]byte, error) {
+func (p *C1G2Write) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1579,7 +1575,7 @@ func (p *c1G2Write) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 343, C1G2Kill.
-func (p *c1G2Kill) MarshalBinary() ([]byte, error) {
+func (p *C1G2Kill) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1588,7 +1584,7 @@ func (p *c1G2Kill) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 344, C1G2Lock.
-func (p *c1G2Lock) MarshalBinary() ([]byte, error) {
+func (p *C1G2Lock) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1597,7 +1593,7 @@ func (p *c1G2Lock) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 345, C1G2LockPayload.
-func (p *c1G2LockPayload) MarshalBinary() ([]byte, error) {
+func (p *C1G2LockPayload) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1606,7 +1602,7 @@ func (p *c1G2LockPayload) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 346, C1G2BlockErase.
-func (p *c1G2BlockErase) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockErase) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1615,7 +1611,7 @@ func (p *c1G2BlockErase) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 347, C1G2BlockWrite.
-func (p *c1G2BlockWrite) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockWrite) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1624,7 +1620,7 @@ func (p *c1G2BlockWrite) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 348, C1G2EPCMemorySelector.
-func (p *c1G2EPCMemorySelector) MarshalBinary() ([]byte, error) {
+func (p *C1G2EPCMemorySelector) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1633,7 +1629,7 @@ func (p *c1G2EPCMemorySelector) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 349, C1G2ReadOpSpecResult.
-func (p *c1G2ReadOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2ReadOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1642,7 +1638,7 @@ func (p *c1G2ReadOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 350, C1G2WriteOpSpecResult.
-func (p *c1G2WriteOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2WriteOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1651,7 +1647,7 @@ func (p *c1G2WriteOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 351, C1G2KillOpSpecResult.
-func (p *c1G2KillOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2KillOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1660,7 +1656,7 @@ func (p *c1G2KillOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 352, C1G2LockOpSpecResult.
-func (p *c1G2LockOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2LockOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1669,7 +1665,7 @@ func (p *c1G2LockOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 353, C1G2BlockEraseOpSpecResult.
-func (p *c1G2BlockEraseOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockEraseOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1678,7 +1674,7 @@ func (p *c1G2BlockEraseOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 354, C1G2BlockWriteOpSpecResult.
-func (p *c1G2BlockWriteOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockWriteOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1687,7 +1683,7 @@ func (p *c1G2BlockWriteOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 355, LoopSpec.
-func (p *loopSpec) MarshalBinary() ([]byte, error) {
+func (p *LoopSpec) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1696,7 +1692,7 @@ func (p *loopSpec) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 356, SpecLoopEvent.
-func (p *specLoopEvent) MarshalBinary() ([]byte, error) {
+func (p *SpecLoopEvent) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1705,7 +1701,7 @@ func (p *specLoopEvent) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 357, C1G2Recommission.
-func (p *c1G2Recommission) MarshalBinary() ([]byte, error) {
+func (p *C1G2Recommission) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1714,7 +1710,7 @@ func (p *c1G2Recommission) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 358, C1G2BlockPermalock.
-func (p *c1G2BlockPermalock) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockPermalock) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1723,7 +1719,7 @@ func (p *c1G2BlockPermalock) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 359, C1G2GetBlockPermalockStatus.
-func (p *c1G2GetBlockPermalockStatus) MarshalBinary() ([]byte, error) {
+func (p *C1G2GetBlockPermalockStatus) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1732,7 +1728,7 @@ func (p *c1G2GetBlockPermalockStatus) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 360, C1G2RecommissionOpSpecResult.
-func (p *c1G2RecommissionOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2RecommissionOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1741,7 +1737,7 @@ func (p *c1G2RecommissionOpSpecResult) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 361, C1G2BlockPermalockOpSpecResult.
-func (p *c1G2BlockPermalockOpSpecResult) MarshalBinary() ([]byte, error) {
+func (p *C1G2BlockPermalockOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1749,9 +1745,8 @@ func (p *c1G2BlockPermalockOpSpecResult) MarshalBinary() ([]byte, error) {
 	return b.Bytes()[4:], nil
 }
 
-// MarshalBinary Parameter 362,
-// C1G2GetBlockPermalockStatusOpSpecResult.
-func (p *c1G2GetBlockPermalockStatusOpSpecResult) MarshalBinary() ([]byte, error) {
+// MarshalBinary Parameter 362, C1G2GetBlockPermalockStatusOpSpecResult.
+func (p *C1G2GetBlockPermalockStatusOpSpecResult) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1760,7 +1755,7 @@ func (p *c1G2GetBlockPermalockStatusOpSpecResult) MarshalBinary() ([]byte, error
 }
 
 // MarshalBinary Parameter 363, MaximumReceiveSensitivity.
-func (p *maximumReceiveSensitivity) MarshalBinary() ([]byte, error) {
+func (p *MaximumReceiveSensitivity) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1769,7 +1764,7 @@ func (p *maximumReceiveSensitivity) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 365, RFSurveyFrequencyCapabilities.
-func (p *rfSurveyFrequencyCapabilities) MarshalBinary() ([]byte, error) {
+func (p *RFSurveyFrequencyCapabilities) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err
@@ -1778,7 +1773,7 @@ func (p *rfSurveyFrequencyCapabilities) MarshalBinary() ([]byte, error) {
 }
 
 // MarshalBinary Parameter 1023, Custom.
-func (p *custom) MarshalBinary() ([]byte, error) {
+func (p *Custom) MarshalBinary() ([]byte, error) {
 	b := bytes.Buffer{}
 	if err := encodeParams(&b, p.getHeader()); err != nil {
 		return nil, err

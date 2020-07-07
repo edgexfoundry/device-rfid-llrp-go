@@ -16,20 +16,12 @@
 // - Send and receive LLRP messages.
 // - At some point, gracefully close the connection.
 //
-// Some users may find value in the MsgReader and MsgBuilder types,
-// which provide efficient LLRP message translation among binary, Go types, and JSON.
+// The package provides methods that parse and validate
+// LLRP message to translate them among binary, Go types, and JSON.
 //
 // Note that names in LLRP are often verbose and sometimes overloaded.
 // These names have been judiciously translated when appropriate
-// to better match Go idioms and standards,
-// and follow the following conventions for ease of use:
-// - Messages' numeric type values are typed as MessageType
-//   and match their LLRP name, converted from UPPER_SNAKE to PascalCase.
-// - Parameters' numeric type values are typed as ParamType and prefixed with "Param";
-//   they typically match the LLRP name with the "Parameter" suffix omitted.
-// - LLRP Status Codes are typed as StatusCode and prefixed with "Status".
-// - ConnectionAttemptEventParameter's status field is typed as ConnectionStatus
-//   and prefixed with "Conn".
+// to better match Go idioms and standards.
 package llrp
 
 import (
@@ -234,22 +226,22 @@ func (r *Reader) Connect() error {
 //     }
 func (r *Reader) Shutdown(ctx context.Context) error {
 	r.logger.Println("putting CloseConnection in send queue")
-	rTyp, resp, err := r.SendMessage(ctx, CloseConnection, nil)
+	rTyp, resp, err := r.SendMessage(ctx, MsgCloseConnection, nil)
 	if err != nil {
 		return err
 	}
 
 	r.logger.Println("handling response to CloseConnection")
 
-	ls := llrpStatus{}
+	ls := LLRPStatus{}
 	switch rTyp {
-	case CloseConnectionResponse:
-		ccr := closeConnectionResponse{}
+	case MsgCloseConnectionResponse:
+		ccr := CloseConnectionResponse{}
 		if err := ccr.UnmarshalBinary(resp); err != nil {
 			return errors.WithMessage(err, "unable to read CloseConnectionResponse")
 		}
 		ls = ccr.LLRPStatus
-	case ErrorMessage:
+	case MsgErrorMessage:
 		if err := ls.UnmarshalBinary(resp); err != nil {
 			return errors.WithMessage(err, "unable to read ErrorMessage response")
 		}
@@ -419,7 +411,7 @@ func (r *Reader) handleIncoming() error {
 
 		r.logger.Printf(">>> %v", m)
 
-		if m.typ == CloseConnectionResponse {
+		if m.typ == MsgCloseConnectionResponse {
 			receivedClosed = true
 		}
 
@@ -473,13 +465,13 @@ func (r *Reader) handleOutgoing() error {
 		case <-r.done:
 			return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 		case mid := <-r.ackQueue:
-			msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
+			msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 		default:
 			select {
 			case <-r.done:
 				return errors.Wrap(ErrReaderClosed, "stopping outgoing")
 			case mid := <-r.ackQueue:
-				msg = Message{Header: Header{id: mid, typ: KeepAliveAck}}
+				msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 			case req := <-r.sendQueue:
 				msg = req.msg
 
@@ -515,7 +507,7 @@ func (r *Reader) handleOutgoing() error {
 			}
 		}
 
-		if msg.typ == GetSupportedVersion || msg.typ == SetProtocolVersion {
+		if msg.typ == MsgGetSupportedVersion || msg.typ == MsgSetProtocolVersion {
 			// these messages are required to use version 1.1
 			msg.version = Version1_1
 		} else {
@@ -534,7 +526,7 @@ func (r *Reader) handleOutgoing() error {
 		}
 
 		// stop processing messages
-		if msg.typ == CloseConnection {
+		if msg.typ == MsgCloseConnection {
 			r.logger.Println("CloseConnection sent; waiting for reader to close.")
 			select {
 			case <-r.done:
@@ -576,7 +568,7 @@ func (r *Reader) sendAck(mid messageID) {
 func (r *Reader) getResponseHandler(hdr Header) io.Writer {
 	r.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
 
-	if hdr.typ == KeepAlive {
+	if hdr.typ == MsgKeepAlive {
 		r.sendAck(hdr.id)
 		return ioutil.Discard
 	}
@@ -680,8 +672,8 @@ func (r *Reader) checkInitialMessage() error {
 	defer m.Close()
 
 	r.logger.Printf(">>> (initial) %v", m)
-	if m.typ != ReaderEventNotification {
-		return errors.Errorf("expected %v, but got %v", ReaderEventNotification, m.typ)
+	if m.typ != MsgReaderEventNotification {
+		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, m.typ)
 	}
 
 	buf := make([]byte, m.payloadLen)
@@ -689,7 +681,7 @@ func (r *Reader) checkInitialMessage() error {
 		return errors.Wrap(err, "failed to read message payload")
 	}
 
-	ren := readerEventNotification{}
+	ren := ReaderEventNotification{}
 	if err := ren.UnmarshalBinary(buf); err != nil {
 		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
 	}
@@ -712,8 +704,8 @@ func (r *Reader) checkInitialMessage() error {
 // but this method handles that case and returns a valid SupportedVersion struct.
 // As a result, error is only not nil when network communication or message processing fails;
 // if the error is not nil, the returned struct will indicate the correct version information.
-func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionResponse, error) {
-	resp, err := r.send(ctx, NewHdrOnlyMsg(GetSupportedVersion))
+func (r *Reader) getSupportedVersion(ctx context.Context) (*GetSupportedVersionResponse, error) {
+	resp, err := r.send(ctx, NewHdrOnlyMsg(MsgGetSupportedVersion))
 	if err != nil {
 		return nil, err
 	}
@@ -728,7 +720,7 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	}
 
 	// By default, we'll return version 1.0.1.
-	sv := getSupportedVersionResponse{
+	sv := GetSupportedVersionResponse{
 		CurrentVersion:      Version1_0_1,
 		MaxSupportedVersion: Version1_0_1,
 	}
@@ -739,9 +731,9 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 	// As a result, we have to check the type to know what parts to decode.
 	switch resp.typ {
 	default:
-		return nil, errors.Errorf("unexpected response to %v: %v", GetSupportedVersion, resp)
-	case ErrorMessage:
-		errMsg := errorMessage{}
+		return nil, errors.Errorf("unexpected response to %v: %v", MsgGetSupportedVersion, resp)
+	case MsgErrorMessage:
+		errMsg := ErrorMessage{}
 		// If the reader only supports v1.0.1, it returns VersionUnsupported.
 		// In that case, we'll drop the error so we can treat all results identically.
 		if err := errMsg.UnmarshalBinary(data); err != nil {
@@ -751,10 +743,10 @@ func (r *Reader) getSupportedVersion(ctx context.Context) (*getSupportedVersionR
 		sv.LLRPStatus = errMsg.LLRPStatus
 
 		if sv.LLRPStatus.Status == StatusMsgVerUnsupported {
-			sv.LLRPStatus = llrpStatus{Status: StatusSuccess}
+			sv.LLRPStatus = LLRPStatus{Status: StatusSuccess}
 		}
 
-	case GetSupportedVersionResponse:
+	case MsgGetSupportedVersionResponse:
 		if err := sv.UnmarshalBinary(data); err != nil {
 			return nil, err
 		}
@@ -794,7 +786,7 @@ func (r *Reader) negotiate() error {
 
 	r.logger.Printf("requesting device use version %v", ver)
 
-	m, err := NewByteMessage(SetProtocolVersion, []byte{uint8(r.version)})
+	m, err := NewByteMessage(MsgSetProtocolVersion, []byte{uint8(r.version)})
 	if err != nil {
 		return err
 	}
@@ -805,7 +797,7 @@ func (r *Reader) negotiate() error {
 	}
 	defer resp.Close()
 
-	if err := resp.isResponseTo(SetProtocolVersion); err != nil {
+	if err := resp.isResponseTo(MsgSetProtocolVersion); err != nil {
 		return err
 	}
 

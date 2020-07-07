@@ -37,17 +37,17 @@ func compareMessages(msgName string) func(t *testing.T) {
 		MarshalBinary() ([]byte, error)
 	}
 	var v binRoundTrip
-	switch msgName {
-	case GetReaderCapabilitiesResponse.String():
-		v = &getReaderCapabilitiesResponse{}
-	case GetReaderConfigResponse.String():
-		v = &getReaderConfigResponse{}
-	case GetAccessSpecsResponse.String():
-		v = &getAccessSpecsResponse{}
-	case GetROSpecsResponse.String():
-		v = &getROSpecsResponse{}
-	case CloseConnectionResponse.String():
-		v = &closeConnectionResponse{}
+	switch "Msg" + msgName {
+	case MsgGetReaderCapabilitiesResponse.String():
+		v = &GetReaderCapabilitiesResponse{}
+	case MsgGetReaderConfigResponse.String():
+		v = &GetReaderConfigResponse{}
+	case MsgGetAccessSpecsResponse.String():
+		v = &GetAccessSpecsResponse{}
+	case MsgGetROSpecsResponse.String():
+		v = &GetROSpecsResponse{}
+	case MsgCloseConnectionResponse.String():
+		v = &CloseConnectionResponse{}
 	}
 
 	// This tests the following two conversions using data captured from a reader:

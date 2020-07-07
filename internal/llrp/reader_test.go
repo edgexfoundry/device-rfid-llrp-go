@@ -108,8 +108,8 @@ func TestReader_readHeader(t *testing.T) {
 }
 
 func TestReader_newMessage(t *testing.T) {
-	ack := NewHdrOnlyMsg(KeepAliveAck)
-	expMsg := Message{Header: Header{version: versionMin, typ: KeepAliveAck}}
+	ack := NewHdrOnlyMsg(MsgKeepAliveAck)
+	expMsg := Message{Header: Header{version: versionMin, typ: MsgKeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -141,7 +141,7 @@ func TestReader_newMessage(t *testing.T) {
 	}
 
 	expHdr := Header{
-		typ:     KeepAliveAck,
+		typ:     MsgKeepAliveAck,
 		version: v,
 		id:      messageID(0),
 	}
@@ -307,7 +307,7 @@ func TestReader_Connection(t *testing.T) {
 	}()
 
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	_, resp, err := r.SendMessage(context.Background(), CustomMessage, data)
+	_, resp, err := r.SendMessage(context.Background(), MsgCustomMessage, data)
 	if err != nil {
 		t.Error(err)
 	} else if resp == nil {
@@ -335,7 +335,7 @@ func TestReader_Connection(t *testing.T) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
 
-	_, _, err = r.SendMessage(context.Background(), CustomMessage, data)
+	_, _, err = r.SendMessage(context.Background(), MsgCustomMessage, data)
 	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
 		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
 	}
@@ -400,7 +400,7 @@ func TestReader_ManySenders(t *testing.T) {
 			data := make([]byte, sz)
 			rand.Read(data)
 
-			_, _, err := r.SendMessage(ctx, CustomMessage, data)
+			_, _, err := r.SendMessage(ctx, MsgCustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}
@@ -491,7 +491,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			data := make([]byte, sz)
 			rand.Read(data)
 
-			_, _, err := r.SendMessage(ctx, CustomMessage, data)
+			_, _, err := r.SendMessage(ctx, MsgCustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}

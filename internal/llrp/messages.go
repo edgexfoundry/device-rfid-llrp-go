@@ -20,55 +20,8 @@ import (
 type MessageType uint16
 
 const (
-	GetReaderCapabilities         = MessageType(1)
-	GetReaderConfig               = MessageType(2)
-	SetReaderConfig               = MessageType(3)
-	CloseConnectionResponse       = MessageType(4)
-	GetReaderCapabilitiesResponse = MessageType(11)
-	GetReaderConfigResponse       = MessageType(12)
-	SetReaderConfigResponse       = MessageType(13)
-	CloseConnection               = MessageType(14)
-	AddROSpec                     = MessageType(20)
-	DeleteROSpec                  = MessageType(21)
-	StartROSpec                   = MessageType(22)
-	StopROSpec                    = MessageType(23)
-	EnableROSpec                  = MessageType(24)
-	DisableROSpec                 = MessageType(25)
-	GetROSpecs                    = MessageType(26)
-	AddROSpecResponse             = MessageType(30)
-	DeleteROSpecResponse          = MessageType(31)
-	StartROSpecResponse           = MessageType(32)
-	StopROSpecResponse            = MessageType(33)
-	EnableROSpecResponse          = MessageType(34)
-	DisableROSpecResponse         = MessageType(35)
-	GetROSpecsResponse            = MessageType(36)
-	AddAccessSpec                 = MessageType(40)
-	DeleteAccessSpec              = MessageType(41)
-	EnableAccessSpec              = MessageType(42)
-	DisableAccessSpec             = MessageType(43)
-	GetAccessSpecs                = MessageType(44)
-	ClientRequestOp               = MessageType(45)
-	GetSupportedVersion           = MessageType(46)
-	SetProtocolVersion            = MessageType(47)
-	AddAccessSpecResponse         = MessageType(50)
-	DeleteAccessSpecResponse      = MessageType(51)
-	EnableAccessSpecResponse      = MessageType(52)
-	DisableAccessSpecResponse     = MessageType(53)
-	GetAccessSpecsResponse        = MessageType(54)
-	ClientRequestOpResponse       = MessageType(55)
-	GetSupportedVersionResponse   = MessageType(56)
-	SetProtocolVersionResponse    = MessageType(57)
-	GetReport                     = MessageType(60)
-	ROAccessReport                = MessageType(61)
-	KeepAlive                     = MessageType(62)
-	ReaderEventNotification       = MessageType(63)
-	EnableEventsAndReports        = MessageType(64)
-	KeepAliveAck                  = MessageType(72)
-	ErrorMessage                  = MessageType(100)
-	CustomMessage                 = MessageType(1023)
-
-	minMsgType     = GetReaderCapabilities
-	maxMsgType     = CustomMessage    // highest legal message type
+	minMsgType     = MsgGetReaderCapabilities
+	maxMsgType     = MsgCustomMessage // highest legal message type
 	msgResvStart   = MessageType(900) // 900-999 are reserved for ISO/IEC 24971-5
 	msgResvEnd     = MessageType(999)
 	msgTypeInvalid = MessageType(0)
@@ -79,12 +32,12 @@ const (
 
 // responseType maps certain message types to their response type.
 var responseType = map[MessageType]MessageType{
-	GetSupportedVersion:   GetSupportedVersionResponse,
-	SetProtocolVersion:    SetProtocolVersionResponse,
-	GetReaderCapabilities: GetReaderCapabilitiesResponse,
-	SetReaderConfig:       SetReaderConfigResponse,
-	CloseConnection:       CloseConnectionResponse,
-	CustomMessage:         CustomMessage,
+	MsgGetSupportedVersion:   MsgGetSupportedVersionResponse,
+	MsgSetProtocolVersion:    MsgSetProtocolVersionResponse,
+	MsgGetReaderCapabilities: MsgGetReaderCapabilitiesResponse,
+	MsgSetReaderConfig:       MsgSetReaderConfigResponse,
+	MsgCloseConnection:       MsgCloseConnectionResponse,
+	MsgCustomMessage:         MsgCustomMessage,
 }
 
 // isValid returns true if the messageType is within the permitted messageType space.

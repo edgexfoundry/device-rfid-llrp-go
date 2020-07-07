@@ -77,7 +77,7 @@ func collectData() error {
 	}
 
 	if r.version > Version1_0_1 {
-		if err := getAndWrite(r, GetSupportedVersion, nil, &getSupportedVersionResponse{}); err != nil {
+		if err := getAndWrite(r, MsgGetSupportedVersion, nil, &GetSupportedVersionResponse{}); err != nil {
 			return err
 		}
 	}
@@ -88,12 +88,12 @@ func collectData() error {
 		out encoding.BinaryMarshaler
 		in  encoding.BinaryUnmarshaler
 	}{
-		{GetReaderConfig, &getReaderConfig{}, &getReaderConfigResponse{}},
-		{GetReaderCapabilities, &getReaderCapabilities{}, &getReaderCapabilitiesResponse{}},
-		{GetROSpecs, nil, &getROSpecsResponse{}},
-		{GetAccessSpecs, nil, &getAccessSpecsResponse{}},
-		{GetReport, nil, &roAccessReport{}},
-		{CloseConnection, nil, &closeConnectionResponse{}},
+		{MsgGetReaderConfig, &GetReaderConfig{}, &GetReaderConfigResponse{}},
+		{MsgGetReaderCapabilities, &GetReaderCapabilities{}, &GetReaderCapabilitiesResponse{}},
+		{MsgGetROSpecs, nil, &GetROSpecsResponse{}},
+		{MsgGetAccessSpecs, nil, &GetAccessSpecsResponse{}},
+		{MsgGetReport, nil, &ROAccessReport{}},
+		{MsgCloseConnection, nil, &CloseConnectionResponse{}},
 	} {
 		if err := getAndWrite(r, toSend.mt, toSend.out, toSend.in); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -148,8 +148,9 @@ func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, re
 		return errors.Errorf("expected %v; got %v", expR, mt)
 	}
 
-	bfn := fmt.Sprintf("testdata/%v.bytes", resultT)
-	jfn := fmt.Sprintf("testdata/%v.json", resultT)
+	name := resultT.String()[len("Msg"):]
+	bfn := fmt.Sprintf("testdata/%v.bytes", name)
+	jfn := fmt.Sprintf("testdata/%v.json", name)
 
 	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
 		return err
@@ -237,9 +238,9 @@ func benchmarkSend(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mt, m, err := r.SendMessage(ctx, GetSupportedVersion, nil)
-		if GetSupportedVersionResponse != mt {
-			b.Errorf("expected %v; got %v", GetSupportedVersionResponse, mt)
+		mt, m, err := r.SendMessage(ctx, MsgGetSupportedVersion, nil)
+		if MsgGetSupportedVersionResponse != mt {
+			b.Errorf("expected %v; got %v", MsgGetSupportedVersionResponse, mt)
 		}
 		if err != nil {
 			b.Fatal(err)
@@ -296,7 +297,7 @@ func benchmarkConnect(b *testing.B) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, _, err = r.SendMessage(ctx, GetSupportedVersion, nil)
+	_, _, err = r.SendMessage(ctx, MsgGetSupportedVersion, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -339,7 +340,7 @@ func testConnect(t *testing.T) {
 	defer cancel()
 
 	payload := []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
-	mt, resp, err := r.SendMessage(ctx, GetReaderConfig, payload)
+	mt, resp, err := r.SendMessage(ctx, MsgGetReaderConfig, payload)
 	cancel()
 
 	if err != nil {
@@ -348,10 +349,10 @@ func testConnect(t *testing.T) {
 		t.Error("expected non-nil response")
 	}
 
-	if GetReaderConfigResponse != mt {
-		t.Errorf("expected %v; got %v", GetReaderConfigResponse, mt)
-		if mt == ErrorMessage {
-			var errMsg errorMessage
+	if MsgGetReaderConfigResponse != mt {
+		t.Errorf("expected %v; got %v", MsgGetReaderConfigResponse, mt)
+		if mt == MsgErrorMessage {
+			var errMsg ErrorMessage
 
 			if err := errMsg.UnmarshalBinary(resp); err != nil {
 				t.Error(err)
@@ -368,7 +369,7 @@ func testConnect(t *testing.T) {
 			}
 		}
 	} else {
-		var conf getReaderConfigResponse
+		var conf GetReaderConfigResponse
 		if err := conf.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -424,26 +425,26 @@ func testAddROSpec(t *testing.T) {
 		connErrs <- r.Connect()
 	}()
 
-	spec := addROSpec{
-		ROSpec: roSpec{
+	spec := AddROSpec{
+		ROSpec: ROSpec{
 			ROSpecID:           1,
 			Priority:           0,
 			ROSpecCurrentState: ROSpecStateDisabled,
-			ROBoundarySpec: roBoundarySpec{
-				ROSpecStartTrigger: roSpecStartTrigger{
+			ROBoundarySpec: ROBoundarySpec{
+				ROSpecStartTrigger: ROSpecStartTrigger{
 					ROSpecStartTriggerType: ROStartTriggerImmediate,
 				},
-				ROSpecStopTrigger: roSpecStopTrigger{
+				ROSpecStopTrigger: ROSpecStopTrigger{
 					ROSpecStopTriggerType: ROStopTriggerDuration,
 					DurationTriggerValue:  milliSecs32(60000),
 				},
 			},
-			AISpecs: []aiSpec{{
-				AntennaIDs: []antennaID{0},
-				AISpecStopTrigger: aiSpecStopTrigger{
+			AISpecs: []AISpec{{
+				AntennaIDs: []AntennaID{0},
+				AISpecStopTrigger: AISpecStopTrigger{
 					AISpecStopTriggerType: AIStopTriggerNone,
 				},
-				InventoryParameterSpecs: []inventoryParameterSpec{{
+				InventoryParameterSpecs: []InventoryParameterSpec{{
 					InventoryParameterSpecID: 1,
 					AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
 				}},
@@ -465,7 +466,7 @@ func testAddROSpec(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mt, resp, err := r.SendMessage(ctx, AddROSpec, payload)
+	mt, resp, err := r.SendMessage(ctx, MsgAddROSpec, payload)
 	cancel()
 
 	if err != nil {
@@ -476,11 +477,11 @@ func testAddROSpec(t *testing.T) {
 
 	switch mt {
 	default:
-		t.Errorf("expected %v; got %v", AddROSpecResponse, mt)
-	case ErrorMessage:
+		t.Errorf("expected %v; got %v", MsgAddROSpecResponse, mt)
+	case MsgErrorMessage:
 		readErr(t, resp)
-	case AddROSpecResponse:
-		var roRsp addROSpecResponse
+	case MsgAddROSpecResponse:
+		var roRsp AddROSpecResponse
 		if err := roRsp.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -497,14 +498,14 @@ func testAddROSpec(t *testing.T) {
 		}
 	}
 
-	enableSpec, err := (&enableROSpec{ROSpecID: 1}).MarshalBinary()
+	enableSpec, err := (&EnableROSpec{ROSpecID: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mt, resp, err = r.SendMessage(ctx, EnableROSpec, enableSpec)
+	mt, resp, err = r.SendMessage(ctx, MsgEnableROSpec, enableSpec)
 	cancel()
 	if err != nil {
 		t.Error(err)
@@ -512,11 +513,11 @@ func testAddROSpec(t *testing.T) {
 
 	switch mt {
 	default:
-		t.Errorf("expected %v; got %v", EnableROSpecResponse, mt)
-	case ErrorMessage:
+		t.Errorf("expected %v; got %v", MsgEnableROSpecResponse, mt)
+	case MsgErrorMessage:
 		readErr(t, resp)
-	case EnableROSpecResponse:
-		enableRsp := enableROSpecResponse{}
+	case MsgEnableROSpecResponse:
+		enableRsp := EnableROSpecResponse{}
 		if err := enableRsp.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -549,7 +550,7 @@ func testAddROSpec(t *testing.T) {
 func enableAccSpec(t *testing.T, r *Reader) {
 	t.Helper()
 
-	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
+	disableSpec, err := (&DisableROSpec{ROSpecID: 1}).MarshalBinary()
 	if err != nil {
 		t.Error(err)
 	}
@@ -557,7 +558,7 @@ func enableAccSpec(t *testing.T, r *Reader) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
+	mt, resp, err := r.SendMessage(ctx, MsgDisableROSpec, disableSpec)
 
 	if err != nil {
 		t.Error(err)
@@ -566,11 +567,11 @@ func enableAccSpec(t *testing.T, r *Reader) {
 
 	switch mt {
 	default:
-		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
-	case ErrorMessage:
+		t.Errorf("expected %v; got %v", MsgDisableROSpecResponse, mt)
+	case MsgErrorMessage:
 		readErr(t, resp)
-	case DisableROSpecResponse:
-		disableRsp := disableROSpecResponse{}
+	case MsgDisableROSpecResponse:
+		disableRsp := DisableROSpecResponse{}
 		if err := disableRsp.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -583,7 +584,7 @@ func enableAccSpec(t *testing.T, r *Reader) {
 func disableRO(t *testing.T, r *Reader) {
 	t.Helper()
 
-	disableSpec, err := (&disableROSpec{ROSpecID: 1}).MarshalBinary()
+	disableSpec, err := (&DisableROSpec{ROSpecID: 1}).MarshalBinary()
 	if err != nil {
 		t.Error(err)
 	}
@@ -591,7 +592,7 @@ func disableRO(t *testing.T, r *Reader) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mt, resp, err := r.SendMessage(ctx, DisableROSpec, disableSpec)
+	mt, resp, err := r.SendMessage(ctx, MsgDisableROSpec, disableSpec)
 
 	if err != nil {
 		t.Error(err)
@@ -600,11 +601,11 @@ func disableRO(t *testing.T, r *Reader) {
 
 	switch mt {
 	default:
-		t.Errorf("expected %v; got %v", DisableROSpecResponse, mt)
-	case ErrorMessage:
+		t.Errorf("expected %v; got %v", MsgDisableROSpecResponse, mt)
+	case MsgErrorMessage:
 		readErr(t, resp)
-	case DisableROSpecResponse:
-		disableRsp := disableROSpecResponse{}
+	case MsgDisableROSpecResponse:
+		disableRsp := DisableROSpecResponse{}
 		if err := disableRsp.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -617,7 +618,7 @@ func disableRO(t *testing.T, r *Reader) {
 func deleteRO(t *testing.T, r *Reader) {
 	t.Helper()
 
-	deleteSpec, err := (&deleteROSpec{ROSpecID: 1}).MarshalBinary()
+	deleteSpec, err := (&DeleteROSpec{ROSpecID: 1}).MarshalBinary()
 	if err != nil {
 		t.Error(err)
 	}
@@ -625,7 +626,7 @@ func deleteRO(t *testing.T, r *Reader) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mt, resp, err := r.SendMessage(ctx, DeleteROSpec, deleteSpec)
+	mt, resp, err := r.SendMessage(ctx, MsgDeleteROSpec, deleteSpec)
 
 	if err != nil {
 		t.Error(err)
@@ -634,11 +635,11 @@ func deleteRO(t *testing.T, r *Reader) {
 
 	switch mt {
 	default:
-		t.Errorf("expected %v; got %v", DeleteROSpecResponse, mt)
-	case ErrorMessage:
+		t.Errorf("expected %v; got %v", MsgDeleteROSpecResponse, mt)
+	case MsgErrorMessage:
 		readErr(t, resp)
-	case DeleteROSpecResponse:
-		rsp := deleteROSpecResponse{}
+	case MsgDeleteROSpecResponse:
+		rsp := DeleteROSpecResponse{}
 		if err := rsp.UnmarshalBinary(resp); err != nil {
 			t.Errorf("%+v", err)
 			t.Logf("%# 02x", resp)
@@ -650,7 +651,7 @@ func deleteRO(t *testing.T, r *Reader) {
 
 func readErr(t *testing.T, resp []byte) {
 	t.Helper()
-	errMsg := &errorMessage{}
+	errMsg := &ErrorMessage{}
 	if err := errMsg.UnmarshalBinary(resp); err != nil {
 		t.Error(err)
 		t.Logf("%# 02x", resp)
