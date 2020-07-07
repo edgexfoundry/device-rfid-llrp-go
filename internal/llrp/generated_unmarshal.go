@@ -66,6 +66,10 @@ type bps = uint32
 
 // C1G2MemoryBankType selection.
 type C1G2MemoryBankType = uint8
+
+// C1G2ProtoConEPCMemLength indicates number of (valid) EPC bits in the EPC Memory (bank
+// 1) of a Gen2 tag.
+type C1G2ProtoConEPCMemLength = uint8
 type C1G2BlockPermalockResultType uint8
 
 const (
@@ -2287,14 +2291,38 @@ func (p *C1G2CRC) UnmarshalBinary(data []byte) error {
 }
 
 // C1G2PC is Parameter 12, C1G2PC.
-type C1G2PC uint16
+//
+// This is the 16-bit Protocol Control field of the EPC Memory (bank 1). It indicates the
+// number of EPC bits a tag returns to a reader, (regardless of the physical memory bank
+// size), whether or not the tag has user memory (and contains data), whether or not an
+// XPC is present, and whether the EPC memory bank contains a binary encoded EPC or an ISO
+// Unique Item Identifier.
+type C1G2PC struct {
+	EPCMemoryLength C1G2ProtoConEPCMemLength
+	HasUserMemory   bool
+	// HasXPC is true if the Extended Protocol Control Word 1 exists (word 21 of EPC Memory).
+	HasXPC bool
+	// IsISO15961 is true if the final 8 bits of the PC are an ISO Application Family
+	// Identifier (AFI), as defined in ISO15961. If so, the remainder of the EPC bank
+	// contains a Unique Item Identifier (UII) appropriate for that AFI. If false, the final
+	// 8 bits of the PC are (or may be) Attribute Bits (applies to Gen2 v1.x tags only), and
+	// the remainder of the EPC memory bank is a binary encoded EPC.
+	IsISO15961 bool
+	// AttributesOrAFI is either the EPC C1G2 Attributes bits, or an ISO15961 AFI, depending
+	// on the whether IsISO15961 is true.
+	AttributesOrAFI byte
+}
 
 // UnmarshalBinary Parameter 12, C1G2PC.
 func (p *C1G2PC) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2PC, 2, len(data), true); err != nil {
 		return err
 	}
-	*p = C1G2PC(binary.BigEndian.Uint16(data))
+	p.EPCMemoryLength = data[0] >> 3
+	p.HasUserMemory = data[0]>>2&1 != 0
+	p.HasXPC = data[0]>>1&1 != 0
+	p.IsISO15961 = data[0]&1 != 0
+	p.AttributesOrAFI = byte(data[1])
 	return nil
 }
 
@@ -4354,35 +4382,35 @@ func (p *AccessReportSpec) UnmarshalBinary(data []byte) error {
 
 // TagReportData is Parameter 240, TagReportData.
 type TagReportData struct {
-	EPCData                                  EPCData
-	EPC96                                    EPC96
-	ROSpecID                                 *ROSpecID
-	SpecIndex                                *SpecIndex
-	InventoryParameterSpecID                 *InventoryParameterSpecID
-	AntennaID                                *AntennaID
-	PeakRSSI                                 *PeakRSSI
-	ChannelIndex                             *ChannelIndex
-	FirstSeenUTC                             *FirstSeenUTC
-	FirstSeenUptime                          *FirstSeenUptime
-	LastSeenUTC                              *LastSeenUTC
-	LastSeenUptime                           *LastSeenUptime
-	TagSeenCount                             *TagSeenCount
-	C1G2PCs                                  []C1G2PC
-	C1G2XPCW1s                               []C1G2XPCW1
-	C1G2XPCW2s                               []C1G2XPCW2
-	C1G2CRCs                                 []C1G2CRC
-	AccessSpecID                             *AccessSpecID
-	C1G2ReadOpSpecResults                    []C1G2ReadOpSpecResult
-	C1G2WriteOpSpecResults                   []C1G2WriteOpSpecResult
-	C1G2KillOpSpecResults                    []C1G2KillOpSpecResult
-	C1G2LockOpSpecResults                    []C1G2LockOpSpecResult
-	C1G2BlockEraseOpSpecResults              []C1G2BlockEraseOpSpecResult
-	C1G2BlockWriteOpSpecResults              []C1G2BlockWriteOpSpecResult
-	C1G2RecommissionOpSpecResults            []C1G2RecommissionOpSpecResult
-	C1G2BlockPermalockOpSpecResults          []C1G2BlockPermalockOpSpecResult
-	C1G2GetBlockPermalockStatusOpSpecResults []C1G2GetBlockPermalockStatusOpSpecResult
-	ClientRequestOpSpecResults               []ClientRequestOpSpecResult
-	Custom                                   []Custom
+	EPCData                                 EPCData
+	EPC96                                   EPC96
+	ROSpecID                                *ROSpecID
+	SpecIndex                               *SpecIndex
+	InventoryParameterSpecID                *InventoryParameterSpecID
+	AntennaID                               *AntennaID
+	PeakRSSI                                *PeakRSSI
+	ChannelIndex                            *ChannelIndex
+	FirstSeenUTC                            *FirstSeenUTC
+	FirstSeenUptime                         *FirstSeenUptime
+	LastSeenUTC                             *LastSeenUTC
+	LastSeenUptime                          *LastSeenUptime
+	TagSeenCount                            *TagSeenCount
+	C1G2PC                                  *C1G2PC
+	C1G2XPCW1                               *C1G2XPCW1
+	C1G2XPCW2                               *C1G2XPCW2
+	C1G2CRC                                 *C1G2CRC
+	AccessSpecID                            *AccessSpecID
+	C1G2ReadOpSpecResult                    *C1G2ReadOpSpecResult
+	C1G2WriteOpSpecResult                   *C1G2WriteOpSpecResult
+	C1G2KillOpSpecResult                    *C1G2KillOpSpecResult
+	C1G2LockOpSpecResult                    *C1G2LockOpSpecResult
+	C1G2BlockEraseOpSpecResult              *C1G2BlockEraseOpSpecResult
+	C1G2BlockWriteOpSpecResult              *C1G2BlockWriteOpSpecResult
+	C1G2RecommissionOpSpecResult            *C1G2RecommissionOpSpecResult
+	C1G2BlockPermalockOpSpecResult          *C1G2BlockPermalockOpSpecResult
+	C1G2GetBlockPermalockStatusOpSpecResult *C1G2GetBlockPermalockStatusOpSpecResult
+	ClientRequestOpSpecResult               *ClientRequestOpSpecResult
+	Custom                                  []Custom
 }
 
 // UnmarshalBinary Parameter 240, TagReportData.
@@ -4429,7 +4457,16 @@ func (p *TagReportData) UnmarshalBinary(data []byte) error {
 
 paramGroup1:
 	for len(data) > 1 {
-		pt := ParamType(data[0] & 0x7F)
+		var pt ParamType
+		if data[0]&0x80 != 0 {
+			// TV parameter
+			pt = ParamType(data[0] & 0x7F)
+		} else if len(data) < 4 {
+			return errors.Errorf("expecting a TLV header, but %d < 4 byte "+
+				"remain", len(data))
+		} else {
+			pt = ParamType(binary.BigEndian.Uint16(data))
+		}
 		switch pt {
 		case ParamROSpecID:
 			p.ROSpecID = new(ROSpecID)
@@ -4475,6 +4512,131 @@ paramGroup1:
 			p.TagSeenCount = new(TagSeenCount)
 			*p.TagSeenCount = TagSeenCount(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
+		case ParamC1G2PC:
+			p.C1G2PC = new(C1G2PC)
+			if err := p.C1G2PC.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+			data = data[3:]
+		case ParamC1G2XPCW1:
+			p.C1G2XPCW1 = new(C1G2XPCW1)
+			*p.C1G2XPCW1 = C1G2XPCW1(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamC1G2XPCW2:
+			p.C1G2XPCW2 = new(C1G2XPCW2)
+			*p.C1G2XPCW2 = C1G2XPCW2(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamC1G2CRC:
+			p.C1G2CRC = new(C1G2CRC)
+			*p.C1G2CRC = C1G2CRC(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamAccessSpecID:
+			p.AccessSpecID = new(AccessSpecID)
+			*p.AccessSpecID = AccessSpecID(binary.BigEndian.Uint32(data[1:]))
+			data = data[5:]
+		case ParamC1G2ReadOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2ReadOpSpecResult = new(C1G2ReadOpSpecResult)
+			if err := p.C1G2ReadOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2WriteOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2WriteOpSpecResult = new(C1G2WriteOpSpecResult)
+			if err := p.C1G2WriteOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2KillOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2KillOpSpecResult = new(C1G2KillOpSpecResult)
+			if err := p.C1G2KillOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2LockOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2LockOpSpecResult = new(C1G2LockOpSpecResult)
+			if err := p.C1G2LockOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockEraseOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has "+
+					"%d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockEraseOpSpecResult = new(C1G2BlockEraseOpSpecResult)
+			if err := p.C1G2BlockEraseOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockWriteOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has "+
+					"%d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockWriteOpSpecResult = new(C1G2BlockWriteOpSpecResult)
+			if err := p.C1G2BlockWriteOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2RecommissionOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it "+
+					"has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2RecommissionOpSpecResult = new(C1G2RecommissionOpSpecResult)
+			if err := p.C1G2RecommissionOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockPermalockOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it "+
+					"has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockPermalockOpSpecResult = new(C1G2BlockPermalockOpSpecResult)
+			if err := p.C1G2BlockPermalockOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2GetBlockPermalockStatusOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says "+
+					"it has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2GetBlockPermalockStatusOpSpecResult = new(C1G2GetBlockPermalockStatusOpSpecResult)
+			if err := p.C1G2GetBlockPermalockStatusOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamClientRequestOpSpecResult:
+			p.ClientRequestOpSpecResult = new(ClientRequestOpSpecResult)
+			*p.ClientRequestOpSpecResult = ClientRequestOpSpecResult(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		default:
 			break paramGroup1
 		}
@@ -4484,195 +4646,24 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 1 {
-		pt := ParamType(data[0] & 0x7F)
-		switch pt {
-		case ParamC1G2PC:
-			var tmp C1G2PC
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2PCs = append(p.C1G2PCs, tmp)
-			data = data[3:]
-		case ParamC1G2XPCW1:
-			var tmp C1G2XPCW1
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2XPCW1s = append(p.C1G2XPCW1s, tmp)
-			data = data[3:]
-		case ParamC1G2XPCW2:
-			var tmp C1G2XPCW2
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2XPCW2s = append(p.C1G2XPCW2s, tmp)
-			data = data[3:]
-		case ParamC1G2CRC:
-			var tmp C1G2CRC
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2CRCs = append(p.C1G2CRCs, tmp)
-			data = data[3:]
-		default:
-			break paramGroup2
-		}
-	}
-	if len(data) == 0 {
-		return nil
-	}
-	if subType := ParamType(data[0] & 0x7F); subType == ParamAccessSpecID {
-		p.AccessSpecID = new(AccessSpecID)
-		*p.AccessSpecID = AccessSpecID(binary.BigEndian.Uint32(data[1:]))
-	}
-	if len(data) == 0 {
-		return nil
-	}
-
-paramGroup4:
-	for len(data) > 1 {
-		var pt ParamType
-		if data[0]&0x80 != 0 {
-			// TV parameter
-			pt = ParamType(data[0] & 0x7F)
-		} else if len(data) < 4 {
-			return errors.Errorf("expecting a TLV header, but %d < 4 byte "+
-				"remain", len(data))
-		} else {
-			pt = ParamType(binary.BigEndian.Uint16(data))
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes, but only %d bytes "+
+				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2ReadOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2ReadOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2ReadOpSpecResults = append(p.C1G2ReadOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2WriteOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2WriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2WriteOpSpecResults = append(p.C1G2WriteOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2KillOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2KillOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2KillOpSpecResults = append(p.C1G2KillOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2LockOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2LockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2LockOpSpecResults = append(p.C1G2LockOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockEraseOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has "+
-					"%d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockEraseOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockEraseOpSpecResults = append(p.C1G2BlockEraseOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockWriteOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has "+
-					"%d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockWriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockWriteOpSpecResults = append(p.C1G2BlockWriteOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2RecommissionOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it "+
-					"has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2RecommissionOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2RecommissionOpSpecResults = append(p.C1G2RecommissionOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockPermalockOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it "+
-					"has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockPermalockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockPermalockOpSpecResults = append(p.C1G2BlockPermalockOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2GetBlockPermalockStatusOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says "+
-					"it has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2GetBlockPermalockStatusOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2GetBlockPermalockStatusOpSpecResults = append(p.C1G2GetBlockPermalockStatusOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamClientRequestOpSpecResult:
-			var tmp ClientRequestOpSpecResult
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.ClientRequestOpSpecResults = append(p.ClientRequestOpSpecResults, tmp)
-			data = data[3:]
 		case ParamCustom:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes, but only "+
-					"%d bytes remain", subLen, len(data))
-			}
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
 		default:
-			break paramGroup4
+			break paramGroup2
 		}
+		data = data[subLen:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading TagReportData, but an "+

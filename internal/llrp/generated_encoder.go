@@ -489,7 +489,8 @@ func (p *C1G2PC) getHeader() paramHeader {
 	}
 }
 func (p *C1G2PC) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
+	if _, err := w.Write([]byte{
+		byte(p.EPCMemoryLength)<<3 | b2b(p.HasUserMemory)<<2 | b2b(p.HasXPC)<<1 | b2b(p.IsISO15961)<<0, p.AttributesOrAFI}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2PC")
 	}
 	return nil
@@ -1837,15 +1838,7 @@ func (p *AccessReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 240, TagReportData.
 func (p *TagReportData) getHeader() paramHeader {
-	nParams := len(p.C1G2PCs) + len(p.C1G2XPCW1s) + len(p.C1G2XPCW2s) +
-		len(p.C1G2CRCs) + len(p.C1G2ReadOpSpecResults) +
-		len(p.C1G2WriteOpSpecResults) + len(p.C1G2KillOpSpecResults) +
-		len(p.C1G2LockOpSpecResults) + len(p.C1G2BlockEraseOpSpecResults) +
-		len(p.C1G2BlockWriteOpSpecResults) +
-		len(p.C1G2RecommissionOpSpecResults) +
-		len(p.C1G2BlockPermalockOpSpecResults) +
-		len(p.C1G2GetBlockPermalockStatusOpSpecResults) +
-		len(p.ClientRequestOpSpecResults) + len(p.Custom)
+	nParams := len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -1879,7 +1872,49 @@ func (p *TagReportData) getHeader() paramHeader {
 	if p.TagSeenCount != nil {
 		nParams++
 	}
+	if p.C1G2PC != nil {
+		nParams++
+	}
+	if p.C1G2XPCW1 != nil {
+		nParams++
+	}
+	if p.C1G2XPCW2 != nil {
+		nParams++
+	}
+	if p.C1G2CRC != nil {
+		nParams++
+	}
 	if p.AccessSpecID != nil {
+		nParams++
+	}
+	if p.C1G2ReadOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2WriteOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2KillOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2LockOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockEraseOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockWriteOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2RecommissionOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockPermalockOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2GetBlockPermalockStatusOpSpecResult != nil {
+		nParams++
+	}
+	if p.ClientRequestOpSpecResult != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -1951,23 +1986,23 @@ func (p *TagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2PCs {
-		sh := p.C1G2PCs[i].getHeader()
+	if p.C1G2PC != nil {
+		sh := p.C1G2PC.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW1s {
-		sh := p.C1G2XPCW1s[i].getHeader()
+	if p.C1G2XPCW1 != nil {
+		sh := p.C1G2XPCW1.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW2s {
-		sh := p.C1G2XPCW2s[i].getHeader()
+	if p.C1G2XPCW2 != nil {
+		sh := p.C1G2XPCW2.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2CRCs {
-		sh := p.C1G2CRCs[i].getHeader()
+	if p.C1G2CRC != nil {
+		sh := p.C1G2CRC.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1976,53 +2011,53 @@ func (p *TagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2ReadOpSpecResults {
-		sh := p.C1G2ReadOpSpecResults[i].getHeader()
+	if p.C1G2ReadOpSpecResult != nil {
+		sh := p.C1G2ReadOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2WriteOpSpecResults {
-		sh := p.C1G2WriteOpSpecResults[i].getHeader()
+	if p.C1G2WriteOpSpecResult != nil {
+		sh := p.C1G2WriteOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2KillOpSpecResults {
-		sh := p.C1G2KillOpSpecResults[i].getHeader()
+	if p.C1G2KillOpSpecResult != nil {
+		sh := p.C1G2KillOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2LockOpSpecResults {
-		sh := p.C1G2LockOpSpecResults[i].getHeader()
+	if p.C1G2LockOpSpecResult != nil {
+		sh := p.C1G2LockOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockEraseOpSpecResults {
-		sh := p.C1G2BlockEraseOpSpecResults[i].getHeader()
+	if p.C1G2BlockEraseOpSpecResult != nil {
+		sh := p.C1G2BlockEraseOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockWriteOpSpecResults {
-		sh := p.C1G2BlockWriteOpSpecResults[i].getHeader()
+	if p.C1G2BlockWriteOpSpecResult != nil {
+		sh := p.C1G2BlockWriteOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2RecommissionOpSpecResults {
-		sh := p.C1G2RecommissionOpSpecResults[i].getHeader()
+	if p.C1G2RecommissionOpSpecResult != nil {
+		sh := p.C1G2RecommissionOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockPermalockOpSpecResults {
-		sh := p.C1G2BlockPermalockOpSpecResults[i].getHeader()
+	if p.C1G2BlockPermalockOpSpecResult != nil {
+		sh := p.C1G2BlockPermalockOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2GetBlockPermalockStatusOpSpecResults {
-		sh := p.C1G2GetBlockPermalockStatusOpSpecResults[i].getHeader()
+	if p.C1G2GetBlockPermalockStatusOpSpecResult != nil {
+		sh := p.C1G2GetBlockPermalockStatusOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.ClientRequestOpSpecResults {
-		sh := p.ClientRequestOpSpecResults[i].getHeader()
+	if p.ClientRequestOpSpecResult != nil {
+		sh := p.ClientRequestOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}

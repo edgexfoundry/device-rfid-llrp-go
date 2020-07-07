@@ -1112,7 +1112,13 @@ func TestC1G2CRC_roundTrip(t *testing.T) {
 
 // Test Parameter 12, C1G2PC.
 func TestC1G2PC_roundTrip(t *testing.T) {
-	p := C1G2PC(32768)
+	p := C1G2PC{
+		EPCMemoryLength: uint8(16),
+		HasUserMemory:   true,
+		HasXPC:          true,
+		IsISO15961:      true,
+		AttributesOrAFI: 128,
+	}
 	b, err := p.MarshalBinary()
 	if err != nil {
 		t.Fatalf("%+v", err)

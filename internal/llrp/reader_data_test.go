@@ -12,14 +12,55 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-func TestReader_withRecordedData(t *testing.T) {
+func TestClient_withRecordedData(t *testing.T) {
 	testRecordedData(t, "testdata")
 	if *roDirectory != "" {
 		testRecordedData(t, filepath.Join("testdata", *roDirectory))
+	}
+}
+
+func BenchmarkUnmarshalRO(b *testing.B) {
+	for _, nTags := range []int{
+		100, 200, 300, 400,
+	} {
+		b.Run(strconv.Itoa(nTags)+"Tags", func(b *testing.B) {
+			nTags := nTags
+			ro := &ROAccessReport{}
+
+			for i := 0; i < nTags; i++ {
+				ro.TagReportData = append(ro.TagReportData, TagReportData{
+					EPC96: EPC96{
+						EPC: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+					},
+					C1G2PC: &C1G2PC{
+						EPCMemoryLength: 12,
+						HasUserMemory:   false,
+						HasXPC:          false,
+						IsISO15961:      false,
+						AttributesOrAFI: 0x21,
+					},
+				})
+			}
+
+			data, err := ro.MarshalBinary()
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				target := &ROAccessReport{}
+				if err := target.UnmarshalBinary(data); err != nil {
+					b.Error(err)
+				}
+			}
+		})
 	}
 }
 

@@ -67,9 +67,45 @@ parameters:
 
   - name: C1G2PC
     type_id: 12
+    description: >-
+      This is the 16-bit Protocol Control field of the EPC Memory (bank 1).
+      It indicates the number of EPC bits a tag returns to a reader,
+      (regardless of the physical memory bank size),
+      whether or not the tag has user memory (and contains data),
+      whether or not an XPC is present,
+      and whether the EPC memory bank contains
+      a binary encoded EPC or an ISO Unique Item Identifier.
     fields:
-      - name: C1G2PC
-        type: uint16
+      - name: EPCMemoryLength   # first 5 bits
+        type: C1G2ProtoConEPCMemLength
+        partial: true
+      - name: HasUserMemory
+        type: bool
+        bit: 5
+        partial: true
+      - name: HasXPC
+        type: bool
+        bit: 6
+        description: >-
+          HasXPC is true if the Extended Protocol Control Word 1
+          exists (word 21 of EPC Memory).
+        partial: true
+      - name: IsISO15961
+        type: bool
+        bit: 7
+        description: >-
+          IsISO15961 is true if the final 8 bits of the PC
+          are an ISO Application Family Identifier (AFI),
+          as defined in ISO15961. If so, the remainder of the EPC bank
+          contains a Unique Item Identifier (UII) appropriate for that AFI.
+          If false, the final 8 bits of the PC are (or may be)
+          Attribute Bits (applies to Gen2 v1.x tags only),
+          and the remainder of the EPC memory bank is a binary encoded EPC.
+      - name: AttributesOrAFI
+        type: byte
+        description: >-
+          AttributesOrAFI is either the EPC C1G2 Attributes bits,
+          or an ISO15961 AFI, depending on the whether IsISO15961 is true.
 
   - name: EPC96
     type_id: 13
@@ -836,16 +872,12 @@ parameters:
         # air protocol tag data
       - type: C1G2PC
         optional: true
-        repeatable: true
       - type: C1G2XPCW1
         optional: true
-        repeatable: true
       - type: C1G2XPCW2
         optional: true
-        repeatable: true
       - type: C1G2CRC
         optional: true
-        repeatable: true
 
       - type: AccessSpecID
         optional: true
@@ -854,35 +886,24 @@ parameters:
 
       - type: C1G2ReadOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2WriteOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2KillOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2LockOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2BlockEraseOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2BlockWriteOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2RecommissionOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2BlockPermalockOpSpecResult
         optional: true
-        repeatable: true
       - type: C1G2GetBlockPermalockStatusOpSpecResult
         optional: true
-        repeatable: true
-
       - type: ClientRequestOpSpecResult
         optional: true
-        repeatable: true
 
       - type: Custom
         optional: true
@@ -1685,6 +1706,14 @@ types:
     bits: 2
     max: 3
     description: C1G2MemoryBankType selection.
+
+  - name: C1G2ProtoConEPCMemLength
+    storage: uint8
+    bits: 5
+    description: >-
+      C1G2ProtoConEPCMemLength indicates number of (valid) EPC bits
+      in the EPC Memory (bank 1) of a Gen2 tag.
+
 
   # ----- enumerations -----
   - name: C1G2BlockPermalockResultType
