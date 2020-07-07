@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-func TestReader_withRecordedData(t *testing.T) {
+func TestClient_withRecordedData(t *testing.T) {
 	files, err := ioutil.ReadDir("testdata")
 	if err != nil {
 		t.Fatal(err)

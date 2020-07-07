@@ -25,14 +25,14 @@ import (
 var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables functional tests")
 var update = flag.Bool("update", false, "rather than testing, record messages to the testdata directory")
 
-func TestReaderFunctional(t *testing.T) {
+func TestClientFunctional(t *testing.T) {
 	addr := *readerAddr
 	if addr == "" {
 		t.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
 	}
 
 	if *update {
-		if err := collectData(); err != nil && !errors.Is(err, ErrReaderClosed) {
+		if err := collectData(); err != nil && !errors.Is(err, ErrClientClosed) {
 			t.Fatal(err)
 		}
 		t.Skip("collected data instead of running tests")
@@ -58,7 +58,7 @@ func collectData() error {
 		return err
 	}
 
-	r, err := NewReader(WithConn(conn))
+	r, err := NewClient(WithConn(conn))
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func collectData() error {
 	return <-connErrs
 }
 
-func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
+func getAndWrite(r *Client, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
 	var data []byte
 	if payload != nil {
 		var err error
@@ -172,7 +172,7 @@ func getAndWrite(r *Reader, mt MessageType, payload encoding.BinaryMarshaler, re
 	return nil
 }
 
-func BenchmarkReaderFunctional(b *testing.B) {
+func BenchmarkClientFunctional(b *testing.B) {
 	addr := *readerAddr
 	if addr == "" {
 		b.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
@@ -212,7 +212,7 @@ func benchmarkSend(b *testing.B) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func benchmarkSend(b *testing.B) {
 	defer func() {
 		_ = r.Close()
 		for err := range connErrs {
-			if !errors.Is(err, ErrReaderClosed) {
+			if !errors.Is(err, ErrClientClosed) {
 				b.Fatalf("%+v", err)
 			}
 		}
@@ -275,7 +275,7 @@ func benchmarkConnect(b *testing.B) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func benchmarkConnect(b *testing.B) {
 	defer func() {
 		_ = r.Close()
 		for err := range connErrs {
-			if !errors.Is(err, ErrReaderClosed) {
+			if !errors.Is(err, ErrClientClosed) {
 				b.Fatalf("%+v", err)
 			}
 		}
@@ -325,7 +325,7 @@ func testConnect(t *testing.T) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn))
+	r, err := NewClient(WithConn(conn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func testConnect(t *testing.T) {
 	}
 
 	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
+		if !errors.Is(err, ErrClientClosed) {
 			t.Errorf("%+v", err)
 		}
 	}
@@ -414,7 +414,7 @@ func testAddROSpec(t *testing.T) {
 		return
 	}
 
-	r, err := NewReader(WithConn(conn))
+	r, err := NewClient(WithConn(conn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,13 +541,13 @@ func testAddROSpec(t *testing.T) {
 	}
 
 	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
+		if !errors.Is(err, ErrClientClosed) {
 			t.Errorf("%+v", err)
 		}
 	}
 }
 
-func enableAccSpec(t *testing.T, r *Reader) {
+func enableAccSpec(t *testing.T, r *Client) {
 	t.Helper()
 
 	disableSpec, err := (&DisableROSpec{ROSpecID: 1}).MarshalBinary()
@@ -581,7 +581,7 @@ func enableAccSpec(t *testing.T, r *Reader) {
 	}
 }
 
-func disableRO(t *testing.T, r *Reader) {
+func disableRO(t *testing.T, r *Client) {
 	t.Helper()
 
 	disableSpec, err := (&DisableROSpec{ROSpecID: 1}).MarshalBinary()
@@ -615,7 +615,7 @@ func disableRO(t *testing.T, r *Reader) {
 	}
 }
 
-func deleteRO(t *testing.T, r *Reader) {
+func deleteRO(t *testing.T, r *Client) {
 	t.Helper()
 
 	deleteSpec, err := (&DeleteROSpec{ROSpecID: 1}).MarshalBinary()

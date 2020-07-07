@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-func TestReader_readHeader(t *testing.T) {
+func TestClient_readHeader(t *testing.T) {
 	type testCase struct {
 		desc     string
 		data     []byte
@@ -78,7 +78,7 @@ func TestReader_readHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			lr, err := NewReader(WithConn(p2))
+			lr, err := NewClient(WithConn(p2))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -107,7 +107,7 @@ func TestReader_readHeader(t *testing.T) {
 	}
 }
 
-func TestReader_newMessage(t *testing.T) {
+func TestClient_newMessage(t *testing.T) {
 	ack := NewHdrOnlyMsg(MsgKeepAliveAck)
 	expMsg := Message{Header: Header{version: versionMin, typ: MsgKeepAliveAck}}
 	if expMsg != ack {
@@ -120,7 +120,7 @@ func TestReader_newMessage(t *testing.T) {
 	v := Version1_0_1
 	go func() {
 		defer close(errs)
-		lr, err := NewReader(WithConn(client), WithVersion(v))
+		lr, err := NewClient(WithConn(client), WithVersion(v))
 		if err != nil {
 			errs <- err
 			return
@@ -130,7 +130,7 @@ func TestReader_newMessage(t *testing.T) {
 		}
 	}()
 
-	r, err := NewReader(WithConn(server))
+	r, err := NewClient(WithConn(server))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 	}
 }
 
-func TestReader_SendNotConnected(t *testing.T) {
+func TestClient_SendNotConnected(t *testing.T) {
 	client, rfid := net.Pipe()
 	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
@@ -248,7 +248,7 @@ func TestReader_SendNotConnected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client))
+	r, err := NewClient(WithConn(client))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,10 +260,10 @@ func TestReader_SendNotConnected(t *testing.T) {
 	}
 }
 
-func TestReader_Connection(t *testing.T) {
+func TestClient_Connection(t *testing.T) {
 	const tout = 3 * time.Second
 
-	// Connect to a Reader, send some messages, close the Reader.
+	// Connect to a Reader, send some messages, close the Client.
 	client, rfid := net.Pipe()
 	if err := client.SetDeadline(time.Now().Add(tout)); err != nil {
 		t.Fatal(err)
@@ -273,7 +273,7 @@ func TestReader_Connection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client), WithVersion(Version1_0_1))
+	r, err := NewClient(WithConn(client), WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestReader_Connection(t *testing.T) {
 	}
 
 	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
+		if !errors.Is(err, ErrClientClosed) {
 			t.Errorf("connection error: %+v", err)
 		}
 	}
@@ -331,13 +331,13 @@ func TestReader_Connection(t *testing.T) {
 		t.Error("expected connection to be closed, but write succeeded")
 	}
 
-	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
-		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
+	if err := r.Close(); !errors.Is(err, ErrClientClosed) {
+		t.Errorf("expected %q; got %+v", ErrClientClosed, err)
 	}
 
 	_, _, err = r.SendMessage(context.Background(), MsgCustomMessage, data)
-	if err := r.Close(); !errors.Is(err, ErrReaderClosed) {
-		t.Errorf("expected %q; got %+v", ErrReaderClosed, err)
+	if err := r.Close(); !errors.Is(err, ErrClientClosed) {
+		t.Errorf("expected %q; got %+v", ErrClientClosed, err)
 	}
 
 	for err := range rfidErrs {
@@ -347,7 +347,7 @@ func TestReader_Connection(t *testing.T) {
 	}
 }
 
-func TestReader_ManySenders(t *testing.T) {
+func TestClient_ManySenders(t *testing.T) {
 	client, rfid := net.Pipe()
 	if err := client.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestReader_ManySenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client), WithVersion(Version1_0_1))
+	r, err := NewClient(WithConn(client), WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func TestReader_ManySenders(t *testing.T) {
 	}
 
 	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
+		if !errors.Is(err, ErrClientClosed) {
 			t.Errorf("connect error: %+v", err)
 		}
 	}
@@ -445,7 +445,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	r, err := NewReader(WithConn(client), WithLogger(devNullLog{}), WithVersion(Version1_0_1))
+	r, err := NewClient(WithConn(client), WithLogger(devNullLog{}), WithVersion(Version1_0_1))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -511,7 +511,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 	}
 
 	for err := range connErrs {
-		if !errors.Is(err, ErrReaderClosed) {
+		if !errors.Is(err, ErrClientClosed) {
 			b.Errorf("connect error: %+v", err)
 		}
 	}
