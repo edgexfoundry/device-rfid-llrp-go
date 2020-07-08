@@ -155,6 +155,7 @@ class GoWriter:
             return
 
         requote = pre != '// '
+
         def write_paragraph(p):
             self.code.width = 70 - len(indent) if requote else 90 - len(indent)
             open_quote = False
@@ -185,7 +186,7 @@ class GoWriter:
         paragraphs = text.split('\n')
         for p in paragraphs[:-1]:
             write_paragraph(p)
-            self.w.write(pre+'\n')
+            self.w.write(pre + '\n')
         if paragraphs[-1].strip() != '':
             write_paragraph(paragraphs[-1])
 
@@ -806,9 +807,14 @@ class ParamSpec:
             raise MissingPropError(['type'], y)
         if 'name' not in y:
             y['name'] = y['type']
-            if y.get('repeatable') and not (
-                    y['name'] == 'Custom' or y['name'].endswith('Data')):
-                y['name'] += 's'
+            if y.get('repeatable') and not y['name'] == 'Custom':
+                n = y['name']
+                if n.endswith('Data') or n[-1] == 's':
+                    pass
+                elif n.endswith('y'):
+                    y['name'] = n[:-1] + 'ies'
+                else:
+                    y['name'] += 's'
         y['param_name'] = y['type']
         del y['type']
         try:

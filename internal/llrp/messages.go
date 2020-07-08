@@ -580,3 +580,104 @@ func (ros *ROSpec) Disable() *DisableROSpec {
 func (ros *ROSpec) Delete() *DeleteROSpec {
 	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
 }
+
+// GetUnmarshaler returns a BinaryUnmarshaler for the message type.
+// If the message type is unknown, it returns nil.
+func (mt MessageType) GetUnmarshaler() encoding.BinaryUnmarshaler {
+	var u encoding.BinaryUnmarshaler
+	switch mt {
+	case MsgGetSupportedVersion:
+		u = &GetSupportedVersion{}
+	case MsgGetSupportedVersionResponse:
+		u = &GetSupportedVersionResponse{}
+	case MsgSetProtocolVersion:
+		u = &SetProtocolVersion{}
+	case MsgSetProtocolVersionResponse:
+		u = &SetProtocolVersionResponse{}
+	case MsgGetReaderCapabilities:
+		u = &GetReaderCapabilities{}
+	case MsgGetReaderCapabilitiesResponse:
+		u = &GetReaderCapabilitiesResponse{}
+	case MsgAddROSpec:
+		u = &AddROSpec{}
+	case MsgAddROSpecResponse:
+		u = &AddROSpecResponse{}
+	case MsgDeleteROSpec:
+		u = &DeleteROSpec{}
+	case MsgDeleteROSpecResponse:
+		u = &DeleteROSpecResponse{}
+	case MsgStartROSpec:
+		u = &StartROSpec{}
+	case MsgStartROSpecResponse:
+		u = &StartROSpecResponse{}
+	case MsgStopROSpec:
+		u = &StopROSpec{}
+	case MsgStopROSpecResponse:
+		u = &StopROSpecResponse{}
+	case MsgEnableROSpec:
+		u = &EnableROSpec{}
+	case MsgEnableROSpecResponse:
+		u = &EnableROSpecResponse{}
+	case MsgDisableROSpec:
+		u = &DisableROSpec{}
+	case MsgDisableROSpecResponse:
+		u = &DisableROSpecResponse{}
+	case MsgGetROSpecs:
+		u = &GetROSpecs{}
+	case MsgGetROSpecsResponse:
+		u = &GetROSpecsResponse{}
+	case MsgAddAccessSpec:
+		u = &AddAccessSpec{}
+	case MsgAddAccessSpecResponse:
+		u = &AddAccessSpecResponse{}
+	case MsgDeleteAccessSpec:
+		u = &DeleteAccessSpec{}
+	case MsgDeleteAccessSpecResponse:
+		u = &DeleteAccessSpecResponse{}
+	case MsgEnableAccessSpec:
+		u = &EnableAccessSpec{}
+	case MsgEnableAccessSpecResponse:
+		u = &EnableAccessSpecResponse{}
+	case MsgDisableAccessSpec:
+		u = &DisableAccessSpec{}
+	case MsgDisableAccessSpecResponse:
+		u = &DisableROSpecResponse{}
+	case MsgGetAccessSpecs:
+		u = &GetAccessSpecs{}
+	case MsgGetAccessSpecsResponse:
+		u = &GetAccessSpecsResponse{}
+	case MsgClientRequestOp:
+		u = &ClientRequestOp{}
+	case MsgClientRequestOpResponse:
+		u = &ClientRequestOpResponse{}
+	case MsgGetReport:
+		u = &GetReport{}
+	case MsgROAccessReport:
+		u = &ROAccessReport{}
+	case MsgKeepAlive:
+		u = &KeepAlive{}
+	case MsgKeepAliveAck:
+		u = &KeepAliveAck{}
+	case MsgReaderEventNotification:
+		u = &ReaderEventNotification{}
+	case MsgEnableEventsAndReports:
+		u = &EnableEventsAndReports{}
+	case MsgErrorMessage:
+		u = &ErrorMessage{}
+	case MsgGetReaderConfig:
+		u = &GetReaderConfig{}
+	case MsgGetReaderConfigResponse:
+		u = &GetReaderConfigResponse{}
+	case MsgSetReaderConfig:
+		u = &SetReaderConfig{}
+	case MsgSetReaderConfigResponse:
+		u = &SetReaderConfigResponse{}
+	case MsgCloseConnection:
+		u = &CloseConnection{}
+	case MsgCloseConnectionResponse:
+		u = &CloseConnectionResponse{}
+	case MsgCustomMessage:
+		u = &CustomMessage{}
+	}
+	return u
+}

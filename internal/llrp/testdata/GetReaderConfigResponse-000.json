@@ -9,7 +9,7 @@
 		"IDType": 0,
 		"ReaderID": "ABYl//8RJdY="
 	},
-	"AntennaPropertiess": [
+	"AntennaProperties": [
 		{
 			"AntennaConnected": true,
 			"AntennaID": 1,
@@ -207,7 +207,7 @@
 		"Custom": null
 	},
 	"AccessReportSpec": 1,
-	"LLRPConfigurationStateValue": 531465876,
+	"LLRPConfigurationStateValue": 725680160,
 	"KeepAliveSpec": {
 		"KeepAliveTriggerType": 0,
 		"Interval": 0

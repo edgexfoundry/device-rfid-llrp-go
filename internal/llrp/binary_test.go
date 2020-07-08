@@ -1444,7 +1444,7 @@ func TestRegulatoryCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 144, UHFBandCapabilities.
 func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 	p := UHFBandCapabilities{
-		TransmitPowerLevelTableEntrys: []TransmitPowerLevelTableEntry{
+		TransmitPowerLevelTableEntries: []TransmitPowerLevelTableEntry{
 			{
 				Index:              32768,
 				TransmitPowerValue: uint16(32768),
@@ -1457,7 +1457,7 @@ func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 		},
 		UHFC1G2RFModeTables: []UHFC1G2RFModeTable{
 			{
-				UHFC1G2RFModeTableEntrys: []UHFC1G2RFModeTableEntry{
+				UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
 					{
 						ModeID:                2147483648,
 						DivideRatio:           DRSixtyFourToThree,
@@ -2268,7 +2268,7 @@ func TestEPCData_roundTrip(t *testing.T) {
 // Test Parameter 242, RFSurveyReportData.
 func TestRFSurveyReportData_roundTrip(t *testing.T) {
 	p := RFSurveyReportData{
-		FrequencyRSSILevelEntrys: []FrequencyRSSILevelEntry{
+		FrequencyRSSILevelEntries: []FrequencyRSSILevelEntry{
 			{
 				Frequency:    uint32(2147483648),
 				Bandwidth:    uint32(2147483648),
@@ -2652,7 +2652,7 @@ func TestC1G2LLRPCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 328, UHFC1G2RFModeTable.
 func TestUHFC1G2RFModeTable_roundTrip(t *testing.T) {
 	p := UHFC1G2RFModeTable{
-		UHFC1G2RFModeTableEntrys: []UHFC1G2RFModeTableEntry{
+		UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
 			{
 				ModeID:                2147483648,
 				DivideRatio:           DRSixtyFourToThree,

@@ -225,7 +225,7 @@
 		"CountryCode": 840,
 		"CommunicationsStandard": 1,
 		"UHFBandCapabilities": {
-			"TransmitPowerLevelTableEntrys": [
+			"TransmitPowerLevelTableEntries": [
 				{
 					"Index": 1,
 					"TransmitPowerValue": 1000
@@ -616,7 +616,7 @@
 			],
 			"UHFC1G2RFModeTables": [
 				{
-					"UHFC1G2RFModeTableEntrys": [
+					"UHFC1G2RFModeTableEntries": [
 						{
 							"ModeID": 0,
 							"DivideRatio": 1,

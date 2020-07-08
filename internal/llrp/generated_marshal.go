@@ -515,8 +515,8 @@ func (m *GetReaderConfigResponse) MarshalBinary() ([]byte, error) {
 			return nil, err
 		}
 	}
-	for i := range m.AntennaPropertiess {
-		if err := encodeParams(&b, m.AntennaPropertiess[i].getHeader()); err != nil {
+	for i := range m.AntennaProperties {
+		if err := encodeParams(&b, m.AntennaProperties[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}
@@ -584,8 +584,8 @@ func (m *SetReaderConfig) MarshalBinary() ([]byte, error) {
 			return nil, err
 		}
 	}
-	for i := range m.AntennaPropertiess {
-		if err := encodeParams(&b, m.AntennaPropertiess[i].getHeader()); err != nil {
+	for i := range m.AntennaProperties {
+		if err := encodeParams(&b, m.AntennaProperties[i].getHeader()); err != nil {
 			return nil, err
 		}
 	}

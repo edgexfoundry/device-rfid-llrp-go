@@ -817,7 +817,7 @@ func (p *RegulatoryCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 144, UHFBandCapabilities.
 func (p *UHFBandCapabilities) getHeader() paramHeader {
-	nParams := len(p.TransmitPowerLevelTableEntrys) +
+	nParams := len(p.TransmitPowerLevelTableEntries) +
 		len(p.FrequencyInformations) + len(p.UHFC1G2RFModeTables)
 	if p.RFSurveyFrequencyCapabilities != nil {
 		nParams++
@@ -828,8 +828,8 @@ func (p *UHFBandCapabilities) getHeader() paramHeader {
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.TransmitPowerLevelTableEntrys {
-		sh := p.TransmitPowerLevelTableEntrys[i].getHeader()
+	for i := range p.TransmitPowerLevelTableEntries {
+		sh := p.TransmitPowerLevelTableEntries[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2092,7 +2092,7 @@ func (p *EPCData) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 242, RFSurveyReportData.
 func (p *RFSurveyReportData) getHeader() paramHeader {
-	nParams := len(p.FrequencyRSSILevelEntrys) + len(p.Custom)
+	nParams := len(p.FrequencyRSSILevelEntries) + len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -2115,8 +2115,8 @@ func (p *RFSurveyReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.FrequencyRSSILevelEntrys {
-		sh := p.FrequencyRSSILevelEntrys[i].getHeader()
+	for i := range p.FrequencyRSSILevelEntries {
+		sh := p.FrequencyRSSILevelEntries[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2665,15 +2665,15 @@ func (p *C1G2LLRPCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 328, UHFC1G2RFModeTable.
 func (p *UHFC1G2RFModeTable) getHeader() paramHeader {
-	nParams := len(p.UHFC1G2RFModeTableEntrys)
+	nParams := len(p.UHFC1G2RFModeTableEntries)
 	ph := paramHeader{
 		ParamType: ParamUHFC1G2RFModeTable,
 		data:      p,
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.UHFC1G2RFModeTableEntrys {
-		sh := p.UHFC1G2RFModeTableEntrys[i].getHeader()
+	for i := range p.UHFC1G2RFModeTableEntries {
+		sh := p.UHFC1G2RFModeTableEntries[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}

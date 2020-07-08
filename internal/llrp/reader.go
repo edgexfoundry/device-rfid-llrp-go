@@ -530,6 +530,10 @@ func (c *Client) handleOutgoing() error {
 				msg.id = nextMsgID
 				nextMsgID++
 
+				if req.tokenChan == nil {
+					break
+				}
+
 				// Give the read-side a way to correlate the response
 				// with something the sender can listen to.
 				replyChan := make(chan Message, 1)

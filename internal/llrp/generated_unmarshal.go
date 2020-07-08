@@ -1689,7 +1689,7 @@ paramGroup0:
 type GetReaderConfigResponse struct {
 	LLRPStatus                  LLRPStatus
 	Identification              *Identification
-	AntennaPropertiess          []AntennaProperties
+	AntennaProperties           []AntennaProperties
 	AntennaConfigurations       []AntennaConfiguration
 	ReaderEventNotificationSpec *ReaderEventNotificationSpec
 	ROReportSpec                *ROReportSpec
@@ -1756,7 +1756,7 @@ paramGroup2:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			m.AntennaPropertiess = append(m.AntennaPropertiess, tmp)
+			m.AntennaProperties = append(m.AntennaProperties, tmp)
 		case ParamAntennaConfiguration:
 			var tmp AntennaConfiguration
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -1885,7 +1885,7 @@ paramGroup6:
 type SetReaderConfig struct {
 	ResetToFactoryDefaults      bool
 	ReaderEventNotificationSpec *ReaderEventNotificationSpec
-	AntennaPropertiess          []AntennaProperties
+	AntennaProperties           []AntennaProperties
 	AntennaConfigurations       []AntennaConfiguration
 	ROReportSpec                *ROReportSpec
 	AccessReportSpec            *AccessReportSpec
@@ -1938,7 +1938,7 @@ paramGroup1:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			m.AntennaPropertiess = append(m.AntennaPropertiess, tmp)
+			m.AntennaProperties = append(m.AntennaProperties, tmp)
 		case ParamAntennaConfiguration:
 			var tmp AntennaConfiguration
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -2754,10 +2754,10 @@ paramGroup1:
 
 // UHFBandCapabilities is Parameter 144, UHFBandCapabilities.
 type UHFBandCapabilities struct {
-	TransmitPowerLevelTableEntrys []TransmitPowerLevelTableEntry
-	FrequencyInformations         []FrequencyInformation
-	UHFC1G2RFModeTables           []UHFC1G2RFModeTable
-	RFSurveyFrequencyCapabilities *RFSurveyFrequencyCapabilities
+	TransmitPowerLevelTableEntries []TransmitPowerLevelTableEntry
+	FrequencyInformations          []FrequencyInformation
+	UHFC1G2RFModeTables            []UHFC1G2RFModeTable
+	RFSurveyFrequencyCapabilities  *RFSurveyFrequencyCapabilities
 }
 
 // UnmarshalBinary Parameter 144, UHFBandCapabilities.
@@ -2781,7 +2781,7 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.TransmitPowerLevelTableEntrys = append(p.TransmitPowerLevelTableEntrys, tmp)
+			p.TransmitPowerLevelTableEntries = append(p.TransmitPowerLevelTableEntries, tmp)
 		case ParamFrequencyInformation:
 			var tmp FrequencyInformation
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -4705,10 +4705,10 @@ func (p *EPCData) UnmarshalBinary(data []byte) error {
 
 // RFSurveyReportData is Parameter 242, RFSurveyReportData.
 type RFSurveyReportData struct {
-	ROSpecID                 *ROSpecID
-	SpecIndex                *SpecIndex
-	FrequencyRSSILevelEntrys []FrequencyRSSILevelEntry
-	Custom                   []Custom
+	ROSpecID                  *ROSpecID
+	SpecIndex                 *SpecIndex
+	FrequencyRSSILevelEntries []FrequencyRSSILevelEntry
+	Custom                    []Custom
 }
 
 // UnmarshalBinary Parameter 242, RFSurveyReportData.
@@ -4749,7 +4749,7 @@ paramGroup1:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.FrequencyRSSILevelEntrys = append(p.FrequencyRSSILevelEntrys, tmp)
+			p.FrequencyRSSILevelEntries = append(p.FrequencyRSSILevelEntries, tmp)
 		default:
 			break paramGroup1
 		}
@@ -5494,7 +5494,7 @@ func (p *C1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
 // A vendor may have had these parameters certified by EPCglobal's Hardware Action Group's
 // Testing and Conformance group, in which case the IsEPCHagConformant will be true.
 type UHFC1G2RFModeTable struct {
-	UHFC1G2RFModeTableEntrys []UHFC1G2RFModeTableEntry
+	UHFC1G2RFModeTableEntries []UHFC1G2RFModeTableEntry
 }
 
 // UnmarshalBinary Parameter 328, UHFC1G2RFModeTable.
@@ -5518,7 +5518,7 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.UHFC1G2RFModeTableEntrys = append(p.UHFC1G2RFModeTableEntrys, tmp)
+			p.UHFC1G2RFModeTableEntries = append(p.UHFC1G2RFModeTableEntries, tmp)
 		default:
 			break paramGroup0
 		}
