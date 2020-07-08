@@ -817,8 +817,8 @@ func (p *RegulatoryCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 144, UHFBandCapabilities.
 func (p *UHFBandCapabilities) getHeader() paramHeader {
-	nParams := len(p.TransmitPowerLevelTableEntries) +
-		len(p.FrequencyInformations) + len(p.UHFC1G2RFModeTables)
+	nParams := 1 + len(p.TransmitPowerLevelTableEntries) +
+		len(p.FrequencyInformations)
 	if p.RFSurveyFrequencyCapabilities != nil {
 		nParams++
 	}
@@ -838,11 +838,8 @@ func (p *UHFBandCapabilities) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.UHFC1G2RFModeTables {
-		sh := p.UHFC1G2RFModeTables[i].getHeader()
-		ph.sz += sh.sz
-		ph.subs = append(ph.subs, sh)
-	}
+	ph.subs = append(ph.subs, p.UHFC1G2RFModeTable.getHeader())
+	ph.sz += ph.subs[len(ph.subs)-1].sz
 	if p.RFSurveyFrequencyCapabilities != nil {
 		sh := p.RFSurveyFrequencyCapabilities.getHeader()
 		ph.sz += sh.sz
@@ -1660,11 +1657,14 @@ func (p *AntennaProperties) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 222, AntennaConfiguration.
 func (p *AntennaConfiguration) getHeader() paramHeader {
-	nParams := len(p.C1G2InventoryCommands) + len(p.Custom)
+	nParams := len(p.Custom)
 	if p.RFReceiver != nil {
 		nParams++
 	}
 	if p.RFTransmitter != nil {
+		nParams++
+	}
+	if p.C1G2InventoryCommand != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -1683,8 +1683,8 @@ func (p *AntennaConfiguration) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2InventoryCommands {
-		sh := p.C1G2InventoryCommands[i].getHeader()
+	if p.C1G2InventoryCommand != nil {
+		sh := p.C1G2InventoryCommand.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}

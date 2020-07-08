@@ -1455,22 +1455,20 @@ func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 				Hopping: true,
 			},
 		},
-		UHFC1G2RFModeTables: []UHFC1G2RFModeTable{
-			{
-				UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
-					{
-						ModeID:                2147483648,
-						DivideRatio:           DRSixtyFourToThree,
-						IsEPCHagConformant:    true,
-						Modulation:            Miller4,
-						ForwardLinkModulation: SingleSidebandASK,
-						SpectralMask:          SpectralMaskMultiInterrogator,
-						BackscatterDataRate:   uint32(300000),
-						PIERatio:              1500,
-						MinTariTime:           uint32(9375),
-						MaxTariTime:           uint32(9375),
-						StepTariTime:          uint32(9375),
-					},
+		UHFC1G2RFModeTable: UHFC1G2RFModeTable{
+			UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
+				{
+					ModeID:                2147483648,
+					DivideRatio:           DRSixtyFourToThree,
+					IsEPCHagConformant:    true,
+					Modulation:            Miller4,
+					ForwardLinkModulation: SingleSidebandASK,
+					SpectralMask:          SpectralMaskMultiInterrogator,
+					BackscatterDataRate:   uint32(300000),
+					PIERatio:              1500,
+					MinTariTime:           uint32(9375),
+					MaxTariTime:           uint32(9375),
+					StepTariTime:          uint32(9375),
 				},
 			},
 		},

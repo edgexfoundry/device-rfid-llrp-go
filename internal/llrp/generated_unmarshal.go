@@ -2756,7 +2756,7 @@ paramGroup1:
 type UHFBandCapabilities struct {
 	TransmitPowerLevelTableEntries []TransmitPowerLevelTableEntry
 	FrequencyInformations          []FrequencyInformation
-	UHFC1G2RFModeTables            []UHFC1G2RFModeTable
+	UHFC1G2RFModeTable             UHFC1G2RFModeTable
 	RFSurveyFrequencyCapabilities  *RFSurveyFrequencyCapabilities
 }
 
@@ -2788,14 +2788,25 @@ paramGroup0:
 				return err
 			}
 			p.FrequencyInformations = append(p.FrequencyInformations, tmp)
-		case ParamUHFC1G2RFModeTable:
-			var tmp UHFC1G2RFModeTable
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.UHFC1G2RFModeTables = append(p.UHFC1G2RFModeTables, tmp)
 		default:
 			break paramGroup0
+		}
+		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamUHFC1G2RFModeTable, 4, len(data), false); err != nil {
+		return err
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamUHFC1G2RFModeTable {
+		return errors.Errorf("expected ParamUHFC1G2RFModeTable, but found "+
+			"%v", subType)
+	} else {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamUHFC1G2RFModeTable says it has %d bytes, "+
+				"but only %d bytes remain", subLen, len(data))
+		}
+		if err := p.UHFC1G2RFModeTable.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
 		}
 		data = data[subLen:]
 	}
@@ -4098,11 +4109,11 @@ func (p *AntennaProperties) UnmarshalBinary(data []byte) error {
 
 // AntennaConfiguration is Parameter 222, AntennaConfiguration.
 type AntennaConfiguration struct {
-	AntennaID             AntennaID
-	RFReceiver            *RFReceiver
-	RFTransmitter         *RFTransmitter
-	C1G2InventoryCommands []C1G2InventoryCommand
-	Custom                []Custom
+	AntennaID            AntennaID
+	RFReceiver           *RFReceiver
+	RFTransmitter        *RFTransmitter
+	C1G2InventoryCommand *C1G2InventoryCommand
+	Custom               []Custom
 }
 
 // UnmarshalBinary Parameter 222, AntennaConfiguration.
@@ -4134,6 +4145,11 @@ paramGroup0:
 			if err := p.RFTransmitter.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
+		case ParamC1G2InventoryCommand:
+			p.C1G2InventoryCommand = new(C1G2InventoryCommand)
+			if err := p.C1G2InventoryCommand.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
 		default:
 			break paramGroup0
 		}
@@ -4152,12 +4168,6 @@ paramGroup1:
 				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2InventoryCommand:
-			var tmp C1G2InventoryCommand
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2InventoryCommands = append(p.C1G2InventoryCommands, tmp)
 		case ParamCustom:
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {

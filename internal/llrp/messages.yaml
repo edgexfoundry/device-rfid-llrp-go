@@ -290,7 +290,6 @@ parameters:
         repeatable: true
       - type: UHFC1G2RFModeTable
         air_protocol: C1G2
-        repeatable: true
       - type: RFSurveyFrequencyCapabilities
         optional: true
 
@@ -724,7 +723,6 @@ parameters:
         optional: true
       - type: C1G2InventoryCommand
         optional: true
-        repeatable: true
       - type: Custom
         optional: true
         repeatable: true
