@@ -40,23 +40,21 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommands": [
-				{
-					"TagInventoryStateAware": false,
-					"C1G2Filters": null,
-					"C1G2RFControl": {
-						"IndexIntoUHFC1G2RFModeTable": 1000,
-						"Tari": 0
-					},
-					"C1G2SingulationControl": {
-						"C1G2SingulationControlSession": 64,
-						"TagPopulation": 32,
-						"TagTransitTime": 0,
-						"C1G2TagInventoryStateAwareSingulationAction": null
-					},
-					"Custom": null
-				}
-			],
+			"C1G2InventoryCommand": {
+				"TagInventoryStateAware": false,
+				"C1G2Filters": null,
+				"C1G2RFControl": {
+					"IndexIntoUHFC1G2RFModeTable": 1000,
+					"Tari": 0
+				},
+				"C1G2SingulationControl": {
+					"C1G2SingulationControlSession": 64,
+					"TagPopulation": 32,
+					"TagTransitTime": 0,
+					"C1G2TagInventoryStateAwareSingulationAction": null
+				},
+				"Custom": null
+			},
 			"Custom": null
 		},
 		{
@@ -67,23 +65,21 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommands": [
-				{
-					"TagInventoryStateAware": false,
-					"C1G2Filters": null,
-					"C1G2RFControl": {
-						"IndexIntoUHFC1G2RFModeTable": 1000,
-						"Tari": 0
-					},
-					"C1G2SingulationControl": {
-						"C1G2SingulationControlSession": 64,
-						"TagPopulation": 32,
-						"TagTransitTime": 0,
-						"C1G2TagInventoryStateAwareSingulationAction": null
-					},
-					"Custom": null
-				}
-			],
+			"C1G2InventoryCommand": {
+				"TagInventoryStateAware": false,
+				"C1G2Filters": null,
+				"C1G2RFControl": {
+					"IndexIntoUHFC1G2RFModeTable": 1000,
+					"Tari": 0
+				},
+				"C1G2SingulationControl": {
+					"C1G2SingulationControlSession": 64,
+					"TagPopulation": 32,
+					"TagTransitTime": 0,
+					"C1G2TagInventoryStateAwareSingulationAction": null
+				},
+				"Custom": null
+			},
 			"Custom": null
 		},
 		{
@@ -94,23 +90,21 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommands": [
-				{
-					"TagInventoryStateAware": false,
-					"C1G2Filters": null,
-					"C1G2RFControl": {
-						"IndexIntoUHFC1G2RFModeTable": 1000,
-						"Tari": 0
-					},
-					"C1G2SingulationControl": {
-						"C1G2SingulationControlSession": 64,
-						"TagPopulation": 32,
-						"TagTransitTime": 0,
-						"C1G2TagInventoryStateAwareSingulationAction": null
-					},
-					"Custom": null
-				}
-			],
+			"C1G2InventoryCommand": {
+				"TagInventoryStateAware": false,
+				"C1G2Filters": null,
+				"C1G2RFControl": {
+					"IndexIntoUHFC1G2RFModeTable": 1000,
+					"Tari": 0
+				},
+				"C1G2SingulationControl": {
+					"C1G2SingulationControlSession": 64,
+					"TagPopulation": 32,
+					"TagTransitTime": 0,
+					"C1G2TagInventoryStateAwareSingulationAction": null
+				},
+				"Custom": null
+			},
 			"Custom": null
 		},
 		{
@@ -121,23 +115,21 @@
 				"ChannelIndexInFixedFrequencyTable": 0,
 				"TransmitPowerTableIndex": 81
 			},
-			"C1G2InventoryCommands": [
-				{
-					"TagInventoryStateAware": false,
-					"C1G2Filters": null,
-					"C1G2RFControl": {
-						"IndexIntoUHFC1G2RFModeTable": 1000,
-						"Tari": 0
-					},
-					"C1G2SingulationControl": {
-						"C1G2SingulationControlSession": 64,
-						"TagPopulation": 32,
-						"TagTransitTime": 0,
-						"C1G2TagInventoryStateAwareSingulationAction": null
-					},
-					"Custom": null
-				}
-			],
+			"C1G2InventoryCommand": {
+				"TagInventoryStateAware": false,
+				"C1G2Filters": null,
+				"C1G2RFControl": {
+					"IndexIntoUHFC1G2RFModeTable": 1000,
+					"Tari": 0
+				},
+				"C1G2SingulationControl": {
+					"C1G2SingulationControlSession": 64,
+					"TagPopulation": 32,
+					"TagTransitTime": 0,
+					"C1G2TagInventoryStateAwareSingulationAction": null
+				},
+				"Custom": null
+			},
 			"Custom": null
 		}
 	],
@@ -207,7 +199,7 @@
 		"Custom": null
 	},
 	"AccessReportSpec": 1,
-	"LLRPConfigurationStateValue": 725680160,
+	"LLRPConfigurationStateValue": 2057940966,
 	"KeepAliveSpec": {
 		"KeepAliveTriggerType": 0,
 		"Interval": 0

@@ -614,142 +614,140 @@
 					"FixedFrequencyTable": null
 				}
 			],
-			"UHFC1G2RFModeTables": [
-				{
-					"UHFC1G2RFModeTableEntries": [
-						{
-							"ModeID": 0,
-							"DivideRatio": 1,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 2,
-							"SpectralMask": 2,
-							"BackscatterDataRate": 640000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1,
-							"DivideRatio": 1,
-							"IsEPCHagConformant": false,
-							"Modulation": 1,
-							"ForwardLinkModulation": 2,
-							"SpectralMask": 2,
-							"BackscatterDataRate": 640000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 2,
-							"DivideRatio": 1,
-							"IsEPCHagConformant": false,
-							"Modulation": 2,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 3,
-							"BackscatterDataRate": 274000,
-							"PIERatio": 2000,
-							"MinTariTime": 20000,
-							"MaxTariTime": 20000,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 3,
-							"DivideRatio": 1,
-							"IsEPCHagConformant": false,
-							"Modulation": 3,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 3,
-							"BackscatterDataRate": 170600,
-							"PIERatio": 2000,
-							"MinTariTime": 20000,
-							"MaxTariTime": 20000,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 4,
-							"DivideRatio": 1,
-							"IsEPCHagConformant": false,
-							"Modulation": 2,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 2,
-							"BackscatterDataRate": 640000,
-							"PIERatio": 1500,
-							"MinTariTime": 7140,
-							"MaxTariTime": 7140,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1000,
-							"DivideRatio": 0,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 0,
-							"BackscatterDataRate": 40000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1002,
-							"DivideRatio": 0,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 0,
-							"BackscatterDataRate": 40000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1003,
-							"DivideRatio": 0,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 0,
-							"BackscatterDataRate": 40000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1004,
-							"DivideRatio": 0,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 0,
-							"BackscatterDataRate": 40000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						},
-						{
-							"ModeID": 1005,
-							"DivideRatio": 0,
-							"IsEPCHagConformant": false,
-							"Modulation": 0,
-							"ForwardLinkModulation": 0,
-							"SpectralMask": 0,
-							"BackscatterDataRate": 40000,
-							"PIERatio": 1500,
-							"MinTariTime": 6250,
-							"MaxTariTime": 6250,
-							"StepTariTime": 0
-						}
-					]
-				}
-			],
+			"UHFC1G2RFModeTable": {
+				"UHFC1G2RFModeTableEntries": [
+					{
+						"ModeID": 0,
+						"DivideRatio": 1,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 2,
+						"SpectralMask": 2,
+						"BackscatterDataRate": 640000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1,
+						"DivideRatio": 1,
+						"IsEPCHagConformant": false,
+						"Modulation": 1,
+						"ForwardLinkModulation": 2,
+						"SpectralMask": 2,
+						"BackscatterDataRate": 640000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 2,
+						"DivideRatio": 1,
+						"IsEPCHagConformant": false,
+						"Modulation": 2,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 3,
+						"BackscatterDataRate": 274000,
+						"PIERatio": 2000,
+						"MinTariTime": 20000,
+						"MaxTariTime": 20000,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 3,
+						"DivideRatio": 1,
+						"IsEPCHagConformant": false,
+						"Modulation": 3,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 3,
+						"BackscatterDataRate": 170600,
+						"PIERatio": 2000,
+						"MinTariTime": 20000,
+						"MaxTariTime": 20000,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 4,
+						"DivideRatio": 1,
+						"IsEPCHagConformant": false,
+						"Modulation": 2,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 2,
+						"BackscatterDataRate": 640000,
+						"PIERatio": 1500,
+						"MinTariTime": 7140,
+						"MaxTariTime": 7140,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1000,
+						"DivideRatio": 0,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 0,
+						"BackscatterDataRate": 40000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1002,
+						"DivideRatio": 0,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 0,
+						"BackscatterDataRate": 40000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1003,
+						"DivideRatio": 0,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 0,
+						"BackscatterDataRate": 40000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1004,
+						"DivideRatio": 0,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 0,
+						"BackscatterDataRate": 40000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					},
+					{
+						"ModeID": 1005,
+						"DivideRatio": 0,
+						"IsEPCHagConformant": false,
+						"Modulation": 0,
+						"ForwardLinkModulation": 0,
+						"SpectralMask": 0,
+						"BackscatterDataRate": 40000,
+						"PIERatio": 1500,
+						"MinTariTime": 6250,
+						"MaxTariTime": 6250,
+						"StepTariTime": 0
+					}
+				]
+			},
 			"RFSurveyFrequencyCapabilities": null
 		},
 		"Custom": null
