@@ -790,8 +790,13 @@ parameters:
   - name: RFReceiver
     type_id: 223
     fields:
-      - name: ReceiverSensitivityTableIndex
+      - name: ReceiverSensitivityIndex
         type: uint16
+        description: >-
+          ReceiveSensitivityIndex is an index into the ReceiveSensitivities table
+          of the GeneralDeviceCapabilities presented in the Reader's capabilities.
+          Some antennas only support a subset of all available ranges,
+          in which case valid values are in the PerAntennaReceiveSensitivityRanges.
 
   - name: RFTransmitter
     type_id: 224
@@ -799,15 +804,25 @@ parameters:
       - name: HopTableID
         type: uint16
         description: >-
-          HopTableID within the Fixed Frequency Table,
-          for jurisdictions that do not permit frequency hopping.
+          HopTableID for jurisdictions that require frequency hopping.
+          Hop tables are presented in the Reader's capabilities,
+          under RegulatorCapabilities -> UHFBandCapabilities -> C1G2RFModes.
       - name: ChannelIndex
         type: uint16
         description: >-
           ChannelIndex within the Fixed Frequency Table,
           for jurisdictions that do not permit frequency hopping.
+          The fixed frequency information is presented in the Reader's capabilities,
+          under RegulatorCapabilities -> UHFBandCapabilities -> FrequencyInformation.
+          Unlike other tables, this table does not have entries with IDs;
+          instead, the ChannelIndex is the 1-based offset within the array.
       - name: TransmitPowerIndex
         type: uint16
+        description: >-
+          TransmitPowerIndex, as from the
+          for jurisdictions that do not permit frequency hopping.
+          The power levels are presented in the Reader's capabilities,
+          under RegulatorCapabilities -> UHFBandCapabilities -> TransmitPowerLevels.
 
   - name: GPIPortCurrentState
     type_id: 225

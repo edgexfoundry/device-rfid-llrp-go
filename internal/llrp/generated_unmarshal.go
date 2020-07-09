@@ -4262,12 +4262,19 @@ func (p *RFReceiver) UnmarshalBinary(data []byte) error {
 
 // RFTransmitter is Parameter 224, RFTransmitter.
 type RFTransmitter struct {
-	// HopTableID within the Fixed Frequency Table, for jurisdictions that do not permit
-	// frequency hopping.
+	// HopTableID for jurisdictions that require frequency hopping. Hop tables are presented
+	// in the Reader's capabilities, under RegulatorCapabilities -> UHFBandCapabilities ->
+	// C1G2RFModes.
 	HopTableID uint16
 	// ChannelIndex within the Fixed Frequency Table, for jurisdictions that do not permit
-	// frequency hopping.
-	ChannelIndex       uint16
+	// frequency hopping. The fixed frequency information is presented in the Reader's
+	// capabilities, under RegulatorCapabilities -> UHFBandCapabilities ->
+	// FrequencyInformation. Unlike other tables, this table does not have entries with IDs;
+	// instead, the ChannelIndex is the 1-based offset within the array.
+	ChannelIndex uint16
+	// TransmitPowerIndex, as from the for jurisdictions that do not permit frequency
+	// hopping. The power levels are presented in the Reader's capabilities, under
+	// RegulatorCapabilities -> UHFBandCapabilities -> TransmitPowerLevels.
 	TransmitPowerIndex uint16
 }
 
@@ -5880,7 +5887,7 @@ func (p *C1G2TagInventoryStateUnawareFilterAction) UnmarshalBinary(data []byte) 
 type C1G2RFControl struct {
 	// RFModeID must match one of the ModeIDs in the C1G2RFModes table that comes in the
 	// UHFBandCapabilities (ParamType 144) section of the RegulatoryCapabilities (ParamType
-	// 143) section of the GetReaderCapabiltiesResponse (MessageType 11)
+	// 143) section of the GetReaderCapabilitiesResponse (MessageType 11)
 	RFModeID uint16
 	// Tari is "Type A Reference Interval", in nanoseconds. Typically, values must be
 	// 6250-25000ns, though they may be restricted by the RFModes table. Usually, a client
