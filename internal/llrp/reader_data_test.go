@@ -28,8 +28,8 @@ func BenchmarkUnmarshalRO(b *testing.B) {
 	for _, nTags := range []int{
 		100, 200, 300, 400,
 	} {
+		nTags := nTags
 		b.Run(strconv.Itoa(nTags)+"Tags", func(b *testing.B) {
-			nTags := nTags
 			ro := &ROAccessReport{}
 
 			for i := 0; i < nTags; i++ {
@@ -96,8 +96,6 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 		v = &GetAccessSpecsResponse{}
 	case MsgGetROSpecsResponse.String():
 		v = &GetROSpecsResponse{}
-	case MsgCloseConnectionResponse.String():
-		v = &CloseConnectionResponse{}
 	case MsgCloseConnectionResponse.String():
 		v = &CloseConnectionResponse{}
 	case MsgROAccessReport.String():
@@ -237,7 +235,7 @@ func checkJSONEq(t *testing.T, original, marshaled []byte) (matched bool) {
 
 	t.Errorf("JSON data mismatched; first difference around line %d:\n%s",
 		firstDiff, diff.String())
-	return
+	return matched
 }
 
 func checkBytesEq(t *testing.T, original, marshaled []byte) (matched bool) {
@@ -311,7 +309,7 @@ func checkBytesEq(t *testing.T, original, marshaled []byte) (matched bool) {
 		"  index   > %[2]*s |  marshaled binary\n%s",
 		firstDiff, bpl*5, "original binary", buff.String())
 
-	return
+	return matched
 }
 
 // expand returns a string that centers s between l and r

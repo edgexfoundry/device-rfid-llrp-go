@@ -353,7 +353,8 @@ func (ls *LLRPStatus) Err() error {
 		return nil
 	}
 
-	return (*StatusError)(ls)
+	se := StatusError(*ls)
+	return &se
 }
 
 func (ren *ReaderEventNotification) isConnectSuccess() bool {

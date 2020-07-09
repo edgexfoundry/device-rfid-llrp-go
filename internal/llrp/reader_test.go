@@ -393,7 +393,7 @@ func TestClient_ManySenders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 	for i := 0; i < senders; i++ {
-		go func(i int) {
+		go func() {
 			defer msgGrp.Done()
 
 			sz := rand.Int31n(1024)
@@ -404,7 +404,7 @@ func TestClient_ManySenders(t *testing.T) {
 			if err != nil {
 				sendErrs <- err
 			}
-		}(i)
+		}()
 	}
 
 	msgGrp.Wait()
@@ -484,7 +484,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		go func(i int) {
+		go func() {
 			defer msgGrp.Done()
 
 			sz := rand.Int31n(1024)
@@ -495,7 +495,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			if err != nil {
 				sendErrs <- err
 			}
-		}(i)
+		}()
 	}
 	msgGrp.Wait()
 	b.Log("closing")

@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -59,14 +58,28 @@ func TestClientFunctional(t *testing.T) {
 		{&GetReaderCapabilities{}, &GetReaderCapabilitiesResponse{}},
 		{&GetROSpecs{}, &GetROSpecsResponse{}},
 	} {
+		testConfig := testConfig
 		t.Run(testConfig.Incoming.Type().String(), func(t *testing.T) {
-			r, cleanup := getFunctionalClient(t)
-			defer cleanup()
+			r, _ := getFunctionalClient(t)
+			errs := make(chan error)
+
+			go func() {
+				defer close(errs)
+				errs <- r.Connect()
+			}()
 			sendAndCheck(t, r, testConfig.Outgoing, testConfig.Incoming)
+
+			if err := r.Close(); err != nil {
+				t.Error(err)
+			}
+
+			for err := range errs {
+				t.Error(err)
+			}
 		})
 	}
 
-	t.Run("addROSpec", testGatherTagReads)
+	t.Run("gatherTagReads", testGatherTagReads)
 }
 
 // collectData populates the testdata directory for use in future tests.
@@ -269,8 +282,6 @@ func benchmarkSend(b *testing.B) {
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
 		b.Errorf("%+v", err)
-		if err == context.DeadlineExceeded {
-		}
 		if err := r.Close(); err != nil {
 			b.Error(err)
 		}
@@ -320,8 +331,6 @@ func benchmarkConnect(b *testing.B) {
 	defer cancel()
 	if err := r.Shutdown(ctx); err != nil {
 		b.Errorf("%+v", err)
-		if err == context.DeadlineExceeded {
-		}
 		if err := r.Close(); err != nil {
 			b.Error(err)
 		}
@@ -333,6 +342,7 @@ func testGatherTagReads(t *testing.T) {
 	defer cleanup()
 
 	spec := NewROSpec()
+	spec.SetPeriodic(5 * time.Second)
 
 	sendAndCheck(t, r, &AddROSpec{*spec}, &AddROSpecResponse{})
 	sendAndCheck(t, r, &EnableROSpec{ROSpecID: spec.ROSpecID}, &EnableROSpecResponse{})
@@ -347,46 +357,19 @@ func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 		t.Fatal(err)
 	}
 
-	ec := &errorCollector{}
+	// ec := &errorCollector{}
 
 	opts := []ClientOpt{
 		WithConn(conn),
-		WithLogger(testingLogger{T: t}),
-		WithMessageHandler(MsgErrorMessage, ec),
+		// WithMessageHandler(MsgErrorMessage, ec),
 		WithTimeout(300 * time.Second),
-	}
-
-	if *update {
-		dir := filepath.Join("testdata", *roDirectory)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		var i uint32
-
-		opts = append(opts, WithMessageHandler(MsgROAccessReport, MessageHandlerFunc(
-			func(r *Client, msg Message) {
-				data, err := msg.data()
-				if err != nil {
-					ec.addErr(err)
-					return
-				}
-
-				atomic.AddUint32(&i, 1)
-				ec.addErr(writeCapture(dir, i, data, MsgROAccessReport, &ROAccessReport{}))
-			})))
 	}
 
 	if r, err = NewClient(opts...); err != nil {
 		t.Fatal(err)
 	}
 
-	go func() { ec.addErr(r.Connect()) }()
-
-	return r, func() {
-		closeConn(t, r)
-		ec.checkErrs(t)
-	}
+	return r, nil
 }
 
 type testingLogger struct {
@@ -467,7 +450,10 @@ func prettyPrint(t *testing.T, v interface{}) {
 
 func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 	t.Helper()
-	prettyPrint(t, out)
+
+	if testing.Verbose() {
+		prettyPrint(t, out)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -476,7 +462,9 @@ func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 		t.Error(err)
 	}
 
-	prettyPrint(t, in)
+	if testing.Verbose() {
+		prettyPrint(t, in)
+	}
 }
 
 func closeConn(t *testing.T, c *Client) {

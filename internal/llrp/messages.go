@@ -383,7 +383,8 @@ func NewROSpec() *ROSpec {
 				Trigger: ROStartTriggerImmediate,
 			},
 			StopTrigger: ROSpecStopTrigger{
-				Trigger: ROStopTriggerNone,
+				Trigger:              ROStopTriggerDuration,
+				DurationTriggerValue: 10,
 			},
 		},
 		AISpecs: []AISpec{{

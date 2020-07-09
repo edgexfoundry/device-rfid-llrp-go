@@ -43,22 +43,19 @@ import (
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
 type Client struct {
-	conn      net.Conn       // underlying network connection
-	done      chan struct{}  // closed when the Client is closed
-	ready     chan struct{}  // closed when the connection is negotiated
-	isClosed  uint32         // used atomically to prevent duplicate closure of done
-	sendQueue chan request   // controls write-side of connection
-	ackQueue  chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
-	awaitMu   sync.Mutex     // synchronize awaiting map access
-	awaiting  awaitMap       // message IDs -> awaiting reply
-	logger    ClientLogger   // reports pressure on the ACK queue
-	timeout   time.Duration  // if non-zero, sets conn's deadline for reads/writes
-
-	handlerMu      sync.RWMutex
+	conn           net.Conn       // underlying network connection
+	sendQueue      chan request   // controls write-side of connection
+	ackQueue       chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
+	awaitMu        sync.Mutex     // synchronize awaiting map access
+	awaiting       awaitMap       // message IDs -> awaiting reply
+	logger         ClientLogger   // reports pressure on the ACK queue
 	handlers       map[MessageType]MessageHandler
 	defaultHandler MessageHandler // used if no MessageHandlers for type and nothing awaiting reply
-
-	version VersionNum // sent in headers; established during negotiation
+	timeout        time.Duration  // if non-zero, sets conn's deadline for reads/writes
+	done           chan struct{}  // closed when the Client is closed
+	ready          chan struct{}  // closed when the connection is negotiated
+	isClosed       uint32         // used atomically to prevent duplicate closure of done
+	version        VersionNum     // sent in headers; established during negotiation
 }
 
 const (
@@ -454,7 +451,6 @@ func (c *Client) handleIncoming() error {
 		default:
 		}
 
-		// m, err := r.nextMessage()
 		hdr, err := c.readHeader()
 		if err != nil {
 			if !receivedClosed {
