@@ -379,17 +379,17 @@ func NewROSpec() *ROSpec {
 		Priority:           0,
 		ROSpecCurrentState: ROSpecStateDisabled,
 		ROBoundarySpec: ROBoundarySpec{
-			ROSpecStartTrigger: ROSpecStartTrigger{
-				ROSpecStartTriggerType: ROStartTriggerImmediate,
+			StartTrigger: ROSpecStartTrigger{
+				Trigger: ROStartTriggerImmediate,
 			},
-			ROSpecStopTrigger: ROSpecStopTrigger{
-				ROSpecStopTriggerType: ROStopTriggerNone,
+			StopTrigger: ROSpecStopTrigger{
+				Trigger: ROStopTriggerNone,
 			},
 		},
 		AISpecs: []AISpec{{
 			AntennaIDs: []AntennaID{0},
-			AISpecStopTrigger: AISpecStopTrigger{
-				AISpecStopTriggerType: AIStopTriggerNone,
+			StopTrigger: AISpecStopTrigger{
+				Trigger: AIStopTriggerNone,
 			},
 			InventoryParameterSpecs: []InventoryParameterSpec{{
 				InventoryParameterSpecID: 1,
@@ -404,9 +404,9 @@ func NewAccessReport() *ROAccessReport {
 }
 
 func (ros *ROSpec) SetPeriodic(period time.Duration) {
-	ros.ROBoundarySpec.ROSpecStopTrigger = ROSpecStopTrigger{
-		ROSpecStopTriggerType: ROStopTriggerDuration,
-		DurationTriggerValue:  milliSecs32(period.Milliseconds()),
+	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
+		Trigger:              ROStopTriggerDuration,
+		DurationTriggerValue: milliSecs32(period.Milliseconds()),
 	}
 
 	if ros.ROReportSpec == nil {
@@ -428,7 +428,7 @@ func (ros *ROSpec) SetPeriodic(period time.Duration) {
 		}
 	}
 
-	ros.ROReportSpec.ROReportTriggerType = ROReportTriggerType(2)
+	ros.ROReportSpec.Trigger = ROReportTriggerType(2)
 	ros.ROReportSpec.N = 0
 }
 

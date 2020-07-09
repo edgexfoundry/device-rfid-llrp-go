@@ -797,6 +797,8 @@ class ParamSpec:
     group: Optional[str] = None  # groups are mutually exclusive
     version: Optional[int] = 1
 
+    description: Optional[str] = None
+
     def is_fixed_size(self) -> bool:
         """Returns true if this parameter is always a fixed size."""
         return self.p_def.fixed_size and self.exactly_one

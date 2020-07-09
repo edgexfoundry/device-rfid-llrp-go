@@ -128,62 +128,68 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 
 		// unmarshal original JSON form
 		if err = json.Unmarshal(originalJSON, v); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 
 		// marshal resulting struct to binary
 		if marshaledBin, err = v.MarshalBinary(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
-
-		// confirm binary matches original
-		checkBytesEq(t, originalBin, marshaledBin)
 
 		// get a new v (so we're not duplicating list items)
 		v = reflect.New(reflect.TypeOf(v).Elem()).Interface().(binRoundTrip)
 
 		// unmarshal original binary form to struct
-		if err = v.UnmarshalBinary(marshaledBin); err != nil {
-			t.Fatal(err)
+		if err = v.UnmarshalBinary(originalBin); err != nil {
+			t.Error(err)
 		}
 
 		// marshal struct back to JSON
 		marshaledJSON, err = json.MarshalIndent(v, "", "\t")
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 
-		// confirm JSON data matches original
-		if !checkJSONEq(t, originalJSON, marshaledJSON) {
-			t.Logf("%s", marshaledJSON)
-		}
+		// Check the JSON first, since it'll be easier to eyeball differences.
+		// If names change, unmarshaling is likely to leave many zero values,
+		// which will make the binary mismatched.
+		// The name differences should be pretty obvious when viewing the JSON.
+		checkJSONEq(t, originalJSON, marshaledJSON)
+
+		// Finally, confirm binary the matches.
+		checkBytesEq(t, originalBin, marshaledBin)
 	}
 }
 
-// checkJSONEq checks that two json data byte arrays are equal.
+// checkJSONEq checks that two json data byte arrays are equal line-by-line,
+// ignoring leading and trailing whitespace within each line,
+// as well as any remaining whitespace at the end of the data.
 //
-// If not, it prints a side-by-side diff around the first difference,
-// replacing tabs with 4 periods.
+// If not, it prints a side-by-side diff around the first line difference.
 //
 // Returns true if the two arrays are equal; false otherwise.
-func checkJSONEq(t *testing.T, jsonData, marshaled []byte) (matched bool) {
+func checkJSONEq(t *testing.T, original, marshaled []byte) (matched bool) {
 	t.Helper()
 
-	lines1, lines2 := bytes.Split(jsonData, []byte("\n")), bytes.Split(marshaled, []byte("\n"))
+	lines1, lines2 := bytes.Split(original, []byte("\n")), bytes.Split(marshaled, []byte("\n"))
 
-	matched = len(lines1) == len(lines2)
-	smaller := len(lines2)
+	larger, smaller := lines1, lines2
 	if len(lines1) < len(lines2) {
-		smaller = len(lines1)
-		matched = false
+		larger, smaller = lines2, lines1
 	}
 
+	matched = true
 	firstDiff := 0
-	for ; firstDiff < smaller; firstDiff++ {
-		if !bytes.Equal(lines1[firstDiff], lines2[firstDiff]) {
-			matched = false
-			break
-		}
+	for ; matched && firstDiff < len(smaller); firstDiff++ {
+		matched = bytes.Equal(
+			bytes.TrimSpace(lines1[firstDiff]),
+			bytes.TrimSpace(lines2[firstDiff]))
+	}
+	firstDiff--
+
+	// the larger of the two may only have blank lines
+	for i := firstDiff + 1; matched && i < len(larger); i++ {
+		matched = len(bytes.TrimSpace(larger[i])) == 0
 	}
 
 	if matched {
@@ -208,8 +214,8 @@ func checkJSONEq(t *testing.T, jsonData, marshaled []byte) (matched bool) {
 
 	longest := 1
 	for i := start; i < end; i++ {
-		lines1[i] = bytes.ReplaceAll(lines1[i], []byte("\t"), []byte("...."))
-		lines2[i] = bytes.ReplaceAll(lines2[i], []byte("\t"), []byte("...."))
+		lines1[i] = bytes.ReplaceAll(lines1[i], []byte("\t"), []byte("  "))
+		lines2[i] = bytes.ReplaceAll(lines2[i], []byte("\t"), []byte("  "))
 		if len(lines1[i]) > longest {
 			longest = len(lines1[i])
 		}
@@ -219,7 +225,8 @@ func checkJSONEq(t *testing.T, jsonData, marshaled []byte) (matched bool) {
 	}
 
 	diff := bytes.Buffer{}
-	fmt.Fprintf(&diff, "%-[1]*s  |  %s\n", longest, "    --Original JSON Data--", "    --Marshaled Result--")
+	fmt.Fprintf(&diff, "%-[1]*s  |  %s\n", longest,
+		"    --Original JSON Data--", "    --Marshaled Result--")
 	for i := start; i < end; i++ {
 		if i == firstDiff {
 			msg := "--first diff below this line--"
@@ -262,23 +269,73 @@ func checkBytesEq(t *testing.T, original, marshaled []byte) (matched bool) {
 		return
 	}
 
-	start := firstDiff - 4
+	// these constants control how much context to show
+	const bpl = 8    // bytes per line (per byte array, so really, 2x this)
+	const before = 2 // lines before first diff
+	const after = 4  // lines after first diff
+
+	start := ((firstDiff / bpl) - before) * bpl
 	if start < 0 {
 		start = 0
 	}
+	end := start + bpl*(before+after)
 
-	end := start + 8
-	if end > len(original)-1 {
-		end = len(original) - 1
+	ob := original[start:]
+	mb := marshaled[start:]
+
+	format := fmt.Sprintf("%%04d-%%04d > %%#- %d.%dx |  %%# .%dx\n", bpl*5, bpl, bpl)
+
+	buff := bytes.Buffer{}
+	for i := start; i < end && (len(ob) > 0 || len(mb) > 0); i += bpl {
+		if i <= firstDiff && firstDiff < i+bpl {
+			buff.Write(bytes.Repeat([]byte(" "), 5*(firstDiff-i)+12))
+			buff.WriteString(expand((bpl+1)*5+4, "-", "v", "first diff", "v\n"))
+		}
+
+		fmt.Fprintf(&buff, format, i, i+bpl, ob, mb)
+
+		if len(ob) > bpl {
+			ob = ob[bpl:]
+		} else {
+			ob = nil
+		}
+
+		if len(mb) > bpl {
+			mb = mb[bpl:]
+		} else {
+			mb = nil
+		}
 	}
 
-	if end > len(marshaled)-1 {
-		end = len(marshaled) - 1
-	}
+	t.Errorf("byte data mismatched starting at byte %d\n"+
+		"  index   > %[2]*s |  marshaled binary\n%s",
+		firstDiff, bpl*5, "original binary", buff.String())
 
-	t.Errorf("byte data mismatched starting at byte %d; surrounding bytes:\n"+
-		" original: %# 02x\n"+
-		"marshaled: %# 02x",
-		firstDiff, original[start:end], marshaled[start:end])
 	return
+}
+
+// expand returns a string that centers s between l and r
+// by inserting fill as many times as need
+// so that the final string has at least the given width.
+//
+// If width <= len(l+s+r), this return l+s+r,
+// even if that would be larger than width.
+// Otherwise, it inserts the minimum number of fill values
+// so that the len the returned value >= width.
+// If len(fill) == 1, it'll insert just to width.
+// If it's larger, the return might exceed width by as much.
+// If it's an empty string, this'll panic.
+func expand(width int, fill, l, s, r string) string {
+	width -= len(s) + len(l) + len(r)
+	nFills := atLeastZero(width / len(fill))
+	rFill := atLeastZero(nFills / 2)
+	lFill := atLeastZero(nFills - rFill)
+	return l + strings.Repeat(fill, rFill) + s + strings.Repeat(fill, lFill) + r
+}
+
+func atLeastZero(i int) int {
+	if i < 0 {
+		return 0
+	}
+	return i
 }

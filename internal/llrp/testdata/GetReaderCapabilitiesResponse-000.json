@@ -8,177 +8,177 @@
 	"GeneralDeviceCapabilities": {
 		"MaxSupportedAntennas": 4,
 		"CanSetAntennaProperties": false,
-		"HasUTCClockCapability": true,
-		"DeviceManufacturerName": 25882,
-		"ModelName": 2001002,
-		"ReaderFirmwareVersion": "5.14.0.240",
-		"ReceiveSensitivityTableEntries": [
+		"HasUTCClock": true,
+		"DeviceManufacturer": 25882,
+		"Model": 2001002,
+		"FirmwareVersion": "5.14.0.240",
+		"ReceiveSensitivities": [
 			{
-				"TableIndex": 1,
+				"Index": 1,
 				"ReceiveSensitivity": 0
 			},
 			{
-				"TableIndex": 2,
+				"Index": 2,
 				"ReceiveSensitivity": 10
 			},
 			{
-				"TableIndex": 3,
+				"Index": 3,
 				"ReceiveSensitivity": 11
 			},
 			{
-				"TableIndex": 4,
+				"Index": 4,
 				"ReceiveSensitivity": 12
 			},
 			{
-				"TableIndex": 5,
+				"Index": 5,
 				"ReceiveSensitivity": 13
 			},
 			{
-				"TableIndex": 6,
+				"Index": 6,
 				"ReceiveSensitivity": 14
 			},
 			{
-				"TableIndex": 7,
+				"Index": 7,
 				"ReceiveSensitivity": 15
 			},
 			{
-				"TableIndex": 8,
+				"Index": 8,
 				"ReceiveSensitivity": 16
 			},
 			{
-				"TableIndex": 9,
+				"Index": 9,
 				"ReceiveSensitivity": 17
 			},
 			{
-				"TableIndex": 10,
+				"Index": 10,
 				"ReceiveSensitivity": 18
 			},
 			{
-				"TableIndex": 11,
+				"Index": 11,
 				"ReceiveSensitivity": 19
 			},
 			{
-				"TableIndex": 12,
+				"Index": 12,
 				"ReceiveSensitivity": 20
 			},
 			{
-				"TableIndex": 13,
+				"Index": 13,
 				"ReceiveSensitivity": 21
 			},
 			{
-				"TableIndex": 14,
+				"Index": 14,
 				"ReceiveSensitivity": 22
 			},
 			{
-				"TableIndex": 15,
+				"Index": 15,
 				"ReceiveSensitivity": 23
 			},
 			{
-				"TableIndex": 16,
+				"Index": 16,
 				"ReceiveSensitivity": 24
 			},
 			{
-				"TableIndex": 17,
+				"Index": 17,
 				"ReceiveSensitivity": 25
 			},
 			{
-				"TableIndex": 18,
+				"Index": 18,
 				"ReceiveSensitivity": 26
 			},
 			{
-				"TableIndex": 19,
+				"Index": 19,
 				"ReceiveSensitivity": 27
 			},
 			{
-				"TableIndex": 20,
+				"Index": 20,
 				"ReceiveSensitivity": 28
 			},
 			{
-				"TableIndex": 21,
+				"Index": 21,
 				"ReceiveSensitivity": 29
 			},
 			{
-				"TableIndex": 22,
+				"Index": 22,
 				"ReceiveSensitivity": 30
 			},
 			{
-				"TableIndex": 23,
+				"Index": 23,
 				"ReceiveSensitivity": 31
 			},
 			{
-				"TableIndex": 24,
+				"Index": 24,
 				"ReceiveSensitivity": 32
 			},
 			{
-				"TableIndex": 25,
+				"Index": 25,
 				"ReceiveSensitivity": 33
 			},
 			{
-				"TableIndex": 26,
+				"Index": 26,
 				"ReceiveSensitivity": 34
 			},
 			{
-				"TableIndex": 27,
+				"Index": 27,
 				"ReceiveSensitivity": 35
 			},
 			{
-				"TableIndex": 28,
+				"Index": 28,
 				"ReceiveSensitivity": 36
 			},
 			{
-				"TableIndex": 29,
+				"Index": 29,
 				"ReceiveSensitivity": 37
 			},
 			{
-				"TableIndex": 30,
+				"Index": 30,
 				"ReceiveSensitivity": 38
 			},
 			{
-				"TableIndex": 31,
+				"Index": 31,
 				"ReceiveSensitivity": 39
 			},
 			{
-				"TableIndex": 32,
+				"Index": 32,
 				"ReceiveSensitivity": 40
 			},
 			{
-				"TableIndex": 33,
+				"Index": 33,
 				"ReceiveSensitivity": 41
 			},
 			{
-				"TableIndex": 34,
+				"Index": 34,
 				"ReceiveSensitivity": 42
 			},
 			{
-				"TableIndex": 35,
+				"Index": 35,
 				"ReceiveSensitivity": 43
 			},
 			{
-				"TableIndex": 36,
+				"Index": 36,
 				"ReceiveSensitivity": 44
 			},
 			{
-				"TableIndex": 37,
+				"Index": 37,
 				"ReceiveSensitivity": 45
 			},
 			{
-				"TableIndex": 38,
+				"Index": 38,
 				"ReceiveSensitivity": 46
 			},
 			{
-				"TableIndex": 39,
+				"Index": 39,
 				"ReceiveSensitivity": 47
 			},
 			{
-				"TableIndex": 40,
+				"Index": 40,
 				"ReceiveSensitivity": 48
 			},
 			{
-				"TableIndex": 41,
+				"Index": 41,
 				"ReceiveSensitivity": 49
 			},
 			{
-				"TableIndex": 42,
+				"Index": 42,
 				"ReceiveSensitivity": 50
 			}
 		],
@@ -215,17 +215,17 @@
 		"SupportsEventsAndReportHolding": true,
 		"MaxPriorityLevelSupported": 1,
 		"ClientRequestedOpSpecTimeout": 0,
-		"MaxNumROSpecs": 1,
-		"MaxNumSpecsPerROSpec": 32,
-		"MaxNumInventoryParameterSpecsPerAISpec": 1,
-		"MaxNumAccessSpecs": 1508,
-		"MaxNumOpSpecsPerAccessSpec": 8
+		"MaxROSpecs": 1,
+		"MaxSpecsPerROSpec": 32,
+		"MaxInventoryParameterSpecsPerAISpec": 1,
+		"MaxAccessSpecs": 1508,
+		"MaxOpSpecsPerAccessSpec": 8
 	},
 	"RegulatoryCapabilities": {
 		"CountryCode": 840,
 		"CommunicationsStandard": 1,
 		"UHFBandCapabilities": {
-			"TransmitPowerLevelTableEntries": [
+			"TransmitPowerLevels": [
 				{
 					"Index": 1,
 					"TransmitPowerValue": 1000
@@ -551,70 +551,68 @@
 					"TransmitPowerValue": 3000
 				}
 			],
-			"FrequencyInformations": [
-				{
-					"Hopping": true,
-					"FrequencyHopTables": [
-						{
-							"HopTableID": 1,
-							"Frequencies": [
-								909250,
-								908250,
-								925750,
-								911250,
-								910750,
-								926750,
-								917750,
-								905250,
-								927250,
-								921250,
-								925250,
-								919250,
-								924750,
-								916250,
-								919750,
-								913250,
-								926250,
-								916750,
-								918750,
-								914250,
-								909750,
-								917250,
-								908750,
-								902750,
-								921750,
-								913750,
-								915750,
-								923750,
-								904250,
-								903750,
-								903250,
-								907750,
-								915250,
-								924250,
-								912750,
-								918250,
-								912250,
-								910250,
-								922250,
-								905750,
-								906750,
-								920750,
-								923250,
-								906250,
-								914750,
-								911750,
-								920250,
-								907250,
-								922750,
-								904750
-							]
-						}
-					],
-					"FixedFrequencyTable": null
-				}
-			],
-			"UHFC1G2RFModeTable": {
+			"FrequencyInformation": {
+                "Hopping": true,
+                "FrequencyHopTables": [
+                    {
+                        "HopTableID": 1,
+                        "Frequencies": [
+                            909250,
+                            908250,
+                            925750,
+                            911250,
+                            910750,
+                            926750,
+                            917750,
+                            905250,
+                            927250,
+                            921250,
+                            925250,
+                            919250,
+                            924750,
+                            916250,
+                            919750,
+                            913250,
+                            926250,
+                            916750,
+                            918750,
+                            914250,
+                            909750,
+                            917250,
+                            908750,
+                            902750,
+                            921750,
+                            913750,
+                            915750,
+                            923750,
+                            904250,
+                            903750,
+                            903250,
+                            907750,
+                            915250,
+                            924250,
+                            912750,
+                            918250,
+                            912250,
+                            910250,
+                            922250,
+                            905750,
+                            906750,
+                            920750,
+                            923250,
+                            906250,
+                            914750,
+                            911750,
+                            920250,
+                            907250,
+                            922750,
+                            904750
+                        ]
+                    }
+                ],
+                "FixedFrequencyTable": null
+            },
+			"C1G2RFModes": {
 				"UHFC1G2RFModeTableEntries": [
 					{
 						"ModeID": 0,
@@ -759,7 +757,7 @@
 		"SupportsTagRecommissioning": false,
 		"SupportsUMIMethod2": false,
 		"SupportsXPC": false,
-		"MaxNumSelectFiltersPerQuery": 2
+		"MaxSelectFiltersPerQuery": 2
 	},
 	"Custom": null
 }

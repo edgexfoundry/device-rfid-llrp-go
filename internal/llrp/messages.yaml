@@ -160,38 +160,69 @@ parameters:
 
   - name: UTCTimestamp
     type_id: 128
+    description: Microseconds since the beginning of time, midnight 1970-Jan-1.
     fields:
       - name: Microseconds
         type: microSecs64
 
   - name: Uptime
     type_id: 129
+    description: Microseconds since the Reader started.
     fields:
       - name: Microseconds
         type: microSecs64
 
   - name: GeneralDeviceCapabilities
     type_id: 137
+    description: >-
+      This parameter specifies what the Reader supports,
+      primarily with respect to antenna control.
+      It also gives some identifying information
+      about the device make, model, and firmware.
+
+      Some LLRP messages permit either a UTC timestamp or Uptime parameter.
+      If HasUTCClock is false, the Reader uses Uptime,
+      and reports the number of microseconds since it powered on.
+      If it has a UTC clock, then it reports its timestamps as
+      microseconds since the beginning of time (1970-Jan-01, midnight).
+
+      The most common messages carry a timestamp,
+      so they'll have one or the other of UTC or Uptime, but not both.
+      In most cases, this package use pointer struct fields for 0..1 parameters,
+      allowing nil to signal that the parameter isn't present.
+      For reasons related to implementation simplicity and performance,
+      both UTC and Uptime are presented as non-pointer struct fields.
+      During unmarshaling, it'll set the correct value and leave the other 0
+      (or report an error if both are present or both are missing).
+      During marshaling, if both are set, it will only marshal the UTC value.
+
+      If a Reader doesn't support controlling receive sensitivity,
+      it returns a single table entry with the value 0.
+      If it supports multiple antennas each with unique sensitivities,
+      the table contains an entry for the union of all possible sensitivities,
+      and the PerAntennaReceiveSensitivityRanges
+      maps antenna IDs to ranges of indices into this table.
     fields:
       - name: MaxSupportedAntennas
         type: uint16
       - name: CanSetAntennaProperties
         type: bool
         partial: true
-      - name: HasUTCClockCapability
+      - name: HasUTCClock
         type: bool
         bit: 1
       - type: uint8
         padding: true
-      - name: DeviceManufacturerName
+      - name: DeviceManufacturer
         type: uint32
-      - name: ModelName
+        description: DeviceManufacturer is an IANA Private Enterprise Number (PEN).
+      - name: Model
         type: uint32
-      - name: ReaderFirmwareVersion
+      - name: FirmwareVersion
         type: string
     parameters:
       - type: ReceiveSensitivityTableEntry
-        name: ReceiveSensitivityTableEntries
+        name: ReceiveSensitivities
         repeatable: true
       - type: PerAntennaReceiveSensitivityRange
         name: PerAntennaReceiveSensitivityRanges
@@ -204,14 +235,18 @@ parameters:
       - type: MaximumReceiveSensitivity
         optional: true
         version: 2
+
   - name: ReceiveSensitivityTableEntry
     type_id: 139
     fields:
-      - name: TableIndex
+      - name: Index
         type: uint16
       - name: ReceiveSensitivity
         type: dB
-        description: 'ReceiveSensitivity is relative the maximum.'
+        description: >-
+          ReceiveSensitivity is relative the maximum supported by the device,
+          or the maximum reported in the device capabilities,
+          for readers that support changing it (requires LLRP v1.1+).
         min: 0
         max: 128
 
@@ -256,15 +291,15 @@ parameters:
         type: uint8
       - name: ClientRequestedOpSpecTimeout
         type: uint16
-      - name: MaxNumROSpecs
+      - name: MaxROSpecs
         type: uint32
-      - name: MaxNumSpecsPerROSpec
+      - name: MaxSpecsPerROSpec
         type: uint32
-      - name: MaxNumInventoryParameterSpecsPerAISpec
+      - name: MaxInventoryParameterSpecsPerAISpec
         type: uint32
-      - name: MaxNumAccessSpecs
+      - name: MaxAccessSpecs
         type: uint32
-      - name: MaxNumOpSpecsPerAccessSpec
+      - name: MaxOpSpecsPerAccessSpec
         type: uint32
 
   - name: RegulatoryCapabilities
@@ -285,11 +320,13 @@ parameters:
     type_id: 144
     parameters:
       - type: TransmitPowerLevelTableEntry
+        name: TransmitPowerLevels
         repeatable: true
       - type: FrequencyInformation
-        repeatable: true
+        name: FrequencyInformation
       - type: UHFC1G2RFModeTable
         air_protocol: C1G2
+        name: C1G2RFModes
       - type: RFSurveyFrequencyCapabilities
         optional: true
 
@@ -303,6 +340,18 @@ parameters:
 
   - name: FrequencyInformation
     type_id: 146
+    description: >-
+      In hopping regulatory regions, Hopping is true,
+      and the Reader will send zero or more FrequencyHopTables,
+      each with a HopTableID and list of frequencies.
+      In fixed frequency regulatory regions, Hopping is false,
+      and the Reader sends a fixed frequency table instead.
+
+      In both cases, the "table" is just a list of available frequencies.
+      The "ChannelIndex" is a frequency's 1-based offset in its list,
+      so ChannelIndex 1 is Frequencies[0].
+      Other parameters will reference these values using a ChannelIndex,
+      as well as the HopTableID if Hopping is true.
     fields:
       - name: Hopping
         type: bool
@@ -402,16 +451,21 @@ parameters:
     type_id: 178
     parameters:
       - type: ROSpecStartTrigger
+        name: StartTrigger
       - type: ROSpecStopTrigger
+        name: StopTrigger
+
   - name: ROSpecStartTrigger
     type_id: 179
     fields:
-      - name: ROSpecStartTriggerType
+      - name: Trigger
         type: ROSpecStartTriggerType
     parameters:
       - type: PeriodicTriggerValue
+        name: PeriodicTrigger
         optional: true
       - type: GPITriggerValue
+        name: GPITrigger
         optional: true
 
   - name: PeriodicTriggerValue
@@ -428,9 +482,9 @@ parameters:
   - name: GPITriggerValue
     type_id: 181
     fields:
-      - name: GPIPortNum
+      - name: Port
         type: uint16
-      - name: GPIEvent
+      - name: Event
         type: bool
       - name: Timeout
         type: milliSecs32
@@ -438,7 +492,7 @@ parameters:
   - name: ROSpecStopTrigger
     type_id: 182
     fields:
-      - name: ROSpecStopTriggerType
+      - name: Trigger
         type: ROSpecStopTriggerType
       - name: DurationTriggerValue
         type: milliSecs32
@@ -470,6 +524,7 @@ parameters:
           regardless of any other value in the array.
     parameters:
       - type: AISpecStopTrigger
+        name: StopTrigger
       - type: InventoryParameterSpec
         repeatable: true
       - type: Custom
@@ -479,12 +534,13 @@ parameters:
   - name: AISpecStopTrigger
     type_id: 184
     fields:
-      - name: AISpecStopTriggerType
+      - name: Trigger
         type: AISpecStopTriggerType
       - name: DurationTriggerValue
         type: milliSecs32
     parameters:
       - type: GPITriggerValue
+        name: GPITrigger
         optional: true
       - type: TagObservationTrigger
         optional: true
@@ -492,7 +548,7 @@ parameters:
   - name: TagObservationTrigger
     type_id: 185
     fields:
-      - name: TagObservationTriggerType
+      - name: Trigger
         type: TagObservationTriggerType
       - type: uint8
         padding: true
@@ -531,6 +587,7 @@ parameters:
         type: kHz
     parameters:
       - type: RFSurveySpecStopTrigger
+        name: Trigger
       - type: Custom
         optional: true
         repeatable: true
@@ -539,6 +596,7 @@ parameters:
     type_id: 188
     fields:
       - type: RFSurveySpecStopTriggerType
+        name: Trigger
       - name: Duration
         type: milliSecs32
       - name: N
@@ -559,6 +617,7 @@ parameters:
         type: uint32
     parameters:
       - type: AccessSpecStopTrigger
+        name: Trigger
       - type: AccessCommand
       - type: AccessReportSpec
         optional: true
@@ -569,7 +628,7 @@ parameters:
   - name: AccessSpecStopTrigger
     type_id: 208
     fields:
-      - name: AccessSpecStopTriggerType
+      - name: Trigger
         type: AccessSpecStopTriggerType
       - name: OperationCountValue
         type: uint16
@@ -683,15 +742,16 @@ parameters:
   - name: GPOWriteData
     type_id: 219
     fields:
-      - name: GPOPort
+      - name: Port
         type: uint16
         min: 1
-      - name: GPOData
+      - name: Data
         type: bool
+
   - name: KeepAliveSpec
     type_id: 220
     fields:
-      - name: KeepAliveTriggerType
+      - name: Trigger
         type: KeepAliveTriggerType
       - name: Interval
         type: milliSecs32
@@ -738,20 +798,26 @@ parameters:
     fields:
       - name: HopTableID
         type: uint16
-      - name: ChannelIndexInFixedFrequencyTable
+        description: >-
+          HopTableID within the Fixed Frequency Table,
+          for jurisdictions that do not permit frequency hopping.
+      - name: ChannelIndex
         type: uint16
-      - name: TransmitPowerTableIndex
+        description: >-
+          ChannelIndex within the Fixed Frequency Table,
+          for jurisdictions that do not permit frequency hopping.
+      - name: TransmitPowerIndex
         type: uint16
 
   - name: GPIPortCurrentState
     type_id: 225
     fields:
-      - name: GPIPort
+      - name: Port
         type: uint16
         min: 1
-      - name: GPIPortEnabled
+      - name: Enabled
         type: bool
-      - name: GPIState
+      - name: State
         type: GPIStateType
 
   - name: EventsAndReports
@@ -769,7 +835,7 @@ parameters:
   - name: ROReportSpec
     type_id: 237
     fields:
-      - name: ROReportTriggerType
+      - name: Trigger
         type: ROReportTriggerType
       - name: N
         type: uint16
@@ -830,7 +896,7 @@ parameters:
   - name: AccessReportSpec
     type_id: 239
     fields:
-      - name: AccessReportTriggerType
+      - name: Trigger
         type: AccessReportTriggerType
 
   - name: TagReportData
@@ -1006,16 +1072,16 @@ parameters:
       If it triggers an ROSpec to start or stop,
       it's sent before the ROSpecEvent parameter.
     fields:
-      - name: GPIPort
+      - name: Port
         type: uint16
-      - name: GPIEvent
+      - name: Event
         type: bool
-        description: GPIEvent is the Reader-defined value of GPI that triggered the event.
+        description: Event is the Reader-defined value of GPI that triggered the event.
 
   - name: ROSpecEvent
     type_id: 249
     fields:
-      - name: ROSpecEventType
+      - name: Event
         type: ROSpecEventType
       - name: ROSpecID
         type: uint32
@@ -1056,7 +1122,7 @@ parameters:
   - name: RFSurveyEvent
     type_id: 253
     fields:
-      - name: RFSurveyEventType
+      - name: Event
         type: RFSurveyEventType
       - name: ROSpecID
         type: uint32
@@ -1064,21 +1130,22 @@ parameters:
   - name: AISpecEvent
     type_id: 254
     fields:
-      - name: AISpecEventType
+      - name: Event
         type: AISpecEventType
       - name: ROSpecID
         type: uint32
       - name: SpecIndex
         type: uint16
     parameters:
-      # - type: AirProtocolSingulationDetails
+      # AirProtocol Singulation Details
       - type: C1G2SingulationDetails
+        name: SingulationDetails
         optional: true
 
   - name: AntennaEvent
     type_id: 255
     fields:
-      - name: AntennaEventType
+      - name: Event
         type: AntennaEventType
       - name: AntennaID
         type: AntennaID
@@ -1086,7 +1153,7 @@ parameters:
   - name: ConnectionAttemptEvent
     type_id: 256
     fields:
-      - name: ConnectionAttemptEventType
+      - name: Event
         type: ConnectionAttemptEventType
 
   - name: ConnectionCloseEvent
@@ -1153,9 +1220,9 @@ parameters:
       - name: SupportsXPC
         type: bool
         bit: 5
-      - name: MaxNumSelectFiltersPerQuery
+      - name: MaxSelectFiltersPerQuery
         type: uint16
-        description: MaxNumSelectFiltersPerQuery can be 0 to indicate no maximum.
+        description: MaxSelectFiltersPerQuery can be 0 to indicate no maximum.
 
   - name: UHFC1G2RFModeTable
     type_id: 328
@@ -1256,9 +1323,12 @@ parameters:
       - type: C1G2Filter
         optional: true
         repeatable: true
+        name: Filters
       - type: C1G2RFControl
+        name: RFControl
         optional: true
       - type: C1G2SingulationControl
+        name: SingulationControl
         optional: true
       - type: Custom
         optional: true
@@ -1266,20 +1336,29 @@ parameters:
 
   - name: C1G2Filter
     type_id: 331
+    description: >-
+      If the Reader supports tag-inventory-aware singulation,
+      you can set the AwareFilterAction.
+      If not, you can use the UnawareFilterAction.
     fields:
       - name: TruncateAction
         type: C1G2FilterTruncateActionType
     parameters:
       - type: C1G2TagInventoryMask
+        name: TagInventoryMask
       - type: C1G2TagInventoryStateAwareFilterAction
+        name: AwareFilterAction
         optional: true
+        description: AwareFilterAction to take if the Reader supports inventory-aware singulation.
       - type: C1G2TagInventoryStateUnawareFilterAction
+        name: UnawareFilterAction
         optional: true
+        description: UnawareFilterAction to take if the Reader doesn't support inventory-aware singulation.
 
   - name: C1G2TagInventoryMask
     type_id: 332
     fields:
-      - name: C1G2MemoryBank
+      - name: MemoryBank
         type: C1G2MemoryBankType
       - name: MostSignificantBit
         type: uint16
@@ -1289,30 +1368,50 @@ parameters:
   - name: C1G2TagInventoryStateAwareFilterAction
     type_id: 333
     fields:
-      - name: C1G2TagInventoryTarget
+      - name: Target
         type: C1G2TagInventoryTargetType
-      - name: C1G2TagInventoryStateAwareFilterAction
+      - name: FilterAction
         type: C1G2TagInventoryStateAwareFilterActionType
 
   - name: C1G2TagInventoryStateUnawareFilterAction
     type_id: 334
     fields:
-      - name: C1G2TagInventoryStateUnawareFilterAction
+      - name: FilterAction
         type: C1G2TagInventoryStateUnawareFilterActionType
 
   - name: C1G2RFControl
     type_id: 335
     fields:
-      - name: IndexIntoUHFC1G2RFModeTable
+      - name: RFModeID
         type: uint16
+        description: >-
+          RFModeID must match one of the ModeIDs in the C1G2RFModes table
+          that comes in the UHFBandCapabilities (ParamType 144) section
+          of the RegulatoryCapabilities (ParamType 143) section
+          of the GetReaderCapabilitiesResponse (MessageType 11)
+
       - name: Tari
+        description: >-
+          Tari is "Type A Reference Interval", in nanoseconds.
+          Typically, values must be 6250-25000ns,
+          though they may be restricted by the RFModes table.
+          Usually, a client can use 0
+          to allow the Reader to select a valid value.
+
+          While the details are more complicated,
+          the Tari duration is a basis for most other protocol durations,
+          so all else equal, a shorter Tari allows a higher bitrate,
+          but that's an gross oversimplification.
+          For more information,
+          see the EPC Class 1 Gen 2 standard and consult an RF engineer.
         type: nanoSecs16
 
   - name: C1G2SingulationControl
     type_id: 336
     fields:
-      - name: C1G2SingulationControlSession
-        type: C1G2SingulationControlSessionType
+      - name: Session
+        type: C1G2SingulationSession
+        description: Session number for the inventory operation (0-3).
       - name: TagPopulation
         type: uint16
         description: TagPopulation expected in the antenna's field of view.
@@ -1321,12 +1420,20 @@ parameters:
         description: TagTransitTime is a measure of the expected tag mobility.
     parameters:
       - type: C1G2TagInventoryStateAwareSingulationAction
+        name: InvAwareAction
         optional: true
 
   - name: C1G2TagInventoryStateAwareSingulationAction
     type_id: 337
     fields:
-      - type: C1G2TagInventoryStateAwareSingulationActionFlags
+      - type: SingActAwareState
+        name: InventoryState
+        partial: true
+      - type: bool
+        name: Selected
+        bit: 1
+
+
   - name: C1G2TagSpec
     type_id: 338
     parameters:
@@ -1524,7 +1631,18 @@ parameters:
         type: uint16
       - name: KillPassword
         type: uint32
-      - type: C1G2RecommissionFlags
+      - type: bool
+        name: SB3
+        partial: true
+        bit: 5  # literally all others start at bit 0 whyyyyyyyyy LLRP? WHY?!?
+      - type: bool
+        name: SB2
+        partial: true
+        bit: 6
+      - type: bool
+        name: LSB
+        bit: 7
+
 
   - name: C1G2BlockPermalock
     type_id: 358
@@ -1747,17 +1865,14 @@ types:
     storage: uint16
     kind: enum
     description: CountryCodeType is an ISO-3166 country code.
-
-  - name: C1G2TagInventoryTargetType
-    storage: uint8
-    kind: enum
-    prefix: InvTarget
     values:
-      - SL
-      - InventoriedS0
-      - InventoriedS1
-      - InventoriedS2
-      - InventoriedS3
+      - Unspecified
+
+  - name: CommStandardType
+    storage: uint16
+    kind: enum
+    max: 34
+    description: CommStandardType enumerates communication standards known to LLRP.
 
   - name: ROSpecCurrentStateType
     storage: uint8
@@ -1986,16 +2101,6 @@ types:
       - TIDMemory
       - UserMemory
 
-  - name: C1G2FilterTruncateActionType
-    storage: uint8
-    kind: enum
-    bits: 2
-    prefix: FilterAction
-    values:
-      - Unspecified
-      - DoNotTruncate
-      - Truncate
-
   - name: ParamType
     storage: uint16
     kind: external
@@ -2058,7 +2163,7 @@ types:
       FieldOutOfRange: 301
       DeviceError: 401
 
-  - name: ReaderCapabilitiesRequestedDataType
+  - name: ReaderCapability
     storage: uint8
     prefix: ReaderCap
     kind: enum
@@ -2119,25 +2224,53 @@ types:
     storage: uint8
     kind: enum
 
+  - name: C1G2TagInventoryTargetType
+    storage: uint8
+    kind: enum
+    prefix: InvTarget
+    values:
+      - SL
+      - InventoriedS0
+      - InventoriedS1
+      - InventoriedS2
+      - InventoriedS3
+
+  - name: C1G2FilterTruncateActionType
+    storage: uint8
+    kind: enum
+    bits: 2
+    prefix: FilterAction
+    values:
+      - Unspecified
+      - DoNotTruncate
+      - Truncate
+
   - name: C1G2TagInventoryStateAwareFilterActionType
     storage: uint8
     kind: enum
     max: 7
+
+  - name: SingActAwareState
+    bits: 1
+    storage: uint8
+    kind: enum
+    prefix: SingActAwareState
+    values:
+      - A
+      - B
 
   - name: C1G2TagInventoryStateUnawareFilterActionType
     storage: uint8
     kind: enum
     max: 5
 
-  - name: C1G2SingulationControlSessionType
+  - name: C1G2SingulationSession
     storage: uint8
-    kind: enum
+    bits: 2
+    max: 3
+    kind: alias
 
   # ----- Flag types -----
-  - name: C1G2TagInventoryStateAwareSingulationActionFlags
-    storage: uint8
-    kind: flag
-
   - name: C1G2RecommissionFlags
     storage: uint8
     kind: flag
@@ -2155,6 +2288,7 @@ messages:
         type: VersionNum
     parameters:
       - type: LLRPStatus
+
   - name: SetProtocolVersion
     type_id: 47
     fields:
@@ -2165,11 +2299,12 @@ messages:
     response_to: 47
     parameters:
       - type: LLRPStatus
+
   - name: GetReaderCapabilities
     type_id: 1
     fields:
       - name: ReaderCapabilitiesRequestedData
-        type: ReaderCapabilitiesRequestedDataType
+        type: ReaderCapability
     parameters:
       - type: Custom
         optional: true
@@ -2190,6 +2325,7 @@ messages:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: AddROSpec
     description: >-
       AddROSpec adds an Reader Operation Specification.
@@ -2205,6 +2341,7 @@ messages:
     response_to: 30
     parameters:
       - type: LLRPStatus
+
   - name: DeleteROSpec
     type_id: 21
     fields:
@@ -2215,6 +2352,7 @@ messages:
     response_to: 21
     parameters:
       - type: LLRPStatus
+
   - name: StartROSpec
     type_id: 22
     fields:
@@ -2225,6 +2363,7 @@ messages:
     response_to: 22
     parameters:
       - type: LLRPStatus
+
   - name: StopROSpec
     description: >-
       StopROSpec stops a spec if it's currently executing,
@@ -2238,6 +2377,7 @@ messages:
     response_to: 23
     parameters:
       - type: LLRPStatus
+
   - name: EnableROSpec
     description: >-
       EnableROSpec moves and ROSpec from Disabled to Inactive.
@@ -2256,6 +2396,7 @@ messages:
     response_to: 24
     parameters:
       - type: LLRPStatus
+
   - name: DisableROSpec
     type_id: 25
     fields:
@@ -2266,6 +2407,7 @@ messages:
     response_to: 25
     parameters:
       - type: LLRPStatus
+
   - name: GetROSpecs
     type_id: 26
   - name: GetROSpecsResponse
@@ -2276,6 +2418,7 @@ messages:
       - type: ROSpec
         optional: true
         repeatable: true
+
   - name: AddAccessSpec
     type_id: 40
     parameters:
@@ -2285,6 +2428,7 @@ messages:
     response_to: 40
     parameters:
       - type: LLRPStatus
+
   - name: DeleteAccessSpec
     type_id: 41
     fields:
@@ -2295,6 +2439,7 @@ messages:
     response_to: 41
     parameters:
       - type: LLRPStatus
+
   - name: EnableAccessSpec
     type_id: 42
     fields:
@@ -2305,6 +2450,7 @@ messages:
     response_to: 42
     parameters:
       - type: LLRPStatus
+
   - name: DisableAccessSpec
     type_id: 43
     fields:
@@ -2315,6 +2461,7 @@ messages:
     response_to: 43
     parameters:
       - type: LLRPStatus
+
   - name: GetAccessSpecs
     type_id: 44
   - name: GetAccessSpecsResponse
@@ -2325,6 +2472,7 @@ messages:
       - type: AccessSpec
         optional: true
         repeatable: true
+
   - name: ClientRequestOp
     type_id: 45
     parameters:
@@ -2334,8 +2482,10 @@ messages:
     response_to: 45
     parameters:
       - type: ClientRequestResponse
+
   - name: GetReport
     type_id: 60
+
   - name: ROAccessReport
     type_id: 61
     parameters:
@@ -2348,26 +2498,31 @@ messages:
       - type: Custom
         optional: true
         repeatable: true
+
   - name: KeepAlive
     type_id: 62
   - name: KeepAliveAck
     type_id: 72
+
   - name: ReaderEventNotification
     type_id: 63
     parameters:
       - type: ReaderEventNotificationData
+
   - name: EnableEventsAndReports
     type_id: 64
+
   - name: ErrorMessage
     type_id: 100
     parameters:
       - type: LLRPStatus
+
   - name: GetReaderConfig
     type_id: 2
     fields:
       - name: AntennaID
         type: uint16
-      - name: ReaderConfigRequestedData
+      - name: RequestedData
         type: ReaderConfigRequestedDataType
       - name: GPIPortNum
         type: uint16
@@ -2448,6 +2603,7 @@ messages:
     response_to: 3
     parameters:
       - type: LLRPStatus
+
   - name: CloseConnection
     type_id: 14
   - name: CloseConnectionResponse
@@ -2455,6 +2611,7 @@ messages:
     response_to: 14
     parameters:
       - type: LLRPStatus
+
   - name: CustomMessage
     type_id: 1023
     fields:

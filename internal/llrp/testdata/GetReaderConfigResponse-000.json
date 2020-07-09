@@ -37,21 +37,21 @@
 			"RFReceiver": 1,
 			"RFTransmitter": {
 				"HopTableID": 1,
-				"ChannelIndexInFixedFrequencyTable": 0,
-				"TransmitPowerTableIndex": 81
+				"ChannelIndex": 0,
+				"TransmitPowerIndex": 81
 			},
 			"C1G2InventoryCommand": {
 				"TagInventoryStateAware": false,
-				"C1G2Filters": null,
-				"C1G2RFControl": {
-					"IndexIntoUHFC1G2RFModeTable": 1000,
+				"Filters": null,
+				"RFControl": {
+					"RFModeID": 1000,
 					"Tari": 0
 				},
-				"C1G2SingulationControl": {
-					"C1G2SingulationControlSession": 64,
+				"SingulationControl": {
+					"Session": 1,
 					"TagPopulation": 32,
 					"TagTransitTime": 0,
-					"C1G2TagInventoryStateAwareSingulationAction": null
+					"InvAwareAction": null
 				},
 				"Custom": null
 			},
@@ -62,21 +62,21 @@
 			"RFReceiver": 1,
 			"RFTransmitter": {
 				"HopTableID": 1,
-				"ChannelIndexInFixedFrequencyTable": 0,
-				"TransmitPowerTableIndex": 81
+				"ChannelIndex": 0,
+				"TransmitPowerIndex": 81
 			},
 			"C1G2InventoryCommand": {
 				"TagInventoryStateAware": false,
-				"C1G2Filters": null,
-				"C1G2RFControl": {
-					"IndexIntoUHFC1G2RFModeTable": 1000,
+				"Filters": null,
+				"RFControl": {
+					"RFModeID": 1000,
 					"Tari": 0
 				},
-				"C1G2SingulationControl": {
-					"C1G2SingulationControlSession": 64,
+				"SingulationControl": {
+					"Session": 1,
 					"TagPopulation": 32,
 					"TagTransitTime": 0,
-					"C1G2TagInventoryStateAwareSingulationAction": null
+					"InvAwareAction": null
 				},
 				"Custom": null
 			},
@@ -87,21 +87,21 @@
 			"RFReceiver": 1,
 			"RFTransmitter": {
 				"HopTableID": 1,
-				"ChannelIndexInFixedFrequencyTable": 0,
-				"TransmitPowerTableIndex": 81
+				"ChannelIndex": 0,
+				"TransmitPowerIndex": 81
 			},
 			"C1G2InventoryCommand": {
 				"TagInventoryStateAware": false,
-				"C1G2Filters": null,
-				"C1G2RFControl": {
-					"IndexIntoUHFC1G2RFModeTable": 1000,
+				"Filters": null,
+				"RFControl": {
+					"RFModeID": 1000,
 					"Tari": 0
 				},
-				"C1G2SingulationControl": {
-					"C1G2SingulationControlSession": 64,
+				"SingulationControl": {
+					"Session": 1,
 					"TagPopulation": 32,
 					"TagTransitTime": 0,
-					"C1G2TagInventoryStateAwareSingulationAction": null
+					"InvAwareAction": null
 				},
 				"Custom": null
 			},
@@ -112,21 +112,21 @@
 			"RFReceiver": 1,
 			"RFTransmitter": {
 				"HopTableID": 1,
-				"ChannelIndexInFixedFrequencyTable": 0,
-				"TransmitPowerTableIndex": 81
+				"ChannelIndex": 0,
+				"TransmitPowerIndex": 81
 			},
 			"C1G2InventoryCommand": {
 				"TagInventoryStateAware": false,
-				"C1G2Filters": null,
-				"C1G2RFControl": {
-					"IndexIntoUHFC1G2RFModeTable": 1000,
+				"Filters": null,
+				"RFControl": {
+					"RFModeID": 1000,
 					"Tari": 0
 				},
-				"C1G2SingulationControl": {
-					"C1G2SingulationControlSession": 64,
+				"SingulationControl": {
+					"Session": 1,
 					"TagPopulation": 32,
 					"TagTransitTime": 0,
-					"C1G2TagInventoryStateAwareSingulationAction": null
+					"InvAwareAction": null
 				},
 				"Custom": null
 			},
@@ -174,7 +174,7 @@
 		]
 	},
 	"ROReportSpec": {
-		"ROReportTriggerType": 2,
+		"Trigger": 2,
 		"N": 1,
 		"TagReportContentSelector": {
 			"EnableROSpecID": false,
@@ -201,47 +201,47 @@
 	"AccessReportSpec": 1,
 	"LLRPConfigurationStateValue": 2057940966,
 	"KeepAliveSpec": {
-		"KeepAliveTriggerType": 0,
+		"Trigger": 0,
 		"Interval": 0
 	},
 	"GPIPortCurrentStates": [
 		{
-			"GPIPort": 1,
-			"GPIPortEnabled": false,
-			"GPIState": 0
+			"Port": 1,
+			"Enabled": false,
+			"State": 0
 		},
 		{
-			"GPIPort": 2,
-			"GPIPortEnabled": false,
-			"GPIState": 0
+			"Port": 2,
+			"Enabled": false,
+			"State": 0
 		},
 		{
-			"GPIPort": 3,
-			"GPIPortEnabled": false,
-			"GPIState": 0
+			"Port": 3,
+			"Enabled": false,
+			"State": 0
 		},
 		{
-			"GPIPort": 4,
-			"GPIPortEnabled": false,
-			"GPIState": 0
+			"Port": 4,
+			"Enabled": false,
+			"State": 0
 		}
 	],
 	"GPOWriteData": [
 		{
-			"GPOPort": 1,
-			"GPOData": false
+			"Port": 1,
+			"Data": false
 		},
 		{
-			"GPOPort": 2,
-			"GPOData": false
+			"Port": 2,
+			"Data": false
 		},
 		{
-			"GPOPort": 3,
-			"GPOData": false
+			"Port": 3,
+			"Data": false
 		},
 		{
-			"GPOPort": 4,
-			"GPOData": false
+			"Port": 4,
+			"Data": false
 		}
 	],
 	"EventsAndReports": false,
