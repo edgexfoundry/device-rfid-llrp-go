@@ -21,7 +21,7 @@ type TestDevice struct {
 	Client, reader *Client
 
 	ReaderLogs ClientLogger
-	w          *MsgWriter
+	w          *msgWriter
 	maxVer     VersionNum
 	mid        messageID
 	responses  map[MessageType]Outgoing
@@ -48,7 +48,7 @@ func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration)
 		Client: c,
 		reader: reader,
 		maxVer: maxReaderVer,
-		w:      NewMsgWriter(rConn, Version1_0_1),
+		w:      newMsgWriter(rConn, Version1_0_1),
 	}
 
 	reader.handlers[MsgGetSupportedVersion] = MessageHandlerFunc(td.getSupportedVersion)

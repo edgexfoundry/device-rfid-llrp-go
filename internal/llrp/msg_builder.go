@@ -52,13 +52,13 @@ func encodeParams(w io.Writer, headers ...paramHeader) error {
 	return nil
 }
 
-type MsgWriter struct {
+type msgWriter struct {
 	w      io.Writer // target output
 	header Header
 }
 
-func NewMsgWriter(w io.Writer, version VersionNum) *MsgWriter {
-	return &MsgWriter{
+func newMsgWriter(w io.Writer, version VersionNum) *msgWriter {
+	return &msgWriter{
 		w: w,
 		header: Header{
 			version: version,
@@ -66,7 +66,7 @@ func NewMsgWriter(w io.Writer, version VersionNum) *MsgWriter {
 	}
 }
 
-func (mw *MsgWriter) Write(mid messageID, out Outgoing) error {
+func (mw *msgWriter) Write(mid messageID, out Outgoing) error {
 	data, err := out.MarshalBinary()
 	if err != nil {
 		return err
