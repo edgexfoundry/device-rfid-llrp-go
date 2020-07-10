@@ -6,11 +6,14 @@
 package llrp
 
 import (
+	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"log"
 	"net"
 	"os"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -193,6 +196,39 @@ func (td *TestDevice) closeConnection(_ *Client, msg Message) {
 	td.write(msg.id, &CloseConnectionResponse{})
 }
 
+func (td *TestDevice) ConnectClient(t *testing.T) (c *Client) {
+	c = td.Client
+
+	connErrs := make(chan error)
+	go func() {
+		defer close(connErrs)
+		connErrs <- c.Connect()
+	}()
+
+	t.Cleanup(func() {
+		if err := td.Close(); err != nil {
+			t.Errorf("%+v", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		defer cancel()
+		if err := td.Client.Shutdown(ctx); err != nil {
+			if err := td.Client.Close(); err != nil {
+				t.Errorf("%+v", err)
+			}
+			t.Errorf("%+v", err)
+		}
+
+		for err := range connErrs {
+			if !errors.Is(err, ErrClientClosed) {
+				t.Errorf("%+v", err)
+			}
+		}
+	})
+
+	return c
+}
+
 func NewConnectMessage(eventType ConnectionAttemptEventType) *ReaderEventNotification {
 	c := ConnectionAttemptEvent(eventType)
 	return &ReaderEventNotification{
@@ -208,4 +244,50 @@ func NewCloseMessage() *ReaderEventNotification {
 			UTCTimestamp:         UTCTimestamp(time.Now().UnixNano() / 1000),
 			ConnectionCloseEvent: &ConnectionCloseEvent{},
 		}}
+}
+
+func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client, cleanup func()) {
+	conn, err := net.Dial("tcp", readerAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	opts := []ClientOpt{
+		WithConn(conn),
+		WithTimeout(300 * time.Second),
+	}
+
+	if r, err = NewClient(opts...); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make(chan error)
+	go func() {
+		defer close(errs)
+		errs <- r.Connect()
+	}()
+
+	cleanup = func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		defer cancel()
+		if err := r.Shutdown(ctx); err != nil {
+			if err := r.Close(); err != nil {
+				if !errors.Is(err, ErrClientClosed) {
+					t.Errorf("%+v", err)
+				}
+			}
+
+			if !errors.Is(err, ErrClientClosed) {
+				t.Errorf("%+v", err)
+			}
+		}
+
+		for err := range errs {
+			if !errors.Is(err, ErrClientClosed) {
+				t.Errorf("%+v", err)
+			}
+		}
+	}
+
+	return r, cleanup
 }

@@ -16,7 +16,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 )
@@ -61,7 +60,7 @@ func TestClientFunctional(t *testing.T) {
 		testConfig := testConfig
 
 		t.Run(testConfig.Incoming.Type().String(), func(t *testing.T) {
-			r, cleanup := getFunctionalClient(t)
+			r, cleanup := GetFunctionalClient(t, *readerAddr)
 			defer cleanup()
 			sendAndCheck(t, r, testConfig.Outgoing, testConfig.Incoming)
 		})
@@ -329,7 +328,7 @@ func testGatherTagReads(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short flag: skipping gather tag reads, since it takes 10s")
 	}
-	r, cleanup := getFunctionalClient(t)
+	r, cleanup := GetFunctionalClient(t, *readerAddr)
 	defer cleanup()
 
 	spec := NewROSpec()
@@ -340,122 +339,6 @@ func testGatherTagReads(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	sendAndCheck(t, r, &DisableROSpec{ROSpecID: spec.ROSpecID}, &DisableROSpecResponse{})
 	sendAndCheck(t, r, &DeleteROSpec{ROSpecID: spec.ROSpecID}, &DeleteROSpecResponse{})
-}
-
-func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
-	conn, err := net.Dial("tcp", *readerAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// ec := &errorCollector{}
-
-	opts := []ClientOpt{
-		WithConn(conn),
-		// WithMessageHandler(MsgErrorMessage, ec),
-		WithTimeout(300 * time.Second),
-	}
-
-	if r, err = NewClient(opts...); err != nil {
-		t.Fatal(err)
-	}
-
-	errs := make(chan error)
-	go func() {
-		defer close(errs)
-		errs <- r.Connect()
-	}()
-
-	cleanup = func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-		defer cancel()
-		if err := r.Shutdown(ctx); err != nil {
-			if err := r.Close(); err != nil {
-				if !errors.Is(err, ErrClientClosed) {
-					t.Errorf("%+v", err)
-				}
-			}
-
-			if !errors.Is(err, ErrClientClosed) {
-				t.Errorf("%+v", err)
-			}
-		}
-
-		for err := range errs {
-			if !errors.Is(err, ErrClientClosed) {
-				t.Errorf("%+v", err)
-			}
-		}
-	}
-
-	return r, cleanup
-}
-
-type testingLogger struct {
-	*testing.T
-}
-
-func (tl testingLogger) Println(v ...interface{}) {
-	tl.Log(v...)
-}
-
-func (tl testingLogger) Printf(format string, v ...interface{}) {
-	tl.Logf(format, v...)
-}
-
-// errorCollector is a concurrency-safe error collector.
-// By default, its checkErrs method will ignore
-// LLRP's MsgVersionUnsupported (since it's assumed to come from version negotiation)
-// and ErrClientClosed (since it's assumed to be the normal exit condition).
-type errorCollector struct {
-	errors []error
-	mux    sync.Mutex
-
-	// these only apply during checkErrs
-	reportClientClosed       bool
-	reportVersionUnsupported bool
-}
-
-func (teh *errorCollector) addErr(err error) {
-	if err == nil {
-		return
-	}
-
-	teh.mux.Lock()
-	teh.errors = append(teh.errors, err)
-	teh.mux.Unlock()
-}
-
-func (teh *errorCollector) checkErrs(t *testing.T) {
-	t.Helper()
-	teh.mux.Lock()
-	defer teh.mux.Unlock()
-
-	for _, err := range teh.errors {
-		if !teh.reportVersionUnsupported {
-			se := &StatusError{}
-			if errors.As(err, &se) && se.Status == StatusMsgVerUnsupported {
-				continue
-			}
-		}
-
-		if !teh.reportClientClosed && errors.Is(err, ErrClientClosed) {
-			continue
-		}
-
-		t.Errorf("%+v", err)
-	}
-}
-
-// handleMessage can be set as a handler for LLRP ErrorMessages.
-func (teh *errorCollector) handleMessage(_ *Client, msg Message) {
-	em := &ErrorMessage{}
-	if err := msg.UnmarshalTo(em); err != nil {
-		teh.addErr(err)
-		return
-	}
-
-	teh.addErr(em.LLRPStatus.Err())
 }
 
 func prettyPrint(t *testing.T, v interface{}) {
@@ -483,18 +366,5 @@ func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 
 	if testing.Verbose() {
 		prettyPrint(t, in)
-	}
-}
-
-func closeConn(t *testing.T, c *Client) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := c.Shutdown(ctx); err != nil {
-		t.Errorf("%+v", err)
-		if err := c.Close(); err != nil {
-			t.Errorf("%+v", err)
-		}
 	}
 }

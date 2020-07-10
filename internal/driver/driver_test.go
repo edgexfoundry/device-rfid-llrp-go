@@ -6,10 +6,8 @@
 package driver
 
 import (
-	"context"
 	"encoding/json"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"testing"
 	"time"
@@ -79,34 +77,6 @@ func TestHandleRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := rfid.Client
-	connErrs := make(chan error)
-	go func() {
-		defer close(connErrs)
-		connErrs <- c.Connect()
-	}()
-
-	t.Cleanup(func() {
-		if err := rfid.Close(); err != nil {
-			t.Errorf("%+v", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
-		defer cancel()
-		if err := c.Shutdown(ctx); err != nil {
-			if err := c.Close(); err != nil {
-				t.Errorf("%+v", err)
-			}
-			t.Errorf("%+v", err)
-		}
-
-		for err := range connErrs {
-			if !errors.Is(err, llrp.ErrClientClosed) {
-				t.Errorf("%+v", err)
-			}
-		}
-	})
-
 	rfid.SetResponse(llrp.MsgGetReaderCapabilities, &llrp.GetReaderCapabilitiesResponse{
 		GeneralDeviceCapabilities: &llrp.GeneralDeviceCapabilities{
 			MaxSupportedAntennas: 1,
@@ -172,6 +142,7 @@ func TestHandleRead(t *testing.T) {
 		C1G2LLRPCapabilities: &llrp.C1G2LLRPCapabilities{},
 	})
 	go rfid.ImpersonateReader()
+	c := rfid.ConnectClient(t)
 
 	d := &Driver{
 		lc:      edgexCompatTestLogger{t},
