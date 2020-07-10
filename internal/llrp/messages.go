@@ -367,6 +367,15 @@ func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	expT := in.Type()
 	switch respT {
 	case expT:
+	case MsgErrorMessage:
+		em := ErrorMessage{}
+		if err := em.UnmarshalBinary(respV); err != nil {
+			return errors.Wrapf(err,
+				"expected message response %v, but got an error message; "+
+					"however, it failed to unmarshal properly", expT)
+		}
+		return errors.Wrapf(em.LLRPStatus.Err(),
+			"expected message response %v, but got an error message", expT)
 	default:
 		return errors.Errorf("expected message response %v, but got %v", expT, respT)
 	}

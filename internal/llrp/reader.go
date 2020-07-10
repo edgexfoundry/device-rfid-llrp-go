@@ -683,9 +683,9 @@ type roHandler struct{}
 
 func (roHandler) handleMessage(c *Client, m Message) {
 	roar := &ROAccessReport{}
-	buff := make([]byte, m.payloadLen)
-	if _, err := io.ReadFull(c.conn, buff); err != nil {
-		c.logger.Printf("error: %+v", err)
+	buff, err := m.data()
+	if err != nil {
+		c.logger.Printf("error: %+v\n%# 02x", err, buff)
 		return
 	}
 

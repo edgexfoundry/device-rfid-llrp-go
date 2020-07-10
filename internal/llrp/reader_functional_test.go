@@ -44,38 +44,26 @@ func TestClientFunctional(t *testing.T) {
 			}
 		})
 
-		t.Run("addROSpec", testGatherTagReads)
+		t.Run("gatherTagReads", testGatherTagReads)
 
 		t.Skip("collected data instead of running tests")
 		return
 	}
 
 	for _, testConfig := range []struct {
-		Incoming
 		Outgoing
+		Incoming
 	}{
 		{&GetReaderConfig{}, &GetReaderConfigResponse{}},
 		{&GetReaderCapabilities{}, &GetReaderCapabilitiesResponse{}},
 		{&GetROSpecs{}, &GetROSpecsResponse{}},
 	} {
 		testConfig := testConfig
+
 		t.Run(testConfig.Incoming.Type().String(), func(t *testing.T) {
-			r, _ := getFunctionalClient(t)
-			errs := make(chan error)
-
-			go func() {
-				defer close(errs)
-				errs <- r.Connect()
-			}()
+			r, cleanup := getFunctionalClient(t)
+			defer cleanup()
 			sendAndCheck(t, r, testConfig.Outgoing, testConfig.Incoming)
-
-			if err := r.Close(); err != nil {
-				t.Error(err)
-			}
-
-			for err := range errs {
-				t.Error(err)
-			}
 		})
 	}
 
@@ -338,6 +326,9 @@ func benchmarkConnect(b *testing.B) {
 }
 
 func testGatherTagReads(t *testing.T) {
+	if testing.Short() {
+		t.Skip("-short flag: skipping gather tag reads, since it takes 10s")
+	}
 	r, cleanup := getFunctionalClient(t)
 	defer cleanup()
 
@@ -369,7 +360,35 @@ func getFunctionalClient(t *testing.T) (r *Client, cleanup func()) {
 		t.Fatal(err)
 	}
 
-	return r, nil
+	errs := make(chan error)
+	go func() {
+		defer close(errs)
+		errs <- r.Connect()
+	}()
+
+	cleanup = func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		defer cancel()
+		if err := r.Shutdown(ctx); err != nil {
+			if err := r.Close(); err != nil {
+				if !errors.Is(err, ErrClientClosed) {
+					t.Errorf("%+v", err)
+				}
+			}
+
+			if !errors.Is(err, ErrClientClosed) {
+				t.Errorf("%+v", err)
+			}
+		}
+
+		for err := range errs {
+			if !errors.Is(err, ErrClientClosed) {
+				t.Errorf("%+v", err)
+			}
+		}
+	}
+
+	return r, cleanup
 }
 
 type testingLogger struct {
@@ -459,7 +478,7 @@ func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 	defer cancel()
 
 	if err := c.SendFor(ctx, out, in); err != nil {
-		t.Error(err)
+		t.Errorf("%+v", err)
 	}
 
 	if testing.Verbose() {
