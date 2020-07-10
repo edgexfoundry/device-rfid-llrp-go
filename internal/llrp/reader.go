@@ -30,6 +30,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	goErrs "errors"
+	"fmt"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
@@ -440,8 +441,6 @@ func (c *Client) nextMessage() (Message, error) {
 // See send for information about sending messages/receiving responses.
 //
 // KeepAlive messages are acknowledged automatically as soon as possible.
-//
-// todo: handle asynchronous reports
 func (c *Client) handleIncoming() error {
 	receivedClosed := false
 	for {
@@ -631,54 +630,53 @@ func (c *Client) passToHandler(hdr Header) error {
 	delete(c.awaiting, hdr.id)
 	c.awaitMu.Unlock()
 
-	if handler == nil && !needsReply {
-		c.logger.Printf("no handlers for mID %d: %v", hdr.id, hdr.typ)
-		_, err := io.CopyN(ioutil.Discard, c.conn, int64(hdr.payloadLen))
-		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
-	}
-
 	payload := io.LimitReader(c.conn, int64(hdr.payloadLen))
-	defer func() {
-		_, err := io.Copy(ioutil.Discard, payload)
-		if err != nil {
-			c.logger.Printf("failed to discard remaining payload: %+v", err)
-		}
-	}()
 
 	if needsReply {
-		// TODO: this is mostly tech-debt from an earlier implementation
-		//   needs some refactoring
+		// TODO: this is mostly tech-debt from an earlier implementation; needs some refactoring
 		if hdr.payloadLen > MaxBufferedPayloadSz {
-			// SendMessage will reject it
-			replyChan <- Message{Header: hdr}
+			replyChan <- Message{Header: hdr} // SendMessage will reject it
 		} else {
-
 			buffResponse := make([]byte, hdr.payloadLen)
 			if _, err := io.ReadFull(c.conn, buffResponse); err != nil {
 				return nil
 			}
 
-			payload = bytes.NewBuffer(buffResponse) // replace the now-read payload
+			payload = bytes.NewBuffer(buffResponse)
 			replyChan <- Message{Header: hdr, payload: bytes.NewBuffer(buffResponse)}
 		}
 
 		close(replyChan)
 	}
 
-	if handler == nil {
-		c.logger.Printf("no handler for mID %d: %v; using default: %T", hdr.id, hdr.typ, c.defaultHandler)
-		handler = c.defaultHandler
-	}
+	defer func() {
+		_, err := io.Copy(ioutil.Discard, payload)
+		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
+	}()
 
 	if handler != nil {
-		// TODO: maybe guard with recover semantics; also, if
-		//   it'd be useful perhaps to distinguish "our" handlers from unknown/outside ones,
-		//   in which case we can take avoiding reading certain messages completely
-		c.logger.Printf("passing message to handler %T for mID %d: %v",
-			handler, hdr.id, hdr.typ)
-		handler.handleMessage(c, Message{Header: hdr, payload: payload})
+		c.handleGuarded(handler, Message{Header: hdr, payload: payload})
+	} else if c.defaultHandler != nil {
+		c.handleGuarded(c.defaultHandler, Message{Header: hdr, payload: payload})
 	}
+
 	return nil
+}
+
+func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Printf("error: recovered from panic while after calling handler for %v: %v", msg, r)
+		}
+	}()
+
+	if s, ok := handler.(fmt.Stringer); ok {
+		c.logger.Printf("passing %v to handler %s", msg, s)
+	} else {
+		c.logger.Printf("passing %v to handler %T", msg, handler)
+	}
+
+	handler.handleMessage(c, msg)
 }
 
 type roHandler struct{}
@@ -875,7 +873,14 @@ func (c *Client) getSupportedVersion(ctx context.Context) (*GetSupportedVersionR
 // or LLRP v1.0.1 if the device does not support version negotiation.
 // By default, newly created Clients use the max version supported by this package.
 func (c *Client) negotiate() error {
-	sv, err := c.getSupportedVersion(context.Background())
+	ctx := context.Background()
+	if c.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	sv, err := c.getSupportedVersion(ctx)
 	if err != nil {
 		return err
 	}
@@ -904,7 +909,14 @@ func (c *Client) negotiate() error {
 		return err
 	}
 
-	resp, err := c.send(context.Background(), m)
+	ctx = context.Background()
+	if c.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+
+	resp, err := c.send(ctx, m)
 	if err != nil {
 		return err
 	}

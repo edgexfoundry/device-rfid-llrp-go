@@ -789,7 +789,7 @@ class ParamSpec:
     """ParamSpec specifies the parameters permitted in a certain context,
     and under what conditions."""
     name: str  # name used for a struct; may be omitted from yaml to use the parameter name
-    param_name: str  # name of an LLRP parameter type
+    param_name: str  # name of an LLRP parameter type; called 'type' in the YAML
     optional: bool = False  # parameter is "0-1" or "0-n"
     repeatable: bool = False  # parameter is "0-n" or "1-n"
     air_protocol: Optional[str] = None  # if this parameter is tied to a specific air protocol...
@@ -1550,6 +1550,22 @@ class Message(Container):
         w.comment(f'{self.name} is a header-only message')
         w.write('return nil')
 
+    def write_helpers(self, w: GoWriter):
+        """Write the Type() and Status() interface implementations."""
+        w.comment(f"Type returns this message's MessageType")
+        with w.block(f'func (*{self.type_name}) Type() MessageType'):
+            w.write(f'return Msg{self.name}')
+
+        if not any(p.param_name == 'LLRPStatus' for p in self.parameters):
+            print(f'no LLRPStatus in {self.name}')
+            print([p.param_name for p in self.parameters])
+            return
+
+        w.write('')
+        w.comment(f"Status returns this message's LLRPStatus")
+        with w.block(f'func ({self.short} *{self.type_name}) Status() LLRPStatus'):
+            w.write(f'return {self.short}.LLRPStatus')
+
 
 def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], Dict[str, Message]):
     """Read the YAML definitions to build the object graph."""
@@ -1707,6 +1723,7 @@ def write_unmarshal_code(w: GoWriter, types: Dict[str, DataType],
 
         w.comment(f'UnmarshalBinary Message {m.type_id}, {m.name}.')
         m.write_unmarshal(w)
+        m.write_helpers(w)
 
     for p in parameters.values():
         if p.type_id == 0:

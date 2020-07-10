@@ -9,31 +9,31 @@ parameters:
     type_id: 2
     fields:
       - name: FirstSeen
-        type: microSecs64
+        type: MicroSecs64
 
   - name: FirstSeenUptime
     type_id: 3
     fields:
       - name: FirstSeen
-        type: microSecs64
+        type: MicroSecs64
 
   - name: LastSeenUTC
     type_id: 4
     fields:
       - name: LastSeen
-        type: microSecs64
+        type: MicroSecs64
 
   - name: LastSeenUptime
     type_id: 5
     fields:
       - name: LastSeen
-        type: microSecs64
+        type: MicroSecs64
 
   - name: PeakRSSI
     type_id: 6
     fields:
       - name: PeakRSSI
-        type: dBm8
+        type: DeciBelMilliWatt8
 
   - name: ChannelIndex
     type_id: 7
@@ -163,14 +163,14 @@ parameters:
     description: Microseconds since the beginning of time, midnight 1970-Jan-1.
     fields:
       - name: Microseconds
-        type: microSecs64
+        type: MicroSecs64
 
   - name: Uptime
     type_id: 129
     description: Microseconds since the Reader started.
     fields:
       - name: Microseconds
-        type: microSecs64
+        type: MicroSecs64
 
   - name: GeneralDeviceCapabilities
     type_id: 137
@@ -242,7 +242,7 @@ parameters:
       - name: Index
         type: uint16
       - name: ReceiveSensitivity
-        type: dB
+        type: DeciBel
         description: >-
           ReceiveSensitivity is relative the maximum supported by the device,
           or the maximum reported in the device capabilities,
@@ -336,7 +336,7 @@ parameters:
       - name: Index
         type: uint16
       - name: TransmitPowerValue
-        type: dBmX100
+        type: MilliBelMilliWatt
 
   - name: FrequencyInformation
     type_id: 146
@@ -370,13 +370,13 @@ parameters:
       - type: byte
         padding: true
       - name: Frequencies
-        type: '[]kHz'
+        type: '[]KiloHertz'
 
   - name: FixedFrequencyTable
     type_id: 148
     fields:
       - name: Frequencies
-        type: '[]kHz'
+        type: '[]KiloHertz'
 
   - name: PerAntennaReceiveSensitivityRange
     type_id: 149
@@ -472,9 +472,9 @@ parameters:
     type_id: 180
     fields:
       - name: Offset
-        type: milliSecs32
+        type: MilliSecs32
       - name: Period
-        type: milliSecs32
+        type: MilliSecs32
     parameters:
       - type: UTCTimestamp
         optional: true
@@ -487,7 +487,7 @@ parameters:
       - name: Event
         type: bool
       - name: Timeout
-        type: milliSecs32
+        type: MilliSecs32
 
   - name: ROSpecStopTrigger
     type_id: 182
@@ -495,7 +495,7 @@ parameters:
       - name: Trigger
         type: ROSpecStopTriggerType
       - name: DurationTriggerValue
-        type: milliSecs32
+        type: MilliSecs32
     parameters:
       - type: GPITriggerValue
         optional: true
@@ -537,7 +537,7 @@ parameters:
       - name: Trigger
         type: AISpecStopTriggerType
       - name: DurationTriggerValue
-        type: milliSecs32
+        type: MilliSecs32
     parameters:
       - type: GPITriggerValue
         name: GPITrigger
@@ -557,9 +557,9 @@ parameters:
       - name: NumberofAttempts
         type: uint16
       - name: T
-        type: milliSecs16
+        type: MilliSecs16
       - name: Timeout
-        type: milliSecs32
+        type: MilliSecs32
 
   - name: InventoryParameterSpec
     type_id: 186
@@ -582,9 +582,9 @@ parameters:
       - name: AntennaID
         type: uint16
       - name: StartFrequency
-        type: kHz
+        type: KiloHertz
       - name: EndFrequency
-        type: kHz
+        type: KiloHertz
     parameters:
       - type: RFSurveySpecStopTrigger
         name: Trigger
@@ -598,9 +598,9 @@ parameters:
       - type: RFSurveySpecStopTriggerType
         name: Trigger
       - name: Duration
-        type: milliSecs32
+        type: MilliSecs32
       - name: N
-        type: milliSecs32
+        type: MilliSecs32
 
   - name: AccessSpec
     type_id: 207
@@ -754,7 +754,7 @@ parameters:
       - name: Trigger
         type: KeepAliveTriggerType
       - name: Interval
-        type: milliSecs32
+        type: MilliSecs32
 
   - name: AntennaProperties
     type_id: 221
@@ -765,11 +765,11 @@ parameters:
         type: AntennaID
         min: 1
       - name: AntennaGain
-        type: dBiX100
+        type: MilliBelIsotropic
         description: >-
           AntennaGain is the composite forward gain of the antenna,
           including cable loss, relative a hypothetical isotropic antenna,
-          expressed in 1/100ths of dBi.
+          expressed in 1/100ths of DeciBeli.
 
   - name: AntennaConfiguration
     type_id: 222
@@ -1012,13 +1012,13 @@ parameters:
     type_id: 243
     fields:
       - name: Frequency
-        type: kHz
+        type: KiloHertz
       - name: Bandwidth
-        type: kHz
+        type: KiloHertz
       - name: AverageRSSI
-        type: dBm8
+        type: DeciBelMilliWatt8
       - name: PeakRSSI
-        type: dBm8
+        type: DeciBelMilliWatt8
     parameters:
       - type: UTCTimestamp
         group: timestamp
@@ -1275,7 +1275,7 @@ parameters:
 
       The reader instructs the tags what type of subcarrier Modulation to use
       when encoding their backscattered reply.
-      At FM0, the data rate in kbps is approximately BLF in kHz.
+      At FM0, the data rate in kBitsPerSec is approximately BLF in KiloHertz.
       Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0,
       and so the data rate will be roughly 1/2, 1/4, or 1/8 BLF.
       Note that this does not affect whether the tags use ASK or PSK modulation;
@@ -1308,7 +1308,7 @@ parameters:
       - name: SpectralMask
         type: SpectralMaskType
       - name: BackscatterDataRate
-        type: bps
+        type: BitsPerSec
         min: 40000
         max: 640000
       - name: PIERatio
@@ -1317,15 +1317,15 @@ parameters:
         min: 1500
         max: 2000
       - name: MinTariTime
-        type: nanoSecs32
+        type: NanoSecs32
         min: 6250 # note: 0 is valid and means "let the reader choose"
         max: 25000
       - name: MaxTariTime
-        type: nanoSecs32
+        type: NanoSecs32
         min: 6250 # note: 0 is valid and means "let the reader choose"
         max: 25000
       - name: StepTariTime
-        type: nanoSecs32
+        type: NanoSecs32
         min: 0
         max: 18750
 
@@ -1419,7 +1419,7 @@ parameters:
           but that's an gross oversimplification.
           For more information,
           see the EPC Class 1 Gen 2 standard and consult an RF engineer.
-        type: nanoSecs16
+        type: NanoSecs16
 
   - name: C1G2SingulationControl
     type_id: 336
@@ -1431,7 +1431,7 @@ parameters:
         type: uint16
         description: TagPopulation expected in the antenna's field of view.
       - name: TagTransitTime
-        type: milliSecs32
+        type: MilliSecs32
         description: TagTransitTime is a measure of the expected tag mobility.
     parameters:
       - type: C1G2TagInventoryStateAwareSingulationAction
@@ -1723,16 +1723,16 @@ parameters:
     type_id: 363
     fields:
       - name: MaxSensitivity
-        type: dBm16
-        description: MaximumReceiveSensitivity of the device, in dBm.
+        type: DeciBelMilliWatt16
+        description: MaximumReceiveSensitivity of the device, in DeciBelm.
 
   - name: RFSurveyFrequencyCapabilities
     type_id: 365
     fields:
       - name: MinFrequency
-        type: kHz
+        type: KiloHertz
       - name: MaxFrequency
-        type: kHz
+        type: KiloHertz
 
   - name: Custom
     type_id: 1023
@@ -1755,82 +1755,80 @@ types:
       so defining this here is a convenient way
       to use it as a type for fields in the above definitions.
 
-  - name: dBm16
+  - name: DeciBelMilliWatt16
     storage: int16
     description: >-
-      dBm16 is a 16-bit dBm value.
+      DeciBelMilliWatt16 is a 16-bit DeciBelm value.
       In LLRP, it's used for maximum receive sensitivity.
 
-  - name: dBm8
+  - name: DeciBelMilliWatt8
     storage: int8
     description: >-
-      dBm8 is a 8-bit dBm value.
+      DeciBelMilliWatt8 is a 8-bit DeciBelm value.
       In LLRP, it's used to represent RSSI.
 
-  - name: dBiX100
+  - name: MilliBelIsotropic
     storage: uint16
     description: >-
-      dBiX100 is dBi*100, i.e., 0.01dBi or 1 millibel.
-      In LLRP, it's used for fractional dBi antenna gain values.
+      MilliBelIsotropic is DeciBeli*100, i.e., 0.01DeciBeli (DeciBel relative isotropic).
+      In LLRP, it's used for fractional DeciBeli antenna gain values.
 
-  - name: dBmX100
+  - name: MilliBelMilliWatt
     storage: uint16
     description: >-
-      dBmX100 is dBm*100, i.e., 0.01dBm or 1 millibel milliwatt.
-      In LLRP, it's used primarily for fractional dBm transmit power values.
+      MilliBelMilliWatt is DeciBelm*100, i.e. 0.01DeciBelm or 1 milliBel milliwatt.
+      In LLRP, it's used primarily for fractional DeciBelm transmit power values.
 
-  - name: dB
+  - name: DeciBel
     storage: uint16
     description: >-
-      dB or decibel is 1/10 of a bel,
+      DeciBel is 1/10 of a bel,
       which is the either the log10 of the ratio of a power quantity relative a reference,
       or 2*log10 of the ratio of an amplitude quantity relative a reference field.
 
       In LLRP, it's used primarily for receive sensitivity values
       relative the device maximum sensitivity.
 
-  - name: microSecs64
+  - name: MicroSecs64
     storage: uint64
     description: >-
-      microSecs64 is a 64-bit number of microseconds.
+      MicroSecs64 is a 64-bit number of microseconds.
 
       It's usually used to represent a time offset since a known reference,
       Unix Epoch or the reader's start.
 
-  - name: milliSecs32
+  - name: MilliSecs32
     storage: uint32
     description: >-
-      microSecs64 is a 32-bit number of milliseconds.
+      MilliSecs32 is a 32-bit number of milliseconds.
 
       It's used to represent a time offset since a known reference,
       usually Unix Epoch or a message receipt time.
       Other times, it's used as a time period or timeout,
       in which case 0 may mean "never timeout".
 
-  - name: milliSecs16
+  - name: MilliSecs16
     storage: uint16
     description: >-
-      milliSecs16 is a 16-bit number of milliseconds.
+      MilliSecs16 is a 16-bit number of milliseconds.
 
       It's used to represent a timeouts or duration triggers.
 
-  - name: nanoSecs32
+  - name: NanoSecs32
     storage: uint32
-    description: nanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
+    description: NanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
 
-  - name: nanoSecs16
+  - name: NanoSecs16
     storage: uint16
-    description: >-
-      nanoSecs16 is a 16-bit number of nanoseconds
-      used for some Tari values or for RF Control.
+    description: NanoSecs16 is a 16-bit number of nanoseconds as used for some Tari values.
 
-  - name: kHz
+  - name: KiloHertz
     storage: uint32
-    description: kHz is kilo-Hertz, used for frequency values.
+    description: KiloHertz are 1000 cycles per second.
 
-  - name: bps
+  - name: BitsPerSec
     storage: uint32
-    description: bps is bits per second, used in backscatter data rates.
+    description: BitsPerSec are used to describe backscatter data rates.
 
   - name: C1G2MemoryBankType
     storage: uint8

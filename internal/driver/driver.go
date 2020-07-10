@@ -6,6 +6,8 @@
 package driver
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
@@ -73,6 +75,10 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 type protocolMap = map[string]contract.ProtocolProperties
 
+const (
+	ResourceReaderCap = "READER_CAPABILITIES"
+)
+
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
@@ -82,12 +88,39 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	_, err := d.getClient(devName, p)
+	c, err := d.getClient(devName, p)
 	if err != nil {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
 	var responses = make([]*dsModels.CommandValue, len(reqs))
+	for i := range reqs {
+		var llrpReq llrp.Outgoing
+		var llrpResp llrp.Incoming
+
+		switch reqs[i].DeviceResourceName {
+		case ResourceReaderCap:
+			llrpReq = &llrp.GetReaderCapabilities{
+				ReaderCapabilitiesRequestedData: llrp.ReaderCapAll,
+			}
+			llrpResp = &llrp.GetReaderCapabilitiesResponse{}
+		}
+
+		if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+			return nil, err
+		}
+
+		respData, err := json.Marshal(llrpResp)
+		if err != nil {
+			return nil, err
+		}
+
+		responses[i] = dsModels.NewStringValue(
+			reqs[i].DeviceResourceName, time.Now().UnixNano(), string(respData))
+	}
 
 	return responses, nil
 }

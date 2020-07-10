@@ -11,58 +11,58 @@ import (
 	"github.com/pkg/errors"
 )
 
-// dBm16 is a 16-bit dBm value. In LLRP, it's used for maximum receive sensitivity.
-type dBm16 = int16
+// DeciBelMilliWatt16 is a 16-bit DeciBelm value. In LLRP, it's used for maximum receive
+// sensitivity.
+type DeciBelMilliWatt16 = int16
 
-// dBm8 is a 8-bit dBm value. In LLRP, it's used to represent RSSI.
-type dBm8 = int8
+// DeciBelMilliWatt8 is a 8-bit DeciBelm value. In LLRP, it's used to represent RSSI.
+type DeciBelMilliWatt8 = int8
 
-// dBiX100 is dBi*100, i.e., 0.01dBi or 1 millibel. In LLRP, it's used for fractional dBi
-// antenna gain values.
-type dBiX100 = uint16
+// MilliBelIsotropic is DeciBeli*100, i.e., 0.01DeciBeli (DeciBel relative isotropic). In
+// LLRP, it's used for fractional DeciBeli antenna gain values.
+type MilliBelIsotropic = uint16
 
-// dBmX100 is dBm*100, i.e., 0.01dBm or 1 millibel milliwatt. In LLRP, it's used primarily
-// for fractional dBm transmit power values.
-type dBmX100 = uint16
+// MilliBelMilliWatt is DeciBelm*100, i.e. 0.01DeciBelm or 1 milliBel milliwatt. In LLRP,
+// it's used primarily for fractional DeciBelm transmit power values.
+type MilliBelMilliWatt = uint16
 
-// dB or decibel is 1/10 of a bel, which is the either the log10 of the ratio of a power
+// DeciBel is 1/10 of a bel, which is the either the log10 of the ratio of a power
 // quantity relative a reference, or 2*log10 of the ratio of an amplitude quantity
 // relative a reference field.
 //
 // In LLRP, it's used primarily for receive sensitivity values relative the device maximum
 // sensitivity.
-type dB = uint16
+type DeciBel = uint16
 
-// microSecs64 is a 64-bit number of microseconds.
+// MicroSecs64 is a 64-bit number of microseconds.
 //
 // It's usually used to represent a time offset since a known reference, Unix Epoch or the
 // reader's start.
-type microSecs64 = uint64
+type MicroSecs64 = uint64
 
-// microSecs64 is a 32-bit number of milliseconds.
+// MilliSecs32 is a 32-bit number of milliseconds.
 //
 // It's used to represent a time offset since a known reference, usually Unix Epoch or a
 // message receipt time. Other times, it's used as a time period or timeout, in which case
 // 0 may mean "never timeout".
-type milliSecs32 = uint32
+type MilliSecs32 = uint32
 
-// milliSecs16 is a 16-bit number of milliseconds.
+// MilliSecs16 is a 16-bit number of milliseconds.
 //
 // It's used to represent a timeouts or duration triggers.
-type milliSecs16 = uint16
+type MilliSecs16 = uint16
 
-// nanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
-type nanoSecs32 = uint32
+// NanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
+type NanoSecs32 = uint32
 
-// nanoSecs16 is a 16-bit number of nanoseconds used for some Tari values or for RF
-// Control.
-type nanoSecs16 = uint16
+// NanoSecs16 is a 16-bit number of nanoseconds as used for some Tari values.
+type NanoSecs16 = uint16
 
-// kHz is kilo-Hertz, used for frequency values.
-type kHz = uint32
+// KiloHertz are 1000 cycles per second.
+type KiloHertz = uint32
 
-// bps is bits per second, used in backscatter data rates.
-type bps = uint32
+// BitsPerSec are used to describe backscatter data rates.
+type BitsPerSec = uint32
 
 // C1G2MemoryBankType selection.
 type C1G2MemoryBankType = uint8
@@ -499,6 +499,11 @@ func (m *GetSupportedVersion) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetSupportedVersion) Type() MessageType {
+	return MsgGetSupportedVersion
+}
+
 // GetSupportedVersionResponse is Message 56, GetSupportedVersionResponse.
 type GetSupportedVersionResponse struct {
 	CurrentVersion      VersionNum
@@ -537,6 +542,16 @@ func (m *GetSupportedVersionResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetSupportedVersionResponse) Type() MessageType {
+	return MsgGetSupportedVersionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetSupportedVersionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // SetProtocolVersion is Message 47, SetProtocolVersion.
 type SetProtocolVersion struct {
 	TargetVersion VersionNum
@@ -550,6 +565,11 @@ func (m *SetProtocolVersion) UnmarshalBinary(data []byte) error {
 	}
 	m.TargetVersion = VersionNum(data[0] >> 5)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*SetProtocolVersion) Type() MessageType {
+	return MsgSetProtocolVersion
 }
 
 // SetProtocolVersionResponse is Message 57, SetProtocolVersionResponse.
@@ -583,6 +603,16 @@ func (m *SetProtocolVersionResponse) UnmarshalBinary(data []byte) error {
 			"but an unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*SetProtocolVersionResponse) Type() MessageType {
+	return MsgSetProtocolVersionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *SetProtocolVersionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
 }
 
 // GetReaderCapabilities is Message 1, GetReaderCapabilities.
@@ -629,6 +659,11 @@ paramGroup0:
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetReaderCapabilities) Type() MessageType {
+	return MsgGetReaderCapabilities
 }
 
 // GetReaderCapabilitiesResponse is Message 11, GetReaderCapabilitiesResponse.
@@ -732,6 +767,16 @@ paramGroup2:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetReaderCapabilitiesResponse) Type() MessageType {
+	return MsgGetReaderCapabilitiesResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetReaderCapabilitiesResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // AddROSpec is Message 20, AddROSpec.
 //
 // AddROSpec adds an Reader Operation Specification.
@@ -769,6 +814,11 @@ func (m *AddROSpec) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*AddROSpec) Type() MessageType {
+	return MsgAddROSpec
+}
+
 // AddROSpecResponse is Message 30, AddROSpecResponse.
 type AddROSpecResponse struct {
 	LLRPStatus LLRPStatus
@@ -802,6 +852,16 @@ func (m *AddROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*AddROSpecResponse) Type() MessageType {
+	return MsgAddROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *AddROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DeleteROSpec is Message 21, DeleteROSpec.
 type DeleteROSpec struct {
 	ROSpecID uint32
@@ -815,6 +875,11 @@ func (m *DeleteROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DeleteROSpec) Type() MessageType {
+	return MsgDeleteROSpec
 }
 
 // DeleteROSpecResponse is Message 31, DeleteROSpecResponse.
@@ -850,6 +915,16 @@ func (m *DeleteROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DeleteROSpecResponse) Type() MessageType {
+	return MsgDeleteROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DeleteROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // StartROSpec is Message 22, StartROSpec.
 type StartROSpec struct {
 	ROSpecID uint32
@@ -863,6 +938,11 @@ func (m *StartROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*StartROSpec) Type() MessageType {
+	return MsgStartROSpec
 }
 
 // StartROSpecResponse is Message 32, StartROSpecResponse.
@@ -898,6 +978,16 @@ func (m *StartROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*StartROSpecResponse) Type() MessageType {
+	return MsgStartROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *StartROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // StopROSpec is Message 23, StopROSpec.
 //
 // StopROSpec stops a spec if it's currently executing, overriding all other priorities
@@ -914,6 +1004,11 @@ func (m *StopROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*StopROSpec) Type() MessageType {
+	return MsgStopROSpec
 }
 
 // StopROSpecResponse is Message 33, StopROSpecResponse.
@@ -949,6 +1044,16 @@ func (m *StopROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*StopROSpecResponse) Type() MessageType {
+	return MsgStopROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *StopROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // EnableROSpec is Message 24, EnableROSpec.
 //
 // EnableROSpec moves and ROSpec from Disabled to Inactive.
@@ -968,6 +1073,11 @@ func (m *EnableROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableROSpec) Type() MessageType {
+	return MsgEnableROSpec
 }
 
 // EnableROSpecResponse is Message 34, EnableROSpecResponse.
@@ -1003,6 +1113,16 @@ func (m *EnableROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*EnableROSpecResponse) Type() MessageType {
+	return MsgEnableROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *EnableROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DisableROSpec is Message 25, DisableROSpec.
 type DisableROSpec struct {
 	ROSpecID uint32
@@ -1016,6 +1136,11 @@ func (m *DisableROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DisableROSpec) Type() MessageType {
+	return MsgDisableROSpec
 }
 
 // DisableROSpecResponse is Message 35, DisableROSpecResponse.
@@ -1051,6 +1176,16 @@ func (m *DisableROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DisableROSpecResponse) Type() MessageType {
+	return MsgDisableROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DisableROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetROSpecs is Message 26, GetROSpecs.
 type GetROSpecs struct{}
 
@@ -1062,6 +1197,11 @@ func (m *GetROSpecs) UnmarshalBinary(data []byte) error {
 			len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetROSpecs) Type() MessageType {
+	return MsgGetROSpecs
 }
 
 // GetROSpecsResponse is Message 36, GetROSpecsResponse.
@@ -1122,6 +1262,16 @@ paramGroup1:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetROSpecsResponse) Type() MessageType {
+	return MsgGetROSpecsResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetROSpecsResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // AddAccessSpec is Message 40, AddAccessSpec.
 type AddAccessSpec struct {
 	AccessSpec AccessSpec
@@ -1153,6 +1303,11 @@ func (m *AddAccessSpec) UnmarshalBinary(data []byte) error {
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*AddAccessSpec) Type() MessageType {
+	return MsgAddAccessSpec
 }
 
 // AddAccessSpecResponse is Message 50, AddAccessSpecResponse.
@@ -1188,6 +1343,16 @@ func (m *AddAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*AddAccessSpecResponse) Type() MessageType {
+	return MsgAddAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *AddAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DeleteAccessSpec is Message 41, DeleteAccessSpec.
 type DeleteAccessSpec struct {
 	AccessSpecID uint32
@@ -1201,6 +1366,11 @@ func (m *DeleteAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DeleteAccessSpec) Type() MessageType {
+	return MsgDeleteAccessSpec
 }
 
 // DeleteAccessSpecResponse is Message 51, DeleteAccessSpecResponse.
@@ -1236,6 +1406,16 @@ func (m *DeleteAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DeleteAccessSpecResponse) Type() MessageType {
+	return MsgDeleteAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DeleteAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // EnableAccessSpec is Message 42, EnableAccessSpec.
 type EnableAccessSpec struct {
 	AccessSpecID uint32
@@ -1249,6 +1429,11 @@ func (m *EnableAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableAccessSpec) Type() MessageType {
+	return MsgEnableAccessSpec
 }
 
 // EnableAccessSpecResponse is Message 52, EnableAccessSpecResponse.
@@ -1284,6 +1469,16 @@ func (m *EnableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*EnableAccessSpecResponse) Type() MessageType {
+	return MsgEnableAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *EnableAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DisableAccessSpec is Message 43, DisableAccessSpec.
 type DisableAccessSpec struct {
 	AccessSpecID uint32
@@ -1297,6 +1492,11 @@ func (m *DisableAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DisableAccessSpec) Type() MessageType {
+	return MsgDisableAccessSpec
 }
 
 // DisableAccessSpecResponse is Message 53, DisableAccessSpecResponse.
@@ -1332,6 +1532,16 @@ func (m *DisableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DisableAccessSpecResponse) Type() MessageType {
+	return MsgDisableAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DisableAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetAccessSpecs is Message 44, GetAccessSpecs.
 type GetAccessSpecs struct{}
 
@@ -1343,6 +1553,11 @@ func (m *GetAccessSpecs) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetAccessSpecs) Type() MessageType {
+	return MsgGetAccessSpecs
 }
 
 // GetAccessSpecsResponse is Message 54, GetAccessSpecsResponse.
@@ -1403,6 +1618,16 @@ paramGroup1:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetAccessSpecsResponse) Type() MessageType {
+	return MsgGetAccessSpecsResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetAccessSpecsResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // ClientRequestOp is Message 45, ClientRequestOp.
 type ClientRequestOp struct {
 	TagReportData TagReportData
@@ -1434,6 +1659,11 @@ func (m *ClientRequestOp) UnmarshalBinary(data []byte) error {
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*ClientRequestOp) Type() MessageType {
+	return MsgClientRequestOp
 }
 
 // ClientRequestOpResponse is Message 55, ClientRequestOpResponse.
@@ -1469,6 +1699,11 @@ func (m *ClientRequestOpResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ClientRequestOpResponse) Type() MessageType {
+	return MsgClientRequestOpResponse
+}
+
 // GetReport is Message 60, GetReport.
 type GetReport struct{}
 
@@ -1480,6 +1715,11 @@ func (m *GetReport) UnmarshalBinary(data []byte) error {
 			len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetReport) Type() MessageType {
+	return MsgGetReport
 }
 
 // ROAccessReport is Message 61, ROAccessReport.
@@ -1539,6 +1779,11 @@ paramGroup0:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ROAccessReport) Type() MessageType {
+	return MsgROAccessReport
+}
+
 // KeepAlive is Message 62, KeepAlive.
 type KeepAlive struct{}
 
@@ -1552,6 +1797,11 @@ func (m *KeepAlive) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*KeepAlive) Type() MessageType {
+	return MsgKeepAlive
+}
+
 // KeepAliveAck is Message 72, KeepAliveAck.
 type KeepAliveAck struct{}
 
@@ -1563,6 +1813,11 @@ func (m *KeepAliveAck) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*KeepAliveAck) Type() MessageType {
+	return MsgKeepAliveAck
 }
 
 // ReaderEventNotification is Message 63, ReaderEventNotification.
@@ -1598,6 +1853,11 @@ func (m *ReaderEventNotification) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ReaderEventNotification) Type() MessageType {
+	return MsgReaderEventNotification
+}
+
 // EnableEventsAndReports is Message 64, EnableEventsAndReports.
 type EnableEventsAndReports struct{}
 
@@ -1609,6 +1869,11 @@ func (m *EnableEventsAndReports) UnmarshalBinary(data []byte) error {
 			"has %d bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableEventsAndReports) Type() MessageType {
+	return MsgEnableEventsAndReports
 }
 
 // ErrorMessage is Message 100, ErrorMessage.
@@ -1642,6 +1907,16 @@ func (m *ErrorMessage) UnmarshalBinary(data []byte) error {
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*ErrorMessage) Type() MessageType {
+	return MsgErrorMessage
+}
+
+// Status returns this message's LLRPStatus
+func (m *ErrorMessage) Status() LLRPStatus {
+	return m.LLRPStatus
 }
 
 // GetReaderConfig is Message 2, GetReaderConfig.
@@ -1694,6 +1969,11 @@ paramGroup0:
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetReaderConfig) Type() MessageType {
+	return MsgGetReaderConfig
 }
 
 // GetReaderConfigResponse is Message 12, GetReaderConfigResponse.
@@ -1892,6 +2172,16 @@ paramGroup6:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetReaderConfigResponse) Type() MessageType {
+	return MsgGetReaderConfigResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetReaderConfigResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // SetReaderConfig is Message 3, SetReaderConfig.
 type SetReaderConfig struct {
 	ResetToFactoryDefaults      bool
@@ -2066,6 +2356,11 @@ paramGroup5:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*SetReaderConfig) Type() MessageType {
+	return MsgSetReaderConfig
+}
+
 // SetReaderConfigResponse is Message 13, SetReaderConfigResponse.
 type SetReaderConfigResponse struct {
 	LLRPStatus LLRPStatus
@@ -2099,6 +2394,16 @@ func (m *SetReaderConfigResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*SetReaderConfigResponse) Type() MessageType {
+	return MsgSetReaderConfigResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *SetReaderConfigResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // CloseConnection is Message 14, CloseConnection.
 type CloseConnection struct{}
 
@@ -2110,6 +2415,11 @@ func (m *CloseConnection) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*CloseConnection) Type() MessageType {
+	return MsgCloseConnection
 }
 
 // CloseConnectionResponse is Message 4, CloseConnectionResponse.
@@ -2145,6 +2455,16 @@ func (m *CloseConnectionResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*CloseConnectionResponse) Type() MessageType {
+	return MsgCloseConnectionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *CloseConnectionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // CustomMessage is Message 1023, CustomMessage.
 type CustomMessage struct {
 	VendorID       uint32
@@ -2169,6 +2489,11 @@ func (m *CustomMessage) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*CustomMessage) Type() MessageType {
+	return MsgCustomMessage
+}
+
 // AntennaID is Parameter 1, AntennaID.
 type AntennaID uint16
 
@@ -2182,7 +2507,7 @@ func (p *AntennaID) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUTC is Parameter 2, FirstSeenUTC.
-type FirstSeenUTC microSecs64
+type FirstSeenUTC MicroSecs64
 
 // UnmarshalBinary Parameter 2, FirstSeenUTC.
 func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2194,7 +2519,7 @@ func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUptime is Parameter 3, FirstSeenUptime.
-type FirstSeenUptime microSecs64
+type FirstSeenUptime MicroSecs64
 
 // UnmarshalBinary Parameter 3, FirstSeenUptime.
 func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2206,7 +2531,7 @@ func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUTC is Parameter 4, LastSeenUTC.
-type LastSeenUTC microSecs64
+type LastSeenUTC MicroSecs64
 
 // UnmarshalBinary Parameter 4, LastSeenUTC.
 func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2218,7 +2543,7 @@ func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUptime is Parameter 5, LastSeenUptime.
-type LastSeenUptime microSecs64
+type LastSeenUptime MicroSecs64
 
 // UnmarshalBinary Parameter 5, LastSeenUptime.
 func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2230,14 +2555,14 @@ func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // PeakRSSI is Parameter 6, PeakRSSI.
-type PeakRSSI dBm8
+type PeakRSSI DeciBelMilliWatt8
 
 // UnmarshalBinary Parameter 6, PeakRSSI.
 func (p *PeakRSSI) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPeakRSSI, 1, len(data), true); err != nil {
 		return err
 	}
-	*p = PeakRSSI(dBm8(data[0]))
+	*p = PeakRSSI(DeciBelMilliWatt8(data[0]))
 	return nil
 }
 
@@ -2443,7 +2768,7 @@ func (p *C1G2XPCW2) UnmarshalBinary(data []byte) error {
 // UTCTimestamp is Parameter 128, UTCTimestamp.
 //
 // Microseconds since the beginning of time, midnight 1970-Jan-1.
-type UTCTimestamp microSecs64
+type UTCTimestamp MicroSecs64
 
 // UnmarshalBinary Parameter 128, UTCTimestamp.
 func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
@@ -2457,7 +2782,7 @@ func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
 // Uptime is Parameter 129, Uptime.
 //
 // Microseconds since the Reader started.
-type Uptime microSecs64
+type Uptime MicroSecs64
 
 // UnmarshalBinary Parameter 129, Uptime.
 func (p *Uptime) UnmarshalBinary(data []byte) error {
@@ -2617,7 +2942,7 @@ paramGroup3:
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
 		p.MaximumReceiveSensitivity = new(MaximumReceiveSensitivity)
-		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data[4:])))
+		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(DeciBelMilliWatt16(binary.BigEndian.Uint16(data[4:])))
 		data = data[subLen:]
 	}
 	if len(data) > 0 {
@@ -2633,7 +2958,7 @@ type ReceiveSensitivityTableEntry struct {
 	// ReceiveSensitivity is relative the maximum supported by the device, or the maximum
 	// reported in the device capabilities, for readers that support changing it (requires
 	// LLRP v1.1+).
-	ReceiveSensitivity dB
+	ReceiveSensitivity DeciBel
 }
 
 // UnmarshalBinary Parameter 139, ReceiveSensitivityTableEntry.
@@ -2887,7 +3212,7 @@ paramGroup0:
 // TransmitPowerLevelTableEntry is Parameter 145, TransmitPowerLevelTableEntry.
 type TransmitPowerLevelTableEntry struct {
 	Index              uint16
-	TransmitPowerValue dBmX100
+	TransmitPowerValue MilliBelMilliWatt
 }
 
 // UnmarshalBinary Parameter 145, TransmitPowerLevelTableEntry.
@@ -2974,7 +3299,7 @@ paramGroup0:
 // FrequencyHopTable is Parameter 147, FrequencyHopTable.
 type FrequencyHopTable struct {
 	HopTableID  uint8
-	Frequencies []kHz
+	Frequencies []KiloHertz
 }
 
 // UnmarshalBinary Parameter 147, FrequencyHopTable.
@@ -2985,10 +3310,10 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 	p.HopTableID = data[0]
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data[2:])); int64(arrLen)*4 > int64(len(data[4:])) {
-		return errors.Errorf("Frequencies ([]kHz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]KiloHertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[4:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]kHz, arrLen)
+		p.Frequencies = make([]KiloHertz, arrLen)
 		for i, pos := 0, 4; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -3005,7 +3330,7 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 
 // FixedFrequencyTable is Parameter 148, FixedFrequencyTable.
 type FixedFrequencyTable struct {
-	Frequencies []kHz
+	Frequencies []KiloHertz
 }
 
 // UnmarshalBinary Parameter 148, FixedFrequencyTable.
@@ -3015,10 +3340,10 @@ func (p *FixedFrequencyTable) UnmarshalBinary(data []byte) error {
 	}
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen)*4 > int64(len(data[2:])) {
-		return errors.Errorf("Frequencies ([]kHz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]KiloHertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[2:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]kHz, arrLen)
+		p.Frequencies = make([]KiloHertz, arrLen)
 		for i, pos := 0, 2; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -3290,8 +3615,8 @@ paramGroup0:
 
 // PeriodicTriggerValue is Parameter 180, PeriodicTriggerValue.
 type PeriodicTriggerValue struct {
-	Offset       milliSecs32
-	Period       milliSecs32
+	Offset       MilliSecs32
+	Period       MilliSecs32
 	UTCTimestamp *UTCTimestamp
 }
 
@@ -3328,7 +3653,7 @@ func (p *PeriodicTriggerValue) UnmarshalBinary(data []byte) error {
 type GPITriggerValue struct {
 	Port    uint16
 	Event   bool
-	Timeout milliSecs32
+	Timeout MilliSecs32
 }
 
 // UnmarshalBinary Parameter 181, GPITriggerValue.
@@ -3345,7 +3670,7 @@ func (p *GPITriggerValue) UnmarshalBinary(data []byte) error {
 // ROSpecStopTrigger is Parameter 182, ROSpecStopTrigger.
 type ROSpecStopTrigger struct {
 	Trigger              ROSpecStopTriggerType
-	DurationTriggerValue milliSecs32
+	DurationTriggerValue MilliSecs32
 	GPITriggerValue      *GPITriggerValue
 }
 
@@ -3490,7 +3815,7 @@ paramGroup2:
 // AISpecStopTrigger is Parameter 184, AISpecStopTrigger.
 type AISpecStopTrigger struct {
 	Trigger               AISpecStopTriggerType
-	DurationTriggerValue  milliSecs32
+	DurationTriggerValue  MilliSecs32
 	GPITrigger            *GPITriggerValue
 	TagObservationTrigger *TagObservationTrigger
 }
@@ -3544,8 +3869,8 @@ type TagObservationTrigger struct {
 	Trigger          TagObservationTriggerType
 	NumberofTags     uint16
 	NumberofAttempts uint16
-	T                milliSecs16
-	Timeout          milliSecs32
+	T                MilliSecs16
+	Timeout          MilliSecs32
 }
 
 // UnmarshalBinary Parameter 185, TagObservationTrigger.
@@ -3618,8 +3943,8 @@ paramGroup0:
 // RFSurveySpec is Parameter 187, RFSurveySpec.
 type RFSurveySpec struct {
 	AntennaID      uint16
-	StartFrequency kHz
-	EndFrequency   kHz
+	StartFrequency KiloHertz
+	EndFrequency   KiloHertz
 	Trigger        RFSurveySpecStopTrigger
 	Custom         []Custom
 }
@@ -3682,8 +4007,8 @@ paramGroup1:
 // RFSurveySpecStopTrigger is Parameter 188, RFSurveySpecStopTrigger.
 type RFSurveySpecStopTrigger struct {
 	Trigger  RFSurveySpecStopTriggerType
-	Duration milliSecs32
-	N        milliSecs32
+	Duration MilliSecs32
+	N        MilliSecs32
 }
 
 // UnmarshalBinary Parameter 188, RFSurveySpecStopTrigger.
@@ -4136,7 +4461,7 @@ func (p *GPOWriteData) UnmarshalBinary(data []byte) error {
 // KeepAliveSpec is Parameter 220, KeepAliveSpec.
 type KeepAliveSpec struct {
 	Trigger  KeepAliveTriggerType
-	Interval milliSecs32
+	Interval MilliSecs32
 }
 
 // UnmarshalBinary Parameter 220, KeepAliveSpec.
@@ -4154,8 +4479,8 @@ type AntennaProperties struct {
 	AntennaConnected bool
 	AntennaID        AntennaID
 	// AntennaGain is the composite forward gain of the antenna, including cable loss,
-	// relative a hypothetical isotropic antenna, expressed in 1/100ths of dBi.
-	AntennaGain dBiX100
+	// relative a hypothetical isotropic antenna, expressed in 1/100ths of DeciBeli.
+	AntennaGain MilliBelIsotropic
 }
 
 // UnmarshalBinary Parameter 221, AntennaProperties.
@@ -4569,7 +4894,7 @@ paramGroup1:
 			data = data[3:]
 		case ParamPeakRSSI:
 			p.PeakRSSI = new(PeakRSSI)
-			*p.PeakRSSI = PeakRSSI(dBm8(data[1]))
+			*p.PeakRSSI = PeakRSSI(DeciBelMilliWatt8(data[1]))
 			data = data[2:]
 		case ParamChannelIndex:
 			p.ChannelIndex = new(ChannelIndex)
@@ -4871,10 +5196,10 @@ paramGroup2:
 
 // FrequencyRSSILevelEntry is Parameter 243, FrequencyRSSILevelEntry.
 type FrequencyRSSILevelEntry struct {
-	Frequency    kHz
-	Bandwidth    kHz
-	AverageRSSI  dBm8
-	PeakRSSI     dBm8
+	Frequency    KiloHertz
+	Bandwidth    KiloHertz
+	AverageRSSI  DeciBelMilliWatt8
+	PeakRSSI     DeciBelMilliWatt8
 	UTCTimestamp UTCTimestamp
 	Uptime       Uptime
 }
@@ -4886,8 +5211,8 @@ func (p *FrequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	}
 	p.Frequency = binary.BigEndian.Uint32(data)
 	p.Bandwidth = binary.BigEndian.Uint32(data[4:])
-	p.AverageRSSI = dBm8(data[8])
-	p.PeakRSSI = dBm8(data[9])
+	p.AverageRSSI = DeciBelMilliWatt8(data[8])
+	p.PeakRSSI = DeciBelMilliWatt8(data[9])
 	data = data[10:]
 	// sub-parameters
 	{
@@ -5569,10 +5894,11 @@ func (p *C1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
 // or 8/1. Having different DivideRatios permits the same BLF with a different Tari value.
 //
 // The reader instructs the tags what type of subcarrier Modulation to use when encoding
-// their backscattered reply. At FM0, the data rate in kbps is approximately BLF in kHz.
-// Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0, and so the
-// data rate will be roughly 1/2, 1/4, or 1/8 BLF. Note that this does not affect whether
-// the tags use ASK or PSK modulation; that's determined by the tag manufacturer.
+// their backscattered reply. At FM0, the data rate in kBitsPerSec is approximately BLF in
+// KiloHertz. Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0,
+// and so the data rate will be roughly 1/2, 1/4, or 1/8 BLF. Note that this does not
+// affect whether the tags use ASK or PSK modulation; that's determined by the tag
+// manufacturer.
 //
 // A vendor may have had these parameters certified by EPCglobal's Hardware Action Group's
 // Testing and Conformance group, in which case the IsEPCHagConformant will be true.
@@ -5625,12 +5951,12 @@ type UHFC1G2RFModeTableEntry struct {
 	Modulation            BackscatterMod
 	ForwardLinkModulation FwdLinkMod
 	SpectralMask          SpectralMaskType
-	BackscatterDataRate   bps
+	BackscatterDataRate   BitsPerSec
 	// PIERatio is 1000x the the data-0 to data-1 symbol lengths ratio.
 	PIERatio     uint32
-	MinTariTime  nanoSecs32
-	MaxTariTime  nanoSecs32
-	StepTariTime nanoSecs32
+	MinTariTime  NanoSecs32
+	MaxTariTime  NanoSecs32
+	StepTariTime NanoSecs32
 }
 
 // UnmarshalBinary Parameter 329, UHFC1G2RFModeTableEntry.
@@ -5897,7 +6223,7 @@ type C1G2RFControl struct {
 	// protocol durations, so all else equal, a shorter Tari allows a higher bitrate, but
 	// that's an gross oversimplification. For more information, see the EPC Class 1 Gen 2
 	// standard and consult an RF engineer.
-	Tari nanoSecs16
+	Tari NanoSecs16
 }
 
 // UnmarshalBinary Parameter 335, C1G2RFControl.
@@ -5917,7 +6243,7 @@ type C1G2SingulationControl struct {
 	// TagPopulation expected in the antenna's field of view.
 	TagPopulation uint16
 	// TagTransitTime is a measure of the expected tag mobility.
-	TagTransitTime milliSecs32
+	TagTransitTime MilliSecs32
 	InvAwareAction *C1G2TagInventoryStateAwareSingulationAction
 }
 
@@ -6585,21 +6911,21 @@ func (p *C1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 //
 // MaximumReceiveSensitivity is the maximum receive sensitivity supported by the Reader.
 // It's required if the Reader allows receive sensitivity control, but otherwise optional.
-type MaximumReceiveSensitivity dBm16
+type MaximumReceiveSensitivity DeciBelMilliWatt16
 
 // UnmarshalBinary Parameter 363, MaximumReceiveSensitivity.
 func (p *MaximumReceiveSensitivity) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamMaximumReceiveSensitivity, 2, len(data), true); err != nil {
 		return err
 	}
-	*p = MaximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data)))
+	*p = MaximumReceiveSensitivity(DeciBelMilliWatt16(binary.BigEndian.Uint16(data)))
 	return nil
 }
 
 // RFSurveyFrequencyCapabilities is Parameter 365, RFSurveyFrequencyCapabilities.
 type RFSurveyFrequencyCapabilities struct {
-	MinFrequency kHz
-	MaxFrequency kHz
+	MinFrequency KiloHertz
+	MaxFrequency KiloHertz
 }
 
 // UnmarshalBinary Parameter 365, RFSurveyFrequencyCapabilities.

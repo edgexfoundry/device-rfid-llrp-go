@@ -431,7 +431,7 @@ func (teh *errorCollector) checkErrs(t *testing.T) {
 // handleMessage can be set as a handler for LLRP ErrorMessages.
 func (teh *errorCollector) handleMessage(_ *Client, msg Message) {
 	em := &ErrorMessage{}
-	if err := msg.Unmarshal(em); err != nil {
+	if err := msg.UnmarshalTo(em); err != nil {
 		teh.addErr(err)
 		return
 	}

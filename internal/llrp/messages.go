@@ -132,6 +132,22 @@ func (h *Header) MarshalBinary() ([]byte, error) {
 	return header, nil
 }
 
+// WriteTo write a binary header to the given destination.
+// It returns an error if payloadLen is too big or it uses a reserved message type,
+// as well as the normal underlying Writer errors.
+func (h *Header) WriteTo(w io.Writer) (int64, error) {
+	if err := validateHeader(h.payloadLen, h.typ); err != nil {
+		return 0, err
+	}
+
+	header := make([]byte, HeaderSz)
+	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
+	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
+	n, err := w.Write(header)
+	return int64(n), errors.Wrap(err, "WriteTo failed")
+}
+
 // validateHeader returns an error if the parameters aren't valid for an LLRP header.
 func validateHeader(payloadLen uint32, typ MessageType) error {
 	if typ > maxMsgType {
@@ -169,7 +185,7 @@ type Message struct {
 // This returns an error if discarding fails.
 // It's safe to call this multiple times.
 func (m Message) Close() error {
-	if m.payload == nil {
+	if _, isBuffer := m.payload.(byteProvider); m.payload == nil || isBuffer {
 		return nil
 	}
 
@@ -313,7 +329,7 @@ func (m *Message) data() ([]byte, error) {
 	return data, nil
 }
 
-func (m Message) Unmarshal(v encoding.BinaryUnmarshaler) error {
+func (m *Message) UnmarshalTo(v encoding.BinaryUnmarshaler) error {
 	data, err := m.data()
 	if err != nil {
 		return err
@@ -368,10 +384,6 @@ func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	return nil
 }
 
-func NewErrorMessage() *ErrorMessage {
-	return &ErrorMessage{}
-}
-
 // NewROSpec returns a valid, basic ROSpec parameter.
 func NewROSpec() *ROSpec {
 	return &ROSpec{
@@ -407,7 +419,7 @@ func NewAccessReport() *ROAccessReport {
 func (ros *ROSpec) SetPeriodic(period time.Duration) {
 	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
 		Trigger:              ROStopTriggerDuration,
-		DurationTriggerValue: milliSecs32(period.Milliseconds()),
+		DurationTriggerValue: MilliSecs32(period.Milliseconds()),
 	}
 
 	if ros.ROReportSpec == nil {
@@ -431,139 +443,6 @@ func (ros *ROSpec) SetPeriodic(period time.Duration) {
 
 	ros.ROReportSpec.Trigger = ROReportTriggerType(2)
 	ros.ROReportSpec.N = 0
-}
-
-// TODO: generate this code
-func (m *ErrorMessage) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *GetSupportedVersionResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *SetProtocolVersionResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *GetReaderCapabilitiesResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *AddROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *DeleteROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *StartROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *StopROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *EnableROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *DisableROSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *GetROSpecsResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *AddAccessSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *DeleteAccessSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *DisableAccessSpecResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *GetAccessSpecsResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *SetReaderConfigResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (m *CloseConnectionResponse) Status() LLRPStatus {
-	return m.LLRPStatus
-}
-
-func (*AddROSpec) Type() MessageType {
-	return MsgAddROSpec
-}
-
-func (*EnableROSpec) Type() MessageType {
-	return MsgEnableROSpec
-}
-
-func (*DisableROSpec) Type() MessageType {
-	return MsgDisableROSpec
-}
-
-func (*DeleteROSpec) Type() MessageType {
-	return MsgDeleteROSpec
-}
-
-func (*StopROSpec) Type() MessageType {
-	return MsgStopROSpec
-}
-
-func (*AddROSpecResponse) Type() MessageType {
-	return MsgAddROSpecResponse
-}
-
-func (*EnableROSpecResponse) Type() MessageType {
-	return MsgEnableROSpecResponse
-}
-
-func (*DisableROSpecResponse) Type() MessageType {
-	return MsgDisableROSpecResponse
-}
-
-func (*DeleteROSpecResponse) Type() MessageType {
-	return MsgDeleteROSpecResponse
-}
-
-func (*StopROSpecResponse) Type() MessageType {
-	return MsgStopROSpecResponse
-}
-
-func (*GetReaderConfigResponse) Type() MessageType {
-	return MsgGetReaderConfigResponse
-}
-
-func (*GetReaderConfig) Type() MessageType {
-	return MsgGetReaderConfig
-}
-
-func (*GetReaderCapabilities) Type() MessageType {
-	return MsgGetReaderCapabilities
-}
-
-func (*GetReaderCapabilitiesResponse) Type() MessageType {
-	return MsgGetReaderCapabilitiesResponse
-}
-
-func (*GetROSpecs) Type() MessageType {
-	return MsgGetROSpecs
-}
-
-func (*GetROSpecsResponse) Type() MessageType {
-	return MsgGetROSpecsResponse
 }
 
 func (ros *ROSpec) Add() *AddROSpec {
