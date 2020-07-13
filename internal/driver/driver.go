@@ -487,20 +487,22 @@ func (d *Driver) removeClient(deviceName string, force bool) {
 }
 
 func (d *Driver) stopClient(c *llrp.Client, force bool) {
-	d.lc.Info("stopping", "client", c.Name)
+	if d.lc != nil {
+		d.lc.Info("stopping", "client", c.Name)
+	}
 
 	if !force {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		if err := c.Shutdown(ctx); !errors.Is(err, llrp.ErrClientClosed) {
-			d.lc.Error("error attempting to shutdown client", "error", err.Error())
-		} else {
+		if err := c.Shutdown(ctx); err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
+		} else if d.lc != nil {
+			d.lc.Error("error attempting to shutdown client", "error", err.Error())
 		}
 	}
 
-	if err := c.Close(); !errors.Is(err, llrp.ErrClientClosed) {
-		d.lc.Error("error attempting to close client", "error", err.Error())
+	if err := c.Close(); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
+		d.lc.Error("error attempting to shutdown client", "error", err.Error())
 	}
 }
 
