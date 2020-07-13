@@ -187,13 +187,11 @@
 			"EnableLastSeenTimestamp": false,
 			"EnableTagSeenCount": false,
 			"EnableAccessSpecID": false,
-			"C1G2EPCMemorySelectors": [
-				{
-					"CRCEnabled": false,
-					"PCBitsEnabled": false,
-					"XPCBitsEnabled": false
-				}
-			],
+			"C1G2EPCMemorySelector": {
+				"CRCEnabled": false,
+				"PCBitsEnabled": false,
+				"XPCBitsEnabled": false
+			},
 			"Custom": null
 		},
 		"Custom": null

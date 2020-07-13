@@ -76,7 +76,21 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 type protocolMap = map[string]contract.ProtocolProperties
 
 const (
-	ResourceReaderCap = "READER_CAPABILITIES"
+	ResourceReaderCap          = "ReaderCapabilities"
+	ResourceReaderConfig       = "ReaderConfig"
+	ResourceReaderNotification = "ReaderEventNotification"
+	ResourceROSpec             = "ROSpec"
+	ResourceROSpecID           = "ROSpecID"
+	ResourceAccessSpec         = "AccessSpec"
+	ResourceAccessSpecID       = "AccessSpecID"
+	ResourceROAccessReport     = "ROAccessReport"
+
+	ResourceAction = "Action"
+	ActionDelete   = "Delete"
+	ActionEnable   = "Enable"
+	ActionDisable  = "Disable"
+	ActionStart    = "Start"
+	ActionStop     = "Stop"
 )
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
@@ -102,11 +116,18 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		var llrpResp llrp.Incoming
 
 		switch reqs[i].DeviceResourceName {
+		case ResourceReaderConfig:
+			llrpReq = &llrp.GetReaderConfig{}
+			llrpResp = &llrp.GetReaderConfigResponse{}
 		case ResourceReaderCap:
-			llrpReq = &llrp.GetReaderCapabilities{
-				ReaderCapabilitiesRequestedData: llrp.ReaderCapAll,
-			}
+			llrpReq = &llrp.GetReaderCapabilities{}
 			llrpResp = &llrp.GetReaderCapabilitiesResponse{}
+		case ResourceROSpec:
+			llrpReq = &llrp.GetROSpecs{}
+			llrpResp = &llrp.GetROSpecsResponse{}
+		case ResourceAccessSpec:
+			llrpReq = &llrp.GetAccessSpecs{}
+			llrpResp = &llrp.GetAccessSpecsResponse{}
 		}
 
 		if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
@@ -132,6 +153,165 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest, params []*dsModels.CommandValue) error {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
+
+	if len(reqs) == 0 {
+		return errors.New("missing requests")
+	}
+
+	c, err := d.getClient(devName, p)
+	if err != nil {
+		return err
+	}
+
+	getParam := func(name string, idx int, key string) (*dsModels.CommandValue, error) {
+		if idx > len(params) {
+			return nil, errors.Errorf("%s needs at least %d parameters, but got %d",
+				name, idx, len(params))
+		}
+
+		cv := params[idx]
+		if cv == nil {
+			return nil, errors.Errorf("%s requires parameter %s", name, key)
+		}
+
+		if cv.DeviceResourceName != key {
+			return nil, errors.Errorf("%s expected parameter %d: %s, but got %s",
+				name, idx, key, cv.DeviceResourceName)
+		}
+
+		return cv, nil
+	}
+
+	getStrParam := func(name string, idx int, key string) (string, error) {
+		if cv, err := getParam(name, idx, key); err != nil {
+			return "", err
+		} else {
+			return cv.StringValue()
+		}
+	}
+
+	getUint32Param := func(name string, idx int, key string) (uint32, error) {
+		if cv, err := getParam(name, idx, key); err != nil {
+			return 0, err
+		} else {
+			return cv.Uint32Value()
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	var llrpReq llrp.Outgoing
+	var llrpResp llrp.Incoming
+
+	var reqData []byte // for arbitrary JSON data structures to unmarshal
+
+	switch reqs[0].DeviceResourceName {
+	case ResourceReaderConfig:
+		data, err := getStrParam("Set"+ResourceReaderConfig, 0, ResourceReaderConfig)
+		if err != nil {
+			return err
+		}
+
+		reqData = []byte(data)
+		llrpReq = &llrp.SetReaderConfig{}
+		llrpResp = &llrp.SetReaderConfigResponse{}
+	case ResourceROSpec:
+		data, err := getStrParam("Add"+ResourceROSpec, 0, ResourceROSpec)
+		if err != nil {
+			return err
+		}
+
+		reqData = []byte(data)
+		llrpReq = &llrp.AddROSpec{}
+		llrpResp = &llrp.AddROSpecResponse{}
+	case ResourceROSpecID:
+		if len(params) != 2 {
+			return errors.Errorf("expected 2 resources for ROSpecID op, but got %d", len(params))
+		}
+
+		action, err := getStrParam(ResourceROSpec, 1, ResourceAction)
+		if err != nil {
+			return err
+		}
+
+		roID, err := getUint32Param(action+ResourceROSpec, 0, ResourceROSpecID)
+		if err != nil {
+			return err
+		}
+
+		switch action {
+		default:
+			return errors.Errorf("unknown ROSpecID action: %q", action)
+		case ActionEnable:
+			llrpReq = &llrp.EnableROSpec{ROSpecID: roID}
+			llrpResp = &llrp.EnableROSpecResponse{}
+		case ActionStart:
+			llrpReq = &llrp.StartROSpec{ROSpecID: roID}
+			llrpResp = &llrp.StartROSpecResponse{}
+		case ActionStop:
+			llrpReq = &llrp.StopROSpec{ROSpecID: roID}
+			llrpResp = &llrp.StopROSpecResponse{}
+		case ActionDisable:
+			llrpReq = &llrp.DisableROSpec{ROSpecID: roID}
+			llrpResp = &llrp.DisableROSpecResponse{}
+		case ActionDelete:
+			llrpReq = &llrp.DeleteROSpec{ROSpecID: roID}
+			llrpResp = &llrp.DeleteROSpecResponse{}
+		}
+
+	case ResourceAccessSpecID:
+		if len(reqs) != 2 {
+			return errors.Errorf("expected 2 resources for AccessSpecID op, but got %d", len(reqs))
+		}
+
+		action := reqs[1].DeviceResourceName
+
+		asID, err := getUint32Param(action+ResourceAccessSpecID, 0, ResourceAccessSpecID)
+		if err != nil {
+			return err
+		}
+
+		switch action {
+		default:
+			return errors.Errorf("unknown ROSpecID action: %q", action)
+		case ActionEnable:
+			llrpReq = &llrp.EnableAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.EnableAccessSpecResponse{}
+		case ActionDisable:
+			llrpReq = &llrp.DisableAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.DisableAccessSpecResponse{}
+		case ActionDelete:
+			llrpReq = &llrp.DeleteAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.DeleteAccessSpecResponse{}
+		}
+	}
+
+	if reqData != nil {
+		if err := json.Unmarshal(reqData, llrpReq); err != nil {
+			return err
+		}
+	}
+
+	// SendFor will handle turning ErrorMessages and failing LLRPStatuses into errors.
+	if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+		return err
+	}
+
+	go func(resName, devName string, resp llrp.Incoming) {
+		respData, err := json.Marshal(resp)
+		if err != nil {
+			d.lc.Error("failed to marshal response to %q: %v", resName, err)
+			return
+		}
+
+		cv := dsModels.NewStringValue(resName, time.Now().UnixNano(), string(respData))
+		d.asyncCh <- &dsModels.AsyncValues{
+			DeviceName:    devName,
+			CommandValues: []*dsModels.CommandValue{cv},
+		}
+	}(reqs[0].DeviceResourceName, c.Name, llrpResp)
+
 	return nil
 }
 
@@ -178,6 +358,27 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	return nil
 }
 
+func (d *Driver) handleROAccessReport(c *llrp.Client, msg llrp.Message) {
+	report := llrp.ROAccessReport{}
+	if err := msg.UnmarshalTo(&report); err != nil {
+		d.lc.Error(err.Error())
+		return
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		d.lc.Error(err.Error())
+		return
+	}
+
+	cv := dsModels.NewStringValue(ResourceROAccessReport, time.Now().UnixNano(), string(data))
+
+	d.asyncCh <- &dsModels.AsyncValues{
+		DeviceName:    c.Name,
+		CommandValues: []*dsModels.CommandValue{cv},
+	}
+}
+
 // getOrCreate returns a Client, creating one if needed.
 //
 // If a Client with this name already exists, it returns it.
@@ -213,7 +414,9 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		return nil, err
 	}
 
-	r, err = llrp.NewClient(llrp.WithConn(conn))
+	r, err = llrp.NewClient(llrp.WithConn(conn), llrp.WithName(name),
+		llrp.WithMessageHandler(llrp.MsgROAccessReport,
+			llrp.MessageHandlerFunc(d.handleROAccessReport)))
 	if err != nil {
 		return nil, err
 	}

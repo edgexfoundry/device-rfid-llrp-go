@@ -421,14 +421,10 @@ func NewROSpec() *ROSpec {
 	}
 }
 
-func NewAccessReport() *ROAccessReport {
-	return &ROAccessReport{}
-}
-
 func (ros *ROSpec) SetPeriodic(period time.Duration) {
 	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
 		Trigger:              ROStopTriggerDuration,
-		DurationTriggerValue: MilliSecs32(period.Milliseconds()),
+		DurationTriggerValue: Millisecs32(period.Milliseconds()),
 	}
 
 	if ros.ROReportSpec == nil {
@@ -444,7 +440,7 @@ func (ros *ROSpec) SetPeriodic(period time.Duration) {
 				EnableLastSeenTimestamp:    false,
 				EnableTagSeenCount:         false,
 				EnableAccessSpecID:         false,
-				C1G2EPCMemorySelectors:     nil,
+				C1G2EPCMemorySelector:      nil,
 				Custom:                     nil,
 			},
 		}
@@ -454,18 +450,22 @@ func (ros *ROSpec) SetPeriodic(period time.Duration) {
 	ros.ROReportSpec.N = 0
 }
 
+// Add returns an EnableROSpec message for this ROSpecID.
 func (ros *ROSpec) Add() *AddROSpec {
 	return &AddROSpec{ROSpec: *ros}
 }
 
+// Enable returns an EnableROSpec message for this ROSpecID.
 func (ros *ROSpec) Enable() *EnableROSpec {
 	return &EnableROSpec{ROSpecID: ros.ROSpecID}
 }
 
+// Disable returns an EnableROSpec message for this ROSpecID.
 func (ros *ROSpec) Disable() *DisableROSpec {
 	return &DisableROSpec{ROSpecID: ros.ROSpecID}
 }
 
+// Delete returns an EnableROSpec message for this ROSpecID.
 func (ros *ROSpec) Delete() *DeleteROSpec {
 	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
 }

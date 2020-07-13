@@ -1790,15 +1790,18 @@ func (p *ROReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 238, TagReportContentSelector.
 func (p *TagReportContentSelector) getHeader() paramHeader {
-	nParams := len(p.C1G2EPCMemorySelectors) + len(p.Custom)
+	nParams := len(p.Custom)
+	if p.C1G2EPCMemorySelector != nil {
+		nParams++
+	}
 	ph := paramHeader{
 		ParamType: ParamTagReportContentSelector,
 		data:      p,
 		sz:        6,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2EPCMemorySelectors {
-		sh := p.C1G2EPCMemorySelectors[i].getHeader()
+	if p.C1G2EPCMemorySelector != nil {
+		sh := p.C1G2EPCMemorySelector.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}

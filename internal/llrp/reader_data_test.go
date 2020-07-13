@@ -76,7 +76,11 @@ func testRecordedData(t *testing.T, dir string) {
 		}
 
 		prefix := f.Name()[:len(f.Name())-len(".json")]
-		msg := strings.SplitN(f.Name(), "-", 2)[0]
+		parts := strings.SplitN(f.Name(), "-", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		msg := parts[0]
 		t.Run(prefix, compareMessages(msg, filepath.Join(dir, prefix)))
 	}
 }

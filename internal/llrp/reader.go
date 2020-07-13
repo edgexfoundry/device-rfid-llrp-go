@@ -44,6 +44,7 @@ import (
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
 type Client struct {
+	Name           string         // arbitrary
 	conn           net.Conn       // underlying network connection
 	sendQueue      chan request   // controls write-side of connection
 	ackQueue       chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
@@ -110,16 +111,24 @@ type ClientOpt interface {
 	do(*Client) error // don't allow arbitrary implementations for now
 }
 
-type clientOpt func(r *Client) error
+type clientOpt func(c *Client) error
 
-func (ro clientOpt) do(r *Client) error {
-	return ro(r)
+func (ro clientOpt) do(c *Client) error {
+	return ro(c)
 }
 
 // WithConn sets the Client's connection.
 func WithConn(conn net.Conn) ClientOpt {
-	return clientOpt(func(r *Client) error {
-		r.conn = conn
+	return clientOpt(func(c *Client) error {
+		c.conn = conn
+		return nil
+	})
+}
+
+// WithName sets the Client's name.
+func WithName(name string) ClientOpt {
+	return clientOpt(func(c *Client) error {
+		c.Name = name
 		return nil
 	})
 }
@@ -131,8 +140,8 @@ func WithVersion(v VersionNum) ClientOpt {
 	if v < versionMin || v > versionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
-	return clientOpt(func(r *Client) error {
-		r.version = v
+	return clientOpt(func(c *Client) error {
+		c.version = v
 		return nil
 	})
 }
@@ -149,19 +158,19 @@ func WithVersion(v VersionNum) ClientOpt {
 // In that case, the client will automatically close the connection
 // if it fails to receive KeepAlive messages from the RFID device.
 func WithTimeout(d time.Duration) ClientOpt {
-	return clientOpt(func(r *Client) error {
+	return clientOpt(func(c *Client) error {
 		if d < 0 {
 			return errors.Errorf("timeout should be at least 0, but is %v", d)
 		}
-		r.timeout = d
+		c.timeout = d
 		return nil
 	})
 }
 
 // WithLogger sets a logger for the Client.
 func WithLogger(l ClientLogger) ClientOpt {
-	return clientOpt(func(r *Client) error {
-		r.logger = l
+	return clientOpt(func(c *Client) error {
+		c.logger = l
 		return nil
 	})
 }
@@ -170,7 +179,7 @@ type MessageHandler interface {
 	handleMessage(c *Client, msg Message)
 }
 
-type MessageHandlerFunc func(r *Client, msg Message)
+type MessageHandlerFunc func(c *Client, msg Message)
 
 func (mhf MessageHandlerFunc) handleMessage(c *Client, msg Message) {
 	mhf(c, msg)
@@ -521,10 +530,14 @@ func (c *Client) handleOutgoing() error {
 			case req := <-c.sendQueue:
 				msg = req.msg
 
-				// Generate the message ID.
-				msg.id = nextMsgID
-				nextMsgID++
+				// Generate the message ID if the message doesn't have one.
+				// This assumes you'll never reply to a message with ID 0.
+				if msg.id == 0 {
+					msg.id = nextMsgID
+					nextMsgID++
+				}
 
+				// If the reply is unwanted (or unexpected), skip setting it up.
 				if req.tokenChan == nil {
 					break
 				}
@@ -560,7 +573,7 @@ func (c *Client) handleOutgoing() error {
 		if msg.typ == MsgGetSupportedVersion || msg.typ == MsgSetProtocolVersion {
 			// these messages are required to use version 1.1
 			msg.version = Version1_1
-		} else {
+		} else if msg.version == 0 {
 			msg.version = c.version
 		}
 
@@ -679,6 +692,8 @@ func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
 	handler.handleMessage(c, msg)
 }
 
+// roHandler is a default handler implementation for ROAccessReports.
+// It just unmarshals and logs the report.
 type roHandler struct{}
 
 func (roHandler) handleMessage(c *Client, m Message) {

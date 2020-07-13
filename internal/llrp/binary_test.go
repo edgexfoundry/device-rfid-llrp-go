@@ -1525,7 +1525,7 @@ func TestFrequencyInformation_roundTrip(t *testing.T) {
 func TestFrequencyHopTable_roundTrip(t *testing.T) {
 	p := FrequencyHopTable{
 		HopTableID:  128,
-		Frequencies: []KiloHertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
+		Frequencies: []Kilohertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1543,7 +1543,7 @@ func TestFrequencyHopTable_roundTrip(t *testing.T) {
 // Test Parameter 148, FixedFrequencyTable.
 func TestFixedFrequencyTable_roundTrip(t *testing.T) {
 	p := FixedFrequencyTable{
-		Frequencies: []KiloHertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
+		Frequencies: []Kilohertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {

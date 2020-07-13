@@ -41,7 +41,7 @@ File = ''
   Port = 48061
 
 [Device]
-  DataTransform = true
+  DataTransform = false
   InitCmd = ''
   InitCmdArgs = ''
   MaxCmdOps = 128
@@ -53,3 +53,13 @@ File = ''
   [Device.Discovery]
     Enabled = true
     Interval = '1h'
+
+[[DeviceList]]
+  Name = "Speedway"
+  Profile = "Device.LLRP.Profile"
+  Description = "LLRP RFID Reader"
+  Labels = ["LLRP", "RFID"]
+  [DeviceList.Protocols]
+    [DeviceList.Protocols.tcp]
+      host = "192.168.86.88"
+      port = "5084"

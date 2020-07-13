@@ -173,7 +173,7 @@ func ipGenerator(wg *sync.WaitGroup, netCh <-chan *net.IPNet, ipCh chan<- uint32
 // if an LLRP reader exists at that network address
 func probe(ip string, port string) error {
 	addr := ip + ":" + port
-	//driver.lc.Debug(fmt.Sprintf("probe: %s", ip))
+	// driver.lc.Debug(fmt.Sprintf("probe: %s", ip))
 	conn, err := net.DialTimeout("tcp", addr, probeTimeout)
 	if err != nil {
 		return err
@@ -252,10 +252,11 @@ func newDiscoveredDevice(ip string, port string) dsModels.DiscoveredDevice {
 			"tcp": {
 				"host": ip,
 				"port": port,
-				"llrp": "llrp",
 			},
 		},
 		Description: "LLRP RFID Reader",
-		Labels:      nil,
+		Labels: []string{
+			"RFID", "LLRP",
+		},
 	}
 }

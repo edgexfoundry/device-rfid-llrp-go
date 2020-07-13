@@ -60,8 +60,7 @@ func TestClientFunctional(t *testing.T) {
 		testConfig := testConfig
 
 		t.Run(testConfig.Incoming.Type().String(), func(t *testing.T) {
-			r, cleanup := GetFunctionalClient(t, *readerAddr)
-			defer cleanup()
+			r := GetFunctionalClient(t, *readerAddr)
 			sendAndCheck(t, r, testConfig.Outgoing, testConfig.Incoming)
 		})
 	}
@@ -328,8 +327,7 @@ func testGatherTagReads(t *testing.T) {
 	if testing.Short() {
 		t.Skip("-short flag: skipping gather tag reads, since it takes 10s")
 	}
-	r, cleanup := GetFunctionalClient(t, *readerAddr)
-	defer cleanup()
+	r := GetFunctionalClient(t, *readerAddr)
 
 	spec := NewROSpec()
 	spec.SetPeriodic(5 * time.Second)

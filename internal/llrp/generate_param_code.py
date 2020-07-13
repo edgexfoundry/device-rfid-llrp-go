@@ -1557,8 +1557,6 @@ class Message(Container):
             w.write(f'return Msg{self.name}')
 
         if not any(p.param_name == 'LLRPStatus' for p in self.parameters):
-            print(f'no LLRPStatus in {self.name}')
-            print([p.param_name for p in self.parameters])
             return
 
         w.write('')

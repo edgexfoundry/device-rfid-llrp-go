@@ -11,55 +11,56 @@ import (
 	"github.com/pkg/errors"
 )
 
-// DeciBelMilliWatt16 is a 16-bit DeciBelm value. In LLRP, it's used for maximum receive
+// DecibelMilliwatt16 is a 16-bit dBm value. In LLRP, it's used for maximum receive
 // sensitivity.
-type DeciBelMilliWatt16 = int16
+type DecibelMilliwatt16 = int16
 
-// DeciBelMilliWatt8 is a 8-bit DeciBelm value. In LLRP, it's used to represent RSSI.
-type DeciBelMilliWatt8 = int8
+// DecibelMilliwatt8 is a 8-bit dBm value. In LLRP, it's used to represent (received
+// signal strength indicator) RSSI.
+type DecibelMilliwatt8 = int8
 
-// MilliBelIsotropic is DeciBeli*100, i.e., 0.01DeciBeli (DeciBel relative isotropic). In
-// LLRP, it's used for fractional DeciBeli antenna gain values.
-type MilliBelIsotropic = uint16
+// MillibelIsotropic is dBi*100, i.e., 0.01dBi (decibel relative isotropic). In LLRP, it's
+// used for fractional dBi antenna gain values.
+type MillibelIsotropic = uint16
 
-// MilliBelMilliWatt is DeciBelm*100, i.e. 0.01DeciBelm or 1 milliBel milliwatt. In LLRP,
-// it's used primarily for fractional DeciBelm transmit power values.
-type MilliBelMilliWatt = uint16
+// MillibelMilliwatt is dBm*100, i.e. 0.01dBm or 1 millibel milliwatt. In LLRP, it's used
+// primarily for fractional dBm transmit power values.
+type MillibelMilliwatt = uint16
 
-// DeciBel is 1/10 of a bel, which is the either the log10 of the ratio of a power
+// Decibel is 1/10 of a bel, which is the either the log10 of the ratio of a power
 // quantity relative a reference, or 2*log10 of the ratio of an amplitude quantity
 // relative a reference field.
 //
 // In LLRP, it's used primarily for receive sensitivity values relative the device maximum
 // sensitivity.
-type DeciBel = uint16
+type Decibel = uint16
 
-// MicroSecs64 is a 64-bit number of microseconds.
+// Microsecs64 is a 64-bit number of microseconds.
 //
 // It's usually used to represent a time offset since a known reference, Unix Epoch or the
 // reader's start.
-type MicroSecs64 = uint64
+type Microsecs64 = uint64
 
-// MilliSecs32 is a 32-bit number of milliseconds.
+// Millisecs32 is a 32-bit number of milliseconds.
 //
 // It's used to represent a time offset since a known reference, usually Unix Epoch or a
 // message receipt time. Other times, it's used as a time period or timeout, in which case
 // 0 may mean "never timeout".
-type MilliSecs32 = uint32
+type Millisecs32 = uint32
 
-// MilliSecs16 is a 16-bit number of milliseconds.
+// Millisecs16 is a 16-bit number of milliseconds.
 //
 // It's used to represent a timeouts or duration triggers.
-type MilliSecs16 = uint16
+type Millisecs16 = uint16
 
-// NanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
-type NanoSecs32 = uint32
+// Nanosecs32 is a 32-bit number of nanoseconds used for some Tari values.
+type Nanosecs32 = uint32
 
-// NanoSecs16 is a 16-bit number of nanoseconds as used for some Tari values.
-type NanoSecs16 = uint16
+// Nanosecs16 is a 16-bit number of nanoseconds as used for some Tari values.
+type Nanosecs16 = uint16
 
-// KiloHertz are 1000 cycles per second.
-type KiloHertz = uint32
+// Kilohertz measure frequency in 1000s of cycles per second.
+type Kilohertz = uint32
 
 // BitsPerSec are used to describe backscatter data rates.
 type BitsPerSec = uint32
@@ -1921,7 +1922,7 @@ func (m *ErrorMessage) Status() LLRPStatus {
 
 // GetReaderConfig is Message 2, GetReaderConfig.
 type GetReaderConfig struct {
-	AntennaID     uint16
+	AntennaID     AntennaID
 	RequestedData ReaderConfigRequestedDataType
 	GPIPortNum    uint16
 	GPOPortNum    uint16
@@ -1934,7 +1935,7 @@ func (m *GetReaderConfig) UnmarshalBinary(data []byte) error {
 		return errors.Errorf("GetReaderConfig length should be at least 7, "+
 			"but is %d", len(data))
 	}
-	m.AntennaID = binary.BigEndian.Uint16(data)
+	m.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	m.RequestedData = ReaderConfigRequestedDataType(data[2])
 	m.GPIPortNum = binary.BigEndian.Uint16(data[3:])
 	m.GPOPortNum = binary.BigEndian.Uint16(data[5:])
@@ -2507,7 +2508,7 @@ func (p *AntennaID) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUTC is Parameter 2, FirstSeenUTC.
-type FirstSeenUTC MicroSecs64
+type FirstSeenUTC Microsecs64
 
 // UnmarshalBinary Parameter 2, FirstSeenUTC.
 func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2519,7 +2520,7 @@ func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUptime is Parameter 3, FirstSeenUptime.
-type FirstSeenUptime MicroSecs64
+type FirstSeenUptime Microsecs64
 
 // UnmarshalBinary Parameter 3, FirstSeenUptime.
 func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2531,7 +2532,7 @@ func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUTC is Parameter 4, LastSeenUTC.
-type LastSeenUTC MicroSecs64
+type LastSeenUTC Microsecs64
 
 // UnmarshalBinary Parameter 4, LastSeenUTC.
 func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2543,7 +2544,7 @@ func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUptime is Parameter 5, LastSeenUptime.
-type LastSeenUptime MicroSecs64
+type LastSeenUptime Microsecs64
 
 // UnmarshalBinary Parameter 5, LastSeenUptime.
 func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2555,14 +2556,14 @@ func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // PeakRSSI is Parameter 6, PeakRSSI.
-type PeakRSSI DeciBelMilliWatt8
+type PeakRSSI DecibelMilliwatt8
 
 // UnmarshalBinary Parameter 6, PeakRSSI.
 func (p *PeakRSSI) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPeakRSSI, 1, len(data), true); err != nil {
 		return err
 	}
-	*p = PeakRSSI(DeciBelMilliWatt8(data[0]))
+	*p = PeakRSSI(DecibelMilliwatt8(data[0]))
 	return nil
 }
 
@@ -2768,7 +2769,7 @@ func (p *C1G2XPCW2) UnmarshalBinary(data []byte) error {
 // UTCTimestamp is Parameter 128, UTCTimestamp.
 //
 // Microseconds since the beginning of time, midnight 1970-Jan-1.
-type UTCTimestamp MicroSecs64
+type UTCTimestamp Microsecs64
 
 // UnmarshalBinary Parameter 128, UTCTimestamp.
 func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
@@ -2782,7 +2783,7 @@ func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
 // Uptime is Parameter 129, Uptime.
 //
 // Microseconds since the Reader started.
-type Uptime MicroSecs64
+type Uptime Microsecs64
 
 // UnmarshalBinary Parameter 129, Uptime.
 func (p *Uptime) UnmarshalBinary(data []byte) error {
@@ -2942,7 +2943,7 @@ paramGroup3:
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
 		p.MaximumReceiveSensitivity = new(MaximumReceiveSensitivity)
-		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(DeciBelMilliWatt16(binary.BigEndian.Uint16(data[4:])))
+		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(DecibelMilliwatt16(binary.BigEndian.Uint16(data[4:])))
 		data = data[subLen:]
 	}
 	if len(data) > 0 {
@@ -2958,7 +2959,7 @@ type ReceiveSensitivityTableEntry struct {
 	// ReceiveSensitivity is relative the maximum supported by the device, or the maximum
 	// reported in the device capabilities, for readers that support changing it (requires
 	// LLRP v1.1+).
-	ReceiveSensitivity DeciBel
+	ReceiveSensitivity Decibel
 }
 
 // UnmarshalBinary Parameter 139, ReceiveSensitivityTableEntry.
@@ -2973,7 +2974,7 @@ func (p *ReceiveSensitivityTableEntry) UnmarshalBinary(data []byte) error {
 
 // PerAntennaAirProtocol is Parameter 140, PerAntennaAirProtocol.
 type PerAntennaAirProtocol struct {
-	AntennaID      uint16
+	AntennaID      AntennaID
 	AirProtocolIDs []AirProtocolIDType
 }
 
@@ -2982,7 +2983,7 @@ func (p *PerAntennaAirProtocol) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPerAntennaAirProtocol, 4, len(data), false); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	if arrLen := int(binary.BigEndian.Uint16(data[2:])); arrLen > len(data[4:]) {
 		return errors.Errorf("AirProtocolIDs ([]AirProtocolIDType) declares "+
 			"it has %d bytes, but only %d bytes are available", arrLen,
@@ -3212,7 +3213,7 @@ paramGroup0:
 // TransmitPowerLevelTableEntry is Parameter 145, TransmitPowerLevelTableEntry.
 type TransmitPowerLevelTableEntry struct {
 	Index              uint16
-	TransmitPowerValue MilliBelMilliWatt
+	TransmitPowerValue MillibelMilliwatt
 }
 
 // UnmarshalBinary Parameter 145, TransmitPowerLevelTableEntry.
@@ -3299,7 +3300,7 @@ paramGroup0:
 // FrequencyHopTable is Parameter 147, FrequencyHopTable.
 type FrequencyHopTable struct {
 	HopTableID  uint8
-	Frequencies []KiloHertz
+	Frequencies []Kilohertz
 }
 
 // UnmarshalBinary Parameter 147, FrequencyHopTable.
@@ -3310,10 +3311,10 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 	p.HopTableID = data[0]
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data[2:])); int64(arrLen)*4 > int64(len(data[4:])) {
-		return errors.Errorf("Frequencies ([]KiloHertz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]Kilohertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[4:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]KiloHertz, arrLen)
+		p.Frequencies = make([]Kilohertz, arrLen)
 		for i, pos := 0, 4; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -3330,7 +3331,7 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 
 // FixedFrequencyTable is Parameter 148, FixedFrequencyTable.
 type FixedFrequencyTable struct {
-	Frequencies []KiloHertz
+	Frequencies []Kilohertz
 }
 
 // UnmarshalBinary Parameter 148, FixedFrequencyTable.
@@ -3340,10 +3341,10 @@ func (p *FixedFrequencyTable) UnmarshalBinary(data []byte) error {
 	}
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen)*4 > int64(len(data[2:])) {
-		return errors.Errorf("Frequencies ([]KiloHertz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]Kilohertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[2:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]KiloHertz, arrLen)
+		p.Frequencies = make([]Kilohertz, arrLen)
 		for i, pos := 0, 2; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -3360,7 +3361,7 @@ func (p *FixedFrequencyTable) UnmarshalBinary(data []byte) error {
 
 // PerAntennaReceiveSensitivityRange is Parameter 149, PerAntennaReceiveSensitivityRange.
 type PerAntennaReceiveSensitivityRange struct {
-	AntennaID                  uint16
+	AntennaID                  AntennaID
 	ReceiveSensitivityIndexMin uint16
 	ReceiveSensitivityIndexMax uint16
 }
@@ -3370,7 +3371,7 @@ func (p *PerAntennaReceiveSensitivityRange) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPerAntennaReceiveSensitivityRange, 6, len(data), true); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	p.ReceiveSensitivityIndexMin = binary.BigEndian.Uint16(data[2:])
 	p.ReceiveSensitivityIndexMax = binary.BigEndian.Uint16(data[4:])
 	return nil
@@ -3615,8 +3616,8 @@ paramGroup0:
 
 // PeriodicTriggerValue is Parameter 180, PeriodicTriggerValue.
 type PeriodicTriggerValue struct {
-	Offset       MilliSecs32
-	Period       MilliSecs32
+	Offset       Millisecs32
+	Period       Millisecs32
 	UTCTimestamp *UTCTimestamp
 }
 
@@ -3653,7 +3654,7 @@ func (p *PeriodicTriggerValue) UnmarshalBinary(data []byte) error {
 type GPITriggerValue struct {
 	Port    uint16
 	Event   bool
-	Timeout MilliSecs32
+	Timeout Millisecs32
 }
 
 // UnmarshalBinary Parameter 181, GPITriggerValue.
@@ -3670,7 +3671,7 @@ func (p *GPITriggerValue) UnmarshalBinary(data []byte) error {
 // ROSpecStopTrigger is Parameter 182, ROSpecStopTrigger.
 type ROSpecStopTrigger struct {
 	Trigger              ROSpecStopTriggerType
-	DurationTriggerValue MilliSecs32
+	DurationTriggerValue Millisecs32
 	GPITriggerValue      *GPITriggerValue
 }
 
@@ -3815,7 +3816,7 @@ paramGroup2:
 // AISpecStopTrigger is Parameter 184, AISpecStopTrigger.
 type AISpecStopTrigger struct {
 	Trigger               AISpecStopTriggerType
-	DurationTriggerValue  MilliSecs32
+	DurationTriggerValue  Millisecs32
 	GPITrigger            *GPITriggerValue
 	TagObservationTrigger *TagObservationTrigger
 }
@@ -3869,8 +3870,8 @@ type TagObservationTrigger struct {
 	Trigger          TagObservationTriggerType
 	NumberofTags     uint16
 	NumberofAttempts uint16
-	T                MilliSecs16
-	Timeout          MilliSecs32
+	T                Millisecs16
+	Timeout          Millisecs32
 }
 
 // UnmarshalBinary Parameter 185, TagObservationTrigger.
@@ -3942,9 +3943,9 @@ paramGroup0:
 
 // RFSurveySpec is Parameter 187, RFSurveySpec.
 type RFSurveySpec struct {
-	AntennaID      uint16
-	StartFrequency KiloHertz
-	EndFrequency   KiloHertz
+	AntennaID      AntennaID
+	StartFrequency Kilohertz
+	EndFrequency   Kilohertz
 	Trigger        RFSurveySpecStopTrigger
 	Custom         []Custom
 }
@@ -3954,7 +3955,7 @@ func (p *RFSurveySpec) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamRFSurveySpec, 23, len(data), false); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	p.StartFrequency = binary.BigEndian.Uint32(data[2:])
 	p.EndFrequency = binary.BigEndian.Uint32(data[6:])
 	data = data[10:]
@@ -4007,8 +4008,8 @@ paramGroup1:
 // RFSurveySpecStopTrigger is Parameter 188, RFSurveySpecStopTrigger.
 type RFSurveySpecStopTrigger struct {
 	Trigger  RFSurveySpecStopTriggerType
-	Duration MilliSecs32
-	N        MilliSecs32
+	Duration Millisecs32
+	N        Millisecs32
 }
 
 // UnmarshalBinary Parameter 188, RFSurveySpecStopTrigger.
@@ -4025,7 +4026,7 @@ func (p *RFSurveySpecStopTrigger) UnmarshalBinary(data []byte) error {
 // AccessSpec is Parameter 207, AccessSpec.
 type AccessSpec struct {
 	AccessSpecID     uint32
-	AntennaID        uint16
+	AntennaID        AntennaID
 	AirProtocolID    AirProtocolIDType
 	IsActive         bool
 	ROSpecID         uint32
@@ -4041,7 +4042,7 @@ func (p *AccessSpec) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	p.AccessSpecID = binary.BigEndian.Uint32(data)
-	p.AntennaID = binary.BigEndian.Uint16(data[4:])
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data[4:]))
 	p.AirProtocolID = AirProtocolIDType(data[6])
 	p.IsActive = data[7]>>7 != 0
 	p.ROSpecID = binary.BigEndian.Uint32(data[8:])
@@ -4461,7 +4462,7 @@ func (p *GPOWriteData) UnmarshalBinary(data []byte) error {
 // KeepAliveSpec is Parameter 220, KeepAliveSpec.
 type KeepAliveSpec struct {
 	Trigger  KeepAliveTriggerType
-	Interval MilliSecs32
+	Interval Millisecs32
 }
 
 // UnmarshalBinary Parameter 220, KeepAliveSpec.
@@ -4479,8 +4480,8 @@ type AntennaProperties struct {
 	AntennaConnected bool
 	AntennaID        AntennaID
 	// AntennaGain is the composite forward gain of the antenna, including cable loss,
-	// relative a hypothetical isotropic antenna, expressed in 1/100ths of DeciBeli.
-	AntennaGain MilliBelIsotropic
+	// relative a hypothetical isotropic antenna, expressed in 1/100ths of dBi.
+	AntennaGain MillibelIsotropic
 }
 
 // UnmarshalBinary Parameter 221, AntennaProperties.
@@ -4718,7 +4719,7 @@ type TagReportContentSelector struct {
 	EnableLastSeenTimestamp    bool
 	EnableTagSeenCount         bool
 	EnableAccessSpecID         bool
-	C1G2EPCMemorySelectors     []C1G2EPCMemorySelector
+	C1G2EPCMemorySelector      *C1G2EPCMemorySelector
 	Custom                     []Custom
 }
 
@@ -4742,8 +4743,23 @@ func (p *TagReportContentSelector) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2EPCMemorySelector {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamC1G2EPCMemorySelector says it has %d "+
+				"bytes, but only %d bytes remain", subLen, len(data))
+		}
+		p.C1G2EPCMemorySelector = new(C1G2EPCMemorySelector)
+		if err := p.C1G2EPCMemorySelector.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
 
-paramGroup0:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -4752,12 +4768,6 @@ paramGroup0:
 				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2EPCMemorySelector:
-			var tmp C1G2EPCMemorySelector
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2EPCMemorySelectors = append(p.C1G2EPCMemorySelectors, tmp)
 		case ParamCustom:
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -4765,7 +4775,7 @@ paramGroup0:
 			}
 			p.Custom = append(p.Custom, tmp)
 		default:
-			break paramGroup0
+			break paramGroup1
 		}
 		data = data[subLen:]
 	}
@@ -4894,7 +4904,7 @@ paramGroup1:
 			data = data[3:]
 		case ParamPeakRSSI:
 			p.PeakRSSI = new(PeakRSSI)
-			*p.PeakRSSI = PeakRSSI(DeciBelMilliWatt8(data[1]))
+			*p.PeakRSSI = PeakRSSI(DecibelMilliwatt8(data[1]))
 			data = data[2:]
 		case ParamChannelIndex:
 			p.ChannelIndex = new(ChannelIndex)
@@ -5195,11 +5205,16 @@ paramGroup2:
 }
 
 // FrequencyRSSILevelEntry is Parameter 243, FrequencyRSSILevelEntry.
+//
+// RSSI stands for "received signal strength indicator" and is a measure of the amount of
+// power in a received radio signal. RSSI will vary based on several factors, including
+// distance to a tag, the tag's orientation in space, and environmental factors that
+// change how radio signals propagate and interfere.
 type FrequencyRSSILevelEntry struct {
-	Frequency    KiloHertz
-	Bandwidth    KiloHertz
-	AverageRSSI  DeciBelMilliWatt8
-	PeakRSSI     DeciBelMilliWatt8
+	Frequency    Kilohertz
+	Bandwidth    Kilohertz
+	AverageRSSI  DecibelMilliwatt8
+	PeakRSSI     DecibelMilliwatt8
 	UTCTimestamp UTCTimestamp
 	Uptime       Uptime
 }
@@ -5211,8 +5226,8 @@ func (p *FrequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	}
 	p.Frequency = binary.BigEndian.Uint32(data)
 	p.Bandwidth = binary.BigEndian.Uint32(data[4:])
-	p.AverageRSSI = DeciBelMilliWatt8(data[8])
-	p.PeakRSSI = DeciBelMilliWatt8(data[9])
+	p.AverageRSSI = DecibelMilliwatt8(data[8])
+	p.PeakRSSI = DecibelMilliwatt8(data[9])
 	data = data[10:]
 	// sub-parameters
 	{
@@ -5895,7 +5910,7 @@ func (p *C1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
 //
 // The reader instructs the tags what type of subcarrier Modulation to use when encoding
 // their backscattered reply. At FM0, the data rate in kBitsPerSec is approximately BLF in
-// KiloHertz. Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0,
+// Kilohertz. Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0,
 // and so the data rate will be roughly 1/2, 1/4, or 1/8 BLF. Note that this does not
 // affect whether the tags use ASK or PSK modulation; that's determined by the tag
 // manufacturer.
@@ -5954,9 +5969,9 @@ type UHFC1G2RFModeTableEntry struct {
 	BackscatterDataRate   BitsPerSec
 	// PIERatio is 1000x the the data-0 to data-1 symbol lengths ratio.
 	PIERatio     uint32
-	MinTariTime  NanoSecs32
-	MaxTariTime  NanoSecs32
-	StepTariTime NanoSecs32
+	MinTariTime  Nanosecs32
+	MaxTariTime  Nanosecs32
+	StepTariTime Nanosecs32
 }
 
 // UnmarshalBinary Parameter 329, UHFC1G2RFModeTableEntry.
@@ -6223,7 +6238,7 @@ type C1G2RFControl struct {
 	// protocol durations, so all else equal, a shorter Tari allows a higher bitrate, but
 	// that's an gross oversimplification. For more information, see the EPC Class 1 Gen 2
 	// standard and consult an RF engineer.
-	Tari NanoSecs16
+	Tari Nanosecs16
 }
 
 // UnmarshalBinary Parameter 335, C1G2RFControl.
@@ -6243,7 +6258,7 @@ type C1G2SingulationControl struct {
 	// TagPopulation expected in the antenna's field of view.
 	TagPopulation uint16
 	// TagTransitTime is a measure of the expected tag mobility.
-	TagTransitTime MilliSecs32
+	TagTransitTime Millisecs32
 	InvAwareAction *C1G2TagInventoryStateAwareSingulationAction
 }
 
@@ -6911,21 +6926,21 @@ func (p *C1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 //
 // MaximumReceiveSensitivity is the maximum receive sensitivity supported by the Reader.
 // It's required if the Reader allows receive sensitivity control, but otherwise optional.
-type MaximumReceiveSensitivity DeciBelMilliWatt16
+type MaximumReceiveSensitivity DecibelMilliwatt16
 
 // UnmarshalBinary Parameter 363, MaximumReceiveSensitivity.
 func (p *MaximumReceiveSensitivity) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamMaximumReceiveSensitivity, 2, len(data), true); err != nil {
 		return err
 	}
-	*p = MaximumReceiveSensitivity(DeciBelMilliWatt16(binary.BigEndian.Uint16(data)))
+	*p = MaximumReceiveSensitivity(DecibelMilliwatt16(binary.BigEndian.Uint16(data)))
 	return nil
 }
 
 // RFSurveyFrequencyCapabilities is Parameter 365, RFSurveyFrequencyCapabilities.
 type RFSurveyFrequencyCapabilities struct {
-	MinFrequency KiloHertz
-	MaxFrequency KiloHertz
+	MinFrequency Kilohertz
+	MaxFrequency Kilohertz
 }
 
 // UnmarshalBinary Parameter 365, RFSurveyFrequencyCapabilities.

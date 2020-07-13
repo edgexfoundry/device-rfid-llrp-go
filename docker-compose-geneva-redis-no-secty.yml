@@ -58,8 +58,6 @@ services:
       - "127.0.0.1:8500:8500"
     container_name: edgex-core-consul
     hostname: edgex-core-consul
-    extra_hosts:
-      - "edgex-device-llrp:172.17.0.1"
     networks:
       edgex-network:
         aliases:
@@ -311,13 +309,12 @@ services:
     image: edgexfoundry/docker-device-llrp-go:0.0.0-dev
     ports:
       - "127.0.0.1:49992:49992"
-    extra_hosts:
-      - "edgex-core-consul:127.0.0.1"
-      - "edgex-core-data:127.0.0.1"
-      - "edgex-core-metadata:127.0.0.1"
     container_name: edgex-device-llrp
     hostname: edgex-device-llrp
-    network_mode: host
+    networks:
+      edgex-network:
+        aliases:
+          - edgex-device-llrp
 #    networks:
 #      edgex-network:
 #        aliases:
