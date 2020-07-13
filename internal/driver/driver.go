@@ -7,6 +7,7 @@ package driver
 
 import (
 	"context"
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
@@ -373,20 +374,38 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	return nil
 }
 
-func (d *Driver) handleROAccessReport(c *llrp.Client, msg llrp.Message) {
-	report := llrp.ROAccessReport{}
-	if err := msg.UnmarshalTo(&report); err != nil {
+// handleAsyncMessages forwards JSON-marshaled messages to EdgeX.
+//
+// Note that the message types that end up here depend on the subscriptions
+// when the Client is created, so if you want to add another,
+// you'll need to wire up the handler in the getClient code.
+func (d *Driver) handleAsyncMessages(c *llrp.Client, msg llrp.Message) {
+	var resourceName string
+	var event encoding.BinaryUnmarshaler
+
+	switch msg.Type() {
+	default:
+		return
+	case llrp.MsgReaderEventNotification:
+		resourceName = ResourceReaderNotification
+		event = &llrp.ReaderEventNotification{}
+	case llrp.MsgROAccessReport:
+		resourceName = ResourceROAccessReport
+		event = &llrp.ROAccessReport{}
+	}
+
+	if err := msg.UnmarshalTo(event); err != nil {
 		d.lc.Error(err.Error())
 		return
 	}
 
-	data, err := json.Marshal(report)
+	data, err := json.Marshal(event)
 	if err != nil {
 		d.lc.Error(err.Error())
 		return
 	}
 
-	cv := dsModels.NewStringValue(ResourceROAccessReport, time.Now().UnixNano(), string(data))
+	cv := dsModels.NewStringValue(resourceName, time.Now().UnixNano(), string(data))
 
 	d.asyncCh <- &dsModels.AsyncValues{
 		DeviceName:    c.Name,
@@ -429,9 +448,14 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		return nil, err
 	}
 
-	c, err = llrp.NewClient(llrp.WithConn(conn), llrp.WithName(name),
-		llrp.WithMessageHandler(llrp.MsgROAccessReport,
-			llrp.MessageHandlerFunc(d.handleROAccessReport)))
+	toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
+
+	c, err = llrp.NewClient(
+		llrp.WithConn(conn), llrp.WithName(name),
+		llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
+		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
+	)
+
 	if err != nil {
 		return nil, err
 	}
