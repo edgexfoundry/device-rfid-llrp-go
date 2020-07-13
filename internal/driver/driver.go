@@ -322,13 +322,28 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 func (d *Driver) Stop(force bool) error {
 	// Then Logging Client might not be initialized
 	if d.lc != nil {
-		d.lc.Debug(fmt.Sprintf("LLRP-Driver.Stop called: force=%v", force))
+		d.lc.Debug("LLRP-Driver.Stop called", "force", force)
 	}
+
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
-	for _, c := range d.clients {
-		go c.Close() // best effort
+
+	var wg *sync.WaitGroup
+	if !force {
+		wg = new(sync.WaitGroup)
+		wg.Add(len(d.clients))
+		defer wg.Wait()
 	}
+
+	for _, c := range d.clients {
+		go func(c *llrp.Client) {
+			d.stopClient(c, force)
+			if !force {
+				wg.Done()
+			}
+		}(c)
+	}
+
 	d.clients = make(map[string]*llrp.Client)
 	return nil
 }
@@ -354,7 +369,7 @@ func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminSta
 // when a Device associated with this Device Service is removed
 func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
-	d.removeClient(deviceName)
+	d.removeClient(deviceName, false)
 	return nil
 }
 
@@ -387,10 +402,10 @@ func (d *Driver) handleROAccessReport(c *llrp.Client, msg llrp.Message) {
 func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	// Try with just a read lock.
 	d.clientsMapMu.RLock()
-	r, ok := d.clients[name]
+	c, ok := d.clients[name]
 	d.clientsMapMu.RUnlock()
 	if ok {
-		return r, nil
+		return c, nil
 	}
 
 	// Probably need other info too, like the device.
@@ -404,9 +419,9 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	defer d.clientsMapMu.Unlock()
 
 	// Check if something else created the Client before we got the lock.
-	r, ok = d.clients[name]
+	c, ok = d.clients[name]
 	if ok {
-		return r, nil
+		return c, nil
 	}
 
 	conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
@@ -414,7 +429,7 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		return nil, err
 	}
 
-	r, err = llrp.NewClient(llrp.WithConn(conn), llrp.WithName(name),
+	c, err = llrp.NewClient(llrp.WithConn(conn), llrp.WithName(name),
 		llrp.WithMessageHandler(llrp.MsgROAccessReport,
 			llrp.MessageHandlerFunc(d.handleROAccessReport)))
 	if err != nil {
@@ -423,7 +438,7 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 
 	go func() {
 		// blocks until the Client is closed
-		err = r.Connect()
+		err = c.Connect()
 
 		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
@@ -433,26 +448,41 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		// todo: retry the connection?
 	}()
 
-	d.clients[name] = r
-	return r, nil
+	d.clients[name] = c
+	return c, nil
 }
 
 // removeClient deletes a Client from the clients map.
-func (d *Driver) removeClient(deviceName string) {
+func (d *Driver) removeClient(deviceName string, force bool) {
 	d.clientsMapMu.Lock()
-	r, ok := d.clients[deviceName]
-	if ok {
-		go r.Close() // best effort
+	if c, ok := d.clients[deviceName]; ok {
+		delete(d.clients, deviceName)
+		go d.stopClient(c, force)
 	}
-	delete(d.clients, deviceName)
 	d.clientsMapMu.Unlock()
-	return
+}
+
+func (d *Driver) stopClient(c *llrp.Client, force bool) {
+	d.lc.Info("stopping", "client", c.Name)
+
+	if !force {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := c.Shutdown(ctx); !errors.Is(err, llrp.ErrClientClosed) {
+			d.lc.Error("error attempting to shutdown client", "error", err.Error())
+		} else {
+			return
+		}
+	}
+
+	if err := c.Close(); !errors.Is(err, llrp.ErrClientClosed) {
+		d.lc.Error("error attempting to close client", "error", err.Error())
+	}
 }
 
 // getAddr extracts an address from a protocol mapping.
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
-// todo: TLS options? retry/timeout options? LLRP version options?
 func getAddr(protocols protocolMap) (net.Addr, error) {
 	tcpInfo := protocols["tcp"]
 	if tcpInfo == nil {

@@ -133,9 +133,12 @@ func WithName(name string) ClientOpt {
 	})
 }
 
-// WithVersion sets the expected LLRP version number.
-// The actual version number used during communication is selected when connecting.
-// Currently, only version 1 is supported; others will panic.
+// WithVersion sets the max permitted LLRP version for this connection.
+//
+// The actual version used during communication
+// is selected upon connection using LLRP's version negotiation messages.
+// It is the higher of the value given here and that supported by the Reader.
+// Note that if the version is to 1.0.1, version negotiation is skipped.
 func WithVersion(v VersionNum) ClientOpt {
 	if v < versionMin || v > versionMax {
 		panic(errors.Errorf("unsupported version %v", v))
@@ -146,17 +149,24 @@ func WithVersion(v VersionNum) ClientOpt {
 	})
 }
 
-// WithTimeout sets the connection timeout for all reads and writes.
+// WithTimeout sets timeout on the connection before each read and write.
 //
 // If non-zero, the client will call SetReadDeadline and SetWriteDeadline
 // before reading or writing respectively.
 //
 // Note that if set, the connection will automatically close
-// if the RFID device fails to send a message within the timeout.
-// As a result, this is most useful when combined with LLRP KeepAlive,
+// if the RFID device fails to send a message within the timeout,
+// as no reads will have arrived before the deadline.
+// As a result, this is most useful when combined with LLRP KeepAlive
 // and set to an integer multiple of the KeepAlive interval plus a small grace.
 // In that case, the client will automatically close the connection
-// if it fails to receive KeepAlive messages from the RFID device.
+// if it fails to receive some multiple of KeepAlive messages from the RFID device.
+//
+// This package does not automatically request the Reader enable KeepAlives,
+// as their exact behavior within LLRP is technically implementation-defined
+// (in practice, Reader manufacturers will almost certainly use them as described).
+// Therefore, if you wish to enable KeepAlive messages,
+// you should send a SetReaderConfiguration message.
 func WithTimeout(d time.Duration) ClientOpt {
 	return clientOpt(func(c *Client) error {
 		if d < 0 {
@@ -175,37 +185,42 @@ func WithLogger(l ClientLogger) ClientOpt {
 	})
 }
 
+// MessageHandler can be implemented to handle certain messages received from the Reader.
+// See Client.WithHandler for more information.
 type MessageHandler interface {
-	handleMessage(c *Client, msg Message)
+	HandleMessage(c *Client, msg Message)
 }
 
+// MessageHandlerFunc can wrap a function so it can be used as a MessageHandler.
 type MessageHandlerFunc func(c *Client, msg Message)
 
-func (mhf MessageHandlerFunc) handleMessage(c *Client, msg Message) {
+// HandleMessage implements MessageHandler for MessageHandlerFunc by calling the function.
+func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 	mhf(c, msg)
 }
 
 // WithMessageHandler sets a handler which will be called
 // whenever a message of the given type arrives.
 //
+// Handlers run in the same goroutine as the read side of the connection,
+// blocking it until the handler completes.
+// The message's payload reader is only valid while in that thread of execution;
+// after the handler returns, any remaining unread payload is discarded.
+// It is guarded from panics, but you should avoid any long-running operations.
+// so if you want to start a goroutine to process the message,
+// you'll need to copy it to a buffer within the main body of the handler.
+//
 // Each message type has only a single handler,
-// so if you wish to support multiple behaviors for a single type,
+// so if you wish to support multiple behaviors for a single message type,
 // you'll need to copy and propagate the message to the other handlers.
 // Setting a handler for the same message more than once
 // will overwrite previously recorded handlers.
+// Setting it to nil will delete the handler for that type.
+// If a message doesn't have a Handler, it may be sent to a DefaultHandler,
+// if configured.
 //
-// Clients are created with a handler for KeepAlive (it sends KeepAliveAck).
+// Clients are created with a handler for KeepAlive (to send KeepAliveAck).
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
-//
-// If a the incoming message is a response with a listener awaiting the rely,
-// the message is copied to a buffer, sent to the response listener,
-// then dispatched to the handler.
-//
-// Currently, there isn't a way to remove a handler,
-// nor to add them after a Client is created,
-// though that may change in the future.
-//
-// Adding a nil handler clears it.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 	return clientOpt(func(c *Client) error {
 		if handler == nil {
@@ -217,13 +232,11 @@ func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 	})
 }
 
-// WithDefaultHandler sets a default handler for messages
-// that aren't handled by either an awaiting listener or another MessageHandler.
+// WithDefaultHandler sets a handler for messages that aren't handled by
+// either an awaiting listener or another MessageHandler.
 //
-// Only a single default handler is supported,
-// though it may propagate the message to other handlers if desired.
-//
-// It may be set to nil, in which case unhandled messages are simply dropped.
+// Only a single default handler is supported.
+// It may be set to nil, in which case unhandled non-reply messages are simply dropped.
 func WithDefaultHandler(handler MessageHandler) ClientOpt {
 	return clientOpt(func(c *Client) error {
 		c.defaultHandler = handler
@@ -247,7 +260,7 @@ var (
 //
 // This takes ownership of the connection,
 // which it assumes is already dialed.
-// It will serve the connection's incoming and outgoing messages
+// It blocks, serving the connection's incoming and outgoing messages
 // until it encounters an error or the Client is closed.
 // Before returning, it closes the connection.
 //
@@ -342,10 +355,79 @@ func (c *Client) Close() error {
 	}
 }
 
+// MaxBufferedPayloadSz is the maximum payload size permitted in responses.
+//
+// Although LLRP theoretically can handle message up to 4GiB,
+// in practice most messages are nowhere near this size.
+// One large manufacturer even states explicitly that
+// they'll simply close the connection if a message exceeds ~500KiB,
+// including outgoing tag reports.
+//
+// MessageHandlers aren't restricted to this limitation,
+// but as a result, require processing the message synchronously,
+// as the incoming message must be read in full (even if discarded)
+// before any other message can be read.
 const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 
-// SendMessage sends the given data, assuming it matches the type.
-// It returns the response data or an error.
+// SendFor sends an Outgoing message and expects the Incoming reply.
+//
+// If the Incoming message is an ErrorMessage it unmarshals it and returns that StatusError.
+//
+// Otherwise, it unmarshals the incoming message to Incoming.
+// If the Incoming message is Statusable (i.e., has an LLRPStatus),
+// and the LLRPStatus is not Success, this returns a StatusError.
+//
+// Even if this returns an error, Incoming may be fully or partially unmarshaled,
+// which may give context to the particular error.
+func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
+	outData, err := out.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	respT, respV, err := c.SendMessage(ctx, out.Type(), outData)
+	if err != nil {
+		return err
+	}
+
+	expT := in.Type()
+	switch respT {
+	case expT:
+	case MsgErrorMessage:
+		em := ErrorMessage{}
+		if err := em.UnmarshalBinary(respV); err != nil {
+			return errors.Wrapf(err,
+				"expected message response %v, but got an error message; "+
+					"however, it failed to unmarshal properly", expT)
+		}
+		return errors.Wrapf(em.LLRPStatus.Err(),
+			"expected message response %v, but got an error message", expT)
+	default:
+		return errors.Errorf("expected message response %v, but got %v", expT, respT)
+	}
+
+	if err := in.UnmarshalBinary(respV); err != nil {
+		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
+			respT, respV, in)
+	}
+
+	if st, ok := in.(Statusable); ok {
+		s := st.Status()
+		return s.Err()
+	}
+
+	return nil
+}
+
+// SendMessage sends an arbitrary payload with a header matching the given MessageType.
+// It returns awaits a response to the message, then buffers and returns it.
+//
+// This method can be called at any time, even before the Reader is connected,
+// though it will always return an error wrapping ErrClientClosed
+// if Closed is called before the message is sent.
+// If the message does not require a payload, you may pass an empty or nil data buffer.
+//
+// Also see SendFor, which makes it easier to send specific LLRP messages.
 func (c *Client) SendMessage(ctx context.Context, typ MessageType, data []byte) (MessageType, []byte, error) {
 	select {
 	case <-c.ready: // ensure the connection is negotiated
@@ -455,7 +537,7 @@ func (c *Client) handleIncoming() error {
 	for {
 		select {
 		case <-c.done:
-			return errors.Wrap(ErrClientClosed, "stopping incoming")
+			return ErrClientClosed
 		default:
 		}
 
@@ -471,7 +553,7 @@ func (c *Client) handleIncoming() error {
 
 			c.logger.Println("detected EOF/io.Timeout after CloseConnection; waiting for reader to close")
 			<-c.done
-			return errors.Wrap(ErrClientClosed, "client connection closed")
+			return ErrClientClosed
 		}
 
 		c.logger.Printf(">>> message{%v}", hdr)
@@ -481,17 +563,15 @@ func (c *Client) handleIncoming() error {
 		}
 
 		if hdr.version != c.version {
-			c.logger.Printf("warning: incoming message version mismatch (expected %v): %v", c.version, hdr)
+			c.logger.Printf("warning: incoming message version != %v: %v", c.version, hdr)
 		}
 
-		// Handle the payload.
 		err = c.passToHandler(hdr)
-		c.logger.Printf("handled %v", hdr)
 
 		switch err {
-		case nil, io.ErrClosedPipe:
+		case nil:
+			c.logger.Printf("handled %v", hdr)
 		case io.EOF:
-			// The connection may have closed.
 			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
 		default:
 			return errors.Wrap(err, "failed to process response")
@@ -611,26 +691,23 @@ func (c *Client) handleOutgoing() error {
 	}
 }
 
-// sendAck acknowledges a KeepAlive message with the given message ID.
+// ackHandler acknowledges KeepAlive messages.
 //
 // If the Client's connection is hung writing for some reason,
 // it's possible the acknowledgement queue fills up,
 // in which case it drops the ACK and logs the issue.
-func (c *Client) sendAck(mid messageID) {
+type ackHandler struct{}
+
+// HandleMessage handles KeepAlive messages using the ackHandler.
+func (ackHandler) HandleMessage(c *Client, msg Message) {
 	select {
-	case c.ackQueue <- mid:
+	case c.ackQueue <- msg.id:
 		c.logger.Println("KeepAlive received.")
 	default:
 		c.logger.Println("Discarding KeepAliveAck as queue is full. " +
 			"This may indicate the Client's write side is broken " +
 			"yet not timing out.")
 	}
-}
-
-type ackHandler struct{}
-
-func (ackHandler) handleMessage(c *Client, msg Message) {
-	c.sendAck(msg.id)
 }
 
 func (c *Client) passToHandler(hdr Header) error {
@@ -643,16 +720,24 @@ func (c *Client) passToHandler(hdr Header) error {
 	delete(c.awaiting, hdr.id)
 	c.awaitMu.Unlock()
 
+	if !needsReply && handler == nil && c.defaultHandler == nil {
+		_, err := io.CopyN(ioutil.Discard, c.conn, int64(hdr.payloadLen))
+		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
+	}
+
 	payload := io.LimitReader(c.conn, int64(hdr.payloadLen))
+	defer func() {
+		_, err := io.Copy(ioutil.Discard, payload)
+		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
+	}()
 
 	if needsReply {
-		// TODO: this is mostly tech-debt from an earlier implementation; needs some refactoring
 		if hdr.payloadLen > MaxBufferedPayloadSz {
 			replyChan <- Message{Header: hdr} // SendMessage will reject it
 		} else {
 			buffResponse := make([]byte, hdr.payloadLen)
 			if _, err := io.ReadFull(c.conn, buffResponse); err != nil {
-				return nil
+				return err
 			}
 
 			payload = bytes.NewBuffer(buffResponse)
@@ -661,11 +746,6 @@ func (c *Client) passToHandler(hdr Header) error {
 
 		close(replyChan)
 	}
-
-	defer func() {
-		_, err := io.Copy(ioutil.Discard, payload)
-		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
-	}()
 
 	if handler != nil {
 		c.handleGuarded(handler, Message{Header: hdr, payload: payload})
@@ -676,6 +756,7 @@ func (c *Client) passToHandler(hdr Header) error {
 	return nil
 }
 
+// handleGuarded recovers from panic'ing MessageHandlers.
 func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -689,14 +770,14 @@ func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
 		c.logger.Printf("passing %v to handler %T", msg, handler)
 	}
 
-	handler.handleMessage(c, msg)
+	handler.HandleMessage(c, msg)
 }
 
 // roHandler is a default handler implementation for ROAccessReports.
 // It just unmarshals and logs the report.
 type roHandler struct{}
 
-func (roHandler) handleMessage(c *Client, m Message) {
+func (roHandler) HandleMessage(c *Client, m Message) {
 	roar := &ROAccessReport{}
 	buff, err := m.data()
 	if err != nil {
@@ -790,21 +871,28 @@ func (c *Client) send(ctx context.Context, m Message) (Message, error) {
 	}
 }
 
+// checkInitialMessage reads the first message off the connection,
+//
+// which should be a ReaderEventNotification with a successful ConnectEvent.
+// If it isn't, this returns an error.
 func (c *Client) checkInitialMessage() error {
-	m, err := c.nextMessage()
+	hdr, err := c.readHeader()
 	if err != nil {
 		return err
 	}
-	defer m.Close()
 
-	c.logger.Printf(">>> (initial) %v", m)
-	if m.typ != MsgReaderEventNotification {
-		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, m.typ)
+	buf := make([]byte, hdr.payloadLen)
+	if _, err := io.ReadFull(c.conn, buf); err != nil {
+		return errors.Wrap(err, "failed to read message payload")
 	}
 
-	buf := make([]byte, m.payloadLen)
-	if _, err := io.ReadFull(m.payload, buf); err != nil {
-		return errors.Wrap(err, "failed to read message payload")
+	if h, ok := c.handlers[hdr.typ]; ok {
+		c.handleGuarded(h, Message{Header: hdr, payload: bytes.NewBuffer(buf)})
+	}
+
+	c.logger.Printf(">>> (initial) %v", Message{Header: hdr})
+	if hdr.typ != MsgReaderEventNotification {
+		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, hdr.typ)
 	}
 
 	ren := ReaderEventNotification{}
@@ -812,15 +900,11 @@ func (c *Client) checkInitialMessage() error {
 		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
 	}
 
-	if j, err := json.MarshalIndent(ren, "", "\t"); err == nil {
-		c.logger.Printf(">>> (initial) %s", j)
-	}
-
 	if ren.isConnectSuccess() {
 		return errors.Wrapf(err, "connection not successful: %+v", ren)
 	}
 
-	return m.Close()
+	return nil
 }
 
 // getSupportedVersion returns device's current and supported LLRP versions.

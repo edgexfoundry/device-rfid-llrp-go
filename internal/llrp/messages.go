@@ -9,7 +9,6 @@ package llrp
 
 import (
 	"bytes"
-	"context"
 	"encoding"
 	"encoding/binary"
 	"fmt"
@@ -338,7 +337,7 @@ func (m *Message) UnmarshalTo(v encoding.BinaryUnmarshaler) error {
 	return v.UnmarshalBinary(data)
 }
 
-type statusable interface {
+type Statusable interface {
 	Status() LLRPStatus
 }
 
@@ -350,47 +349,6 @@ type Incoming interface {
 type Outgoing interface {
 	encoding.BinaryMarshaler
 	Type() MessageType
-}
-
-func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
-	outData, err := out.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	respT, respV, err := c.SendMessage(ctx, out.Type(), outData)
-
-	if err != nil {
-		return err
-	}
-
-	expT := in.Type()
-	switch respT {
-	case expT:
-	case MsgErrorMessage:
-		em := ErrorMessage{}
-		if err := em.UnmarshalBinary(respV); err != nil {
-			return errors.Wrapf(err,
-				"expected message response %v, but got an error message; "+
-					"however, it failed to unmarshal properly", expT)
-		}
-		return errors.Wrapf(em.LLRPStatus.Err(),
-			"expected message response %v, but got an error message", expT)
-	default:
-		return errors.Errorf("expected message response %v, but got %v", expT, respT)
-	}
-
-	if err := in.UnmarshalBinary(respV); err != nil {
-		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
-			respT, respV, in)
-	}
-
-	if st, ok := in.(statusable); ok {
-		s := st.Status()
-		return s.Err()
-	}
-
-	return nil
 }
 
 // NewROSpec returns a valid, basic ROSpec parameter.
@@ -421,6 +379,8 @@ func NewROSpec() *ROSpec {
 	}
 }
 
+// SetPeriodic configures an ROSpec to send tag reports at least within the period interval.
+// If the ROSpec doesn't have a ReportSpec, it adds one with PeakRSSI enabled.
 func (ros *ROSpec) SetPeriodic(period time.Duration) {
 	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
 		Trigger:              ROStopTriggerDuration,
