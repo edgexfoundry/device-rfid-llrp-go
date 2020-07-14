@@ -63,14 +63,8 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
 
-	go func() {
-		// hack: sleep to allow edgex time to finish loading cache and clients
-		time.Sleep(5 * time.Second)
-
-		d.addProvisionWatcher()
-		// todo: check configuration to make sure discovery is enabled
-		d.Discover()
-	}()
+	// removed device discovery for now
+	// it doesn't work properly with Docker, and uses way too much CPU
 	return nil
 }
 

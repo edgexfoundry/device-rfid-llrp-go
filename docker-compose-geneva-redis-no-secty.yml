@@ -110,8 +110,6 @@ services:
       - "127.0.0.1:48090:48090"
     container_name: edgex-sys-mgmt-agent
     hostname: edgex-sys-mgmt-agent
-    extra_hosts:
-      - "edgex-device-llrp:172.17.0.1"
     networks:
       - edgex-network
     environment:
@@ -152,8 +150,6 @@ services:
       - "127.0.0.1:48081:48081"
     container_name: edgex-core-metadata
     hostname: edgex-core-metadata
-    extra_hosts:
-      - "edgex-device-llrp:172.17.0.1"
     networks:
       - edgex-network
     environment:
@@ -190,8 +186,6 @@ services:
       - "127.0.0.1:48082:48082"
     container_name: edgex-core-command
     hostname: edgex-core-command
-    extra_hosts:
-      - "edgex-device-llrp:172.17.0.1"
     networks:
       - edgex-network
     environment:
