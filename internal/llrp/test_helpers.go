@@ -9,9 +9,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -28,12 +26,7 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 		t.Fatal(err)
 	}
 
-	opts := []ClientOpt{
-		WithConn(conn),
-		WithTimeout(300 * time.Second),
-	}
-
-	if r, err = NewClient(opts...); err != nil {
+	if r, err = NewClient(conn, WithTimeout(300*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -84,13 +77,12 @@ type TestDevice struct {
 func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration) (*TestDevice, error) {
 	cConn, rConn := net.Pipe()
 
-	c, err := NewClient(WithConn(cConn), WithVersion(maxClientVer), WithTimeout(timeout))
+	c, err := NewClient(cConn, WithVersion(maxClientVer), WithTimeout(timeout))
 	if err != nil {
 		return nil, err
 	}
 
-	reader, err := NewClient(WithConn(rConn), WithVersion(Version1_0_1),
-		WithLogger(log.New(os.Stderr, "TestRFID-", log.LstdFlags)))
+	reader, err := NewClient(rConn, WithVersion(Version1_0_1), WithName("Test"))
 	if err != nil {
 		return nil, err
 	}

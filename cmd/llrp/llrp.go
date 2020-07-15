@@ -221,17 +221,12 @@ func stop(ctx context.Context, c *llrp.Client, spec *llrp.ROSpec) error {
 }
 
 func getClient(rconn net.Conn) (*llrp.Client, error) {
-	logger := log.New()
-	logger.SetLevel(log.PanicLevel)
-
 	opts := []llrp.ClientOpt{
-		llrp.WithConn(rconn),
-		llrp.WithLogger(logger),
 		llrp.WithTimeout(3600 * time.Second),
 		llrp.WithMessageHandler(llrp.MsgROAccessReport, llrp.MessageHandlerFunc(handleROAR)),
 	}
 
-	return llrp.NewClient(opts...)
+	return llrp.NewClient(rconn, opts...)
 }
 
 func getSpec() (*llrp.ROSpec, error) {

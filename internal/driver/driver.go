@@ -59,12 +59,25 @@ func (d *Driver) service() ServiceWrapper {
 // Initialize performs protocol-specific initialization for the device
 // service.
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
-	d.lc = lc
+	if lc == nil {
+		// prevent panics from this annoyance
+		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc.Error("EdgeX initialized us with a nil logger >:(")
+	} else {
+		d.lc = lc
+	}
+
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
 
-	// removed device discovery for now
-	// it doesn't work properly with Docker, and uses way too much CPU
+	go func() {
+		// hack: sleep to allow edgex time to finish loading cache and clients
+		time.Sleep(5 * time.Second)
+
+		d.addProvisionWatcher()
+		// todo: check configuration to make sure discovery is enabled
+		d.Discover()
+	}()
 	return nil
 }
 
@@ -196,10 +209,10 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	var llrpReq llrp.Outgoing
-	var llrpResp llrp.Incoming
-
-	var reqData []byte // for arbitrary JSON data structures to unmarshal
+	var llrpReq llrp.Outgoing  // the message to send
+	var llrpResp llrp.Incoming // the expected response
+	var reqData []byte         // incoming JSON request data, if present
+	var dataTarget interface{} // used if the reqData in a subfield of the llrpReq
 
 	switch reqs[0].DeviceResourceName {
 	case ResourceReaderConfig:
@@ -218,7 +231,10 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		}
 
 		reqData = []byte(data)
-		llrpReq = &llrp.AddROSpec{}
+
+		addSpec := llrp.AddROSpec{}
+		dataTarget = &addSpec.ROSpec // the incoming data is an ROSpec, not AddROSpec
+		llrpReq = &addSpec           // but we want to send AddROSpec, not just ROSpec
 		llrpResp = &llrp.AddROSpecResponse{}
 	case ResourceROSpecID:
 		if len(params) != 2 {
@@ -283,8 +299,14 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	}
 
 	if reqData != nil {
-		if err := json.Unmarshal(reqData, llrpReq); err != nil {
-			return err
+		if dataTarget != nil {
+			if err := json.Unmarshal(reqData, dataTarget); err != nil {
+				return errors.Wrap(err, "failed to unmarshal request")
+			}
+		} else {
+			if err := json.Unmarshal(reqData, llrpReq); err != nil {
+				return errors.Wrap(err, "failed to unmarshal request")
+			}
 		}
 	}
 
@@ -296,7 +318,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	go func(resName, devName string, resp llrp.Incoming) {
 		respData, err := json.Marshal(resp)
 		if err != nil {
-			d.lc.Error("failed to marshal response to %q: %v", resName, err)
+			d.lc.Error("failed to marshal response", "message", resName, "error", err)
 			return
 		}
 
@@ -316,9 +338,11 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 // readings (if supported).
 func (d *Driver) Stop(force bool) error {
 	// Then Logging Client might not be initialized
-	if d.lc != nil {
-		d.lc.Debug("LLRP-Driver.Stop called", "force", force)
+	if d.lc == nil {
+		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc.Error("EdgeX called Stop without calling Initialize >:(")
 	}
+	d.lc.Debug("LLRP-Driver.Stop called", "force", force)
 
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
@@ -389,13 +413,13 @@ func (d *Driver) handleAsyncMessages(c *llrp.Client, msg llrp.Message) {
 	}
 
 	if err := msg.UnmarshalTo(event); err != nil {
-		d.lc.Error(err.Error())
+		d.lc.Error("failed to unmarshal async event from LLRP", "error", err.Error())
 		return
 	}
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		d.lc.Error(err.Error())
+		d.lc.Error("failed to marshal async event to JSON", "error", err.Error())
 		return
 	}
 
@@ -444,8 +468,9 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 
 	toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
 
-	c, err = llrp.NewClient(
-		llrp.WithConn(conn), llrp.WithName(name),
+	c, err = llrp.NewClient(conn,
+		llrp.WithName(name),
+		llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
 		llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
 		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
 	)
@@ -481,22 +506,18 @@ func (d *Driver) removeClient(deviceName string, force bool) {
 }
 
 func (d *Driver) stopClient(c *llrp.Client, force bool) {
-	if d.lc != nil {
-		d.lc.Info("stopping", "client", c.Name)
-	}
-
 	if !force {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		if err := c.Shutdown(ctx); err == nil || errors.Is(err, llrp.ErrClientClosed) {
+		err := c.Shutdown(ctx)
+		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
-		} else if d.lc != nil {
-			d.lc.Error("error attempting to shutdown client", "error", err.Error())
 		}
+		d.lc.Error("error attempting graceful client shutdown", "error", err.Error())
 	}
 
 	if err := c.Close(); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
-		d.lc.Error("error attempting to shutdown client", "error", err.Error())
+		d.lc.Error("error attempting forceful client shutdown", "error", err.Error())
 	}
 }
 

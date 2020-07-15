@@ -28,9 +28,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	goErrs "errors"
-	"fmt"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
@@ -66,13 +64,19 @@ const (
 )
 
 // NewClient returns a Client configured by the given options.
-func NewClient(opts ...ClientOpt) (*Client, error) {
+//
+// Without options, a Client gets a default logger prefixed with its Conn address,
+// does not set deadlines on the connection,
+// uses the package's max LLRP version to negotiate connections,
+// and sends ACKs to KeepAlive messages from the reader.
+func NewClient(conn net.Conn, opts ...ClientOpt) (*Client, error) {
 	// ackQueueSz is arbitrary, but if it fills,
 	// warnings are logged, as it likely indicates a Write problem.
 	// At some point, we might consider resetting the connection.
 	const ackQueueSz = 5
 
-	r := &Client{
+	c := &Client{
+		conn:      conn,
 		version:   versionMax,
 		done:      make(chan struct{}),
 		ready:     make(chan struct{}),
@@ -80,30 +84,31 @@ func NewClient(opts ...ClientOpt) (*Client, error) {
 		ackQueue:  make(chan messageID, ackQueueSz),
 		awaiting:  make(awaitMap),
 		handlers: map[MessageType]MessageHandler{
-			MsgKeepAlive:      ackHandler{},
-			MsgROAccessReport: roHandler{},
+			MsgKeepAlive: ackHandler{},
 		},
 	}
 
 	for _, opt := range opts {
-		if err := opt.do(r); err != nil {
+		if err := opt.do(c); err != nil {
 			return nil, err
 		}
 	}
 
-	if r.conn == nil {
+	if c.conn == nil {
 		return nil, errors.New("Client has no connection")
 	}
 
-	if r.version < versionMin || r.version > versionMax {
-		return nil, errors.Errorf("unsupported version: %v", r.version)
+	if c.version < versionMin || c.version > versionMax {
+		return nil, errors.Errorf("unsupported version: %v", c.version)
 	}
 
-	if r.logger == nil {
-		r.logger = log.New(os.Stderr, "LLRP-"+r.conn.RemoteAddr().String()+"-", log.LstdFlags)
+	// If the user doesn't set a logger, create a default one.
+	// If they set it to nil, use devNullLog so we have a valid pointer, but no output.
+	if c.logger == nil {
+		_ = c.useStdLogger()
 	}
 
-	return r, nil
+	return c, nil
 }
 
 // ClientOpt modifies a Client during construction.
@@ -115,14 +120,6 @@ type clientOpt func(c *Client) error
 
 func (ro clientOpt) do(c *Client) error {
 	return ro(c)
-}
-
-// WithConn sets the Client's connection.
-func WithConn(conn net.Conn) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		c.conn = conn
-		return nil
-	})
 }
 
 // WithName sets the Client's name.
@@ -177,8 +174,36 @@ func WithTimeout(d time.Duration) ClientOpt {
 	})
 }
 
+// ClientLogger is used by the Client to notify the user of certain events.
+// By default, new Clients log these message with the StdLogger,
+// but that can be changed via WithLogger.
+type ClientLogger interface {
+	ReceivedMsg(Header, VersionNum) // called with the client's current version when it receives a message
+	SendingMsg(Header)              // called just before writing a message to the connection
+	MsgHandled(Header)              // called after a message is sent to a handler or awaiting reply listener
+	MsgUnhandled(Header)            // called if a message is discarded because it had no handler or listener
+	HandlerPanic(Header, error)     // called if a handler panics while handling a message
+}
+
+// WithStdLogger uses the Go stdlib Logger for Client events.
+//
+// This logger is used by default if the WithLogger option is not given,
+// but if needed, this can be used to override an earlier WithLogger option
+// (e.g., using a standard list of ClientOpts and overriding some elsewhere).
+func WithStdLogger() ClientOpt {
+	return clientOpt((*Client).useStdLogger)
+}
+
 // WithLogger sets a logger for the Client.
+//
+// By default, new clients get a simple logger that outputs messages
+// prefixed with the client's name or address and a timestamp.
+// If you don't want any log output, set this to nil.
 func WithLogger(l ClientLogger) ClientOpt {
+	if l == nil {
+		l = devNullLog // this way we'll always have a valid pointer
+	}
+
 	return clientOpt(func(c *Client) error {
 		c.logger = l
 		return nil
@@ -223,6 +248,10 @@ func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 	return clientOpt(func(c *Client) error {
+		if !mt.isValid() {
+			return errors.Errorf("invalid message type for handler: %v", mt)
+		}
+
 		if handler == nil {
 			delete(c.handlers, mt)
 		} else {
@@ -244,10 +273,58 @@ func WithDefaultHandler(handler MessageHandler) ClientOpt {
 	})
 }
 
-// ClientLogger is used by the Client to log certain status messages.
-type ClientLogger interface {
-	Println(v ...interface{})
-	Printf(fmt string, v ...interface{})
+// devNullLogger implements the ClientLogger interface, but discards everything.
+type devNullLogger struct{}
+
+// devNullLog is a single package instance of the devNullLogger.
+// If the user sets the Client's logger to nil, we change it to devNullLogger.
+// It's also used by tests when Verbose is false.
+var devNullLog devNullLogger
+
+func (devNullLogger) ReceivedMsg(Header, VersionNum) {}
+func (devNullLogger) SendingMsg(Header)              {}
+func (devNullLogger) MsgHandled(Header)              {}
+func (devNullLogger) MsgUnhandled(Header)            {}
+func (devNullLogger) HandlerPanic(Header, error)     {}
+
+// StdLogger wraps the Go stdlib Logger.
+type StdLogger struct {
+	*log.Logger
+	c *Client
+}
+
+func (c *Client) useStdLogger() error {
+	l := &StdLogger{}
+	if c.Name == "" {
+		l.Logger = log.New(os.Stderr, "LLRP-"+c.conn.RemoteAddr().String()+"-", log.LstdFlags)
+	} else {
+		l.Logger = log.New(os.Stderr, "LLRP-"+c.Name+"-", log.LstdFlags)
+	}
+	c.logger = l
+	return nil
+}
+
+func (l *StdLogger) SendingMsg(hdr Header) {
+	l.Printf("<<< message{%v}", hdr)
+}
+
+func (l *StdLogger) ReceivedMsg(hdr Header, curVer VersionNum) {
+	l.Printf(">>> message{%v}", hdr)
+	if curVer != hdr.version {
+		l.Printf("warning: incoming message version != %v: %v", curVer, hdr)
+	}
+}
+
+func (l *StdLogger) MsgHandled(hdr Header) {
+	l.Printf("handled message{%v}", hdr)
+}
+
+func (l *StdLogger) MsgUnhandled(hdr Header) {
+	l.Printf("no handler for message{%v}", hdr)
+}
+
+func (l *StdLogger) HandlerPanic(hdr Header, err error) {
+	l.Printf("error: recovered from panic while handling message{%v}: %v", hdr, err)
 }
 
 var (
@@ -311,13 +388,10 @@ func (c *Client) Connect() error {
 //         }
 //     }
 func (c *Client) Shutdown(ctx context.Context) error {
-	c.logger.Println("putting CloseConnection in send queue")
 	rTyp, resp, err := c.SendMessage(ctx, MsgCloseConnection, nil)
 	if err != nil {
 		return err
 	}
-
-	c.logger.Println("handling response to CloseConnection")
 
 	ls := LLRPStatus{}
 	switch rTyp {
@@ -504,19 +578,6 @@ func (c *Client) readHeader() (mh Header, err error) {
 	return
 }
 
-// nextMessage is a convenience method to get a message
-// with the payload pointing to the client's connection.
-// It should only be used by internal callers,
-// as the current message must be read before continuing.
-func (c *Client) nextMessage() (Message, error) {
-	hdr, err := c.readHeader()
-	if err != nil {
-		return Message{}, err
-	}
-	p := io.LimitReader(c.conn, int64(hdr.payloadLen))
-	return Message{Header: hdr, payload: p}, nil
-}
-
 // handleIncoming handles the read side of the connection.
 //
 // If it encounters an error, it stops and returns it.
@@ -551,26 +612,21 @@ func (c *Client) handleIncoming() error {
 				return errors.Wrap(err, "timeout")
 			}
 
-			c.logger.Println("detected EOF/io.Timeout after CloseConnection; waiting for reader to close")
+			// EOF/io.Timeout after CloseConnection should wait for reader to close
 			<-c.done
 			return ErrClientClosed
 		}
 
-		c.logger.Printf(">>> message{%v}", hdr)
+		c.logger.ReceivedMsg(hdr, c.version)
 
 		if hdr.typ == MsgCloseConnectionResponse {
 			receivedClosed = true
-		}
-
-		if hdr.version != c.version {
-			c.logger.Printf("warning: incoming message version != %v: %v", c.version, hdr)
 		}
 
 		err = c.passToHandler(hdr)
 
 		switch err {
 		case nil:
-			c.logger.Printf("handled %v", hdr)
 		case io.EOF:
 			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
 		default:
@@ -663,17 +719,15 @@ func (c *Client) handleOutgoing() error {
 			}
 		}
 
-		c.logger.Printf("<<< %v", msg)
+		c.logger.SendingMsg(msg.Header)
 		if err := c.writeHeader(msg.Header); err != nil {
 			return err
 		}
 
 		// stop processing messages
 		if msg.typ == MsgCloseConnection {
-			c.logger.Println("CloseConnection sent; waiting for reader to close.")
-			select {
-			case <-c.done:
-			}
+			// after CloseConnection, wait for reader to close
+			<-c.done
 			return errors.Wrap(ErrClientClosed, "client closed connection")
 		}
 
@@ -702,17 +756,12 @@ type ackHandler struct{}
 func (ackHandler) HandleMessage(c *Client, msg Message) {
 	select {
 	case c.ackQueue <- msg.id:
-		c.logger.Println("KeepAlive received.")
 	default:
-		c.logger.Println("Discarding KeepAliveAck as queue is full. " +
-			"This may indicate the Client's write side is broken " +
-			"yet not timing out.")
+		panic("KeepAliveAck as queue is full!") // panic will be caught
 	}
 }
 
-func (c *Client) passToHandler(hdr Header) error {
-	c.logger.Printf("finding handler for mID %d: %v", hdr.id, hdr.typ)
-
+func (c *Client) passToHandler(hdr Header) (err error) {
 	handler := c.handlers[hdr.typ]
 
 	c.awaitMu.Lock()
@@ -721,13 +770,15 @@ func (c *Client) passToHandler(hdr Header) error {
 	c.awaitMu.Unlock()
 
 	if !needsReply && handler == nil && c.defaultHandler == nil {
-		_, err := io.CopyN(ioutil.Discard, c.conn, int64(hdr.payloadLen))
+		c.logger.MsgUnhandled(hdr)
+		_, err = io.CopyN(ioutil.Discard, c.conn, int64(hdr.payloadLen))
 		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
 	}
 
 	payload := io.LimitReader(c.conn, int64(hdr.payloadLen))
 	defer func() {
-		_, err := io.Copy(ioutil.Discard, payload)
+		c.logger.MsgHandled(hdr)
+		_, err = io.Copy(ioutil.Discard, payload)
 		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
 	}()
 
@@ -736,7 +787,7 @@ func (c *Client) passToHandler(hdr Header) error {
 			replyChan <- Message{Header: hdr} // SendMessage will reject it
 		} else {
 			buffResponse := make([]byte, hdr.payloadLen)
-			if _, err := io.ReadFull(c.conn, buffResponse); err != nil {
+			if _, err = io.ReadFull(c.conn, buffResponse); err != nil {
 				return err
 			}
 
@@ -759,44 +810,19 @@ func (c *Client) passToHandler(hdr Header) error {
 // handleGuarded recovers from panic'ing MessageHandlers.
 func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
 	defer func() {
-		if r := recover(); r != nil {
-			c.logger.Printf("error: recovered from panic while after calling handler for %v: %v", msg, r)
+		r := recover()
+		if r == nil {
+			return
+		}
+
+		if err, ok := r.(error); ok {
+			c.logger.HandlerPanic(msg.Header, err)
+		} else {
+			c.logger.HandlerPanic(msg.Header, errors.Errorf("handler panic: %v", r))
 		}
 	}()
 
-	if s, ok := handler.(fmt.Stringer); ok {
-		c.logger.Printf("passing %v to handler %s", msg, s)
-	} else {
-		c.logger.Printf("passing %v to handler %T", msg, handler)
-	}
-
 	handler.HandleMessage(c, msg)
-}
-
-// roHandler is a default handler implementation for ROAccessReports.
-// It just unmarshals and logs the report.
-type roHandler struct{}
-
-func (roHandler) HandleMessage(c *Client, m Message) {
-	roar := &ROAccessReport{}
-	buff, err := m.data()
-	if err != nil {
-		c.logger.Printf("error: %+v\n%# 02x", err, buff)
-		return
-	}
-
-	if err := roar.UnmarshalBinary(buff); err != nil {
-		c.logger.Printf("error: %+v\n%# 02x", err, buff)
-		return
-	}
-
-	j, err := json.MarshalIndent(roar, "", "\t")
-	if err != nil {
-		c.logger.Printf("error: %+v\n%s", err, j)
-		return
-	}
-
-	c.logger.Printf("%s", j)
 }
 
 // request is sent to the write coordinator to start a new request.
@@ -890,7 +916,7 @@ func (c *Client) checkInitialMessage() error {
 		c.handleGuarded(h, Message{Header: hdr, payload: bytes.NewBuffer(buf)})
 	}
 
-	c.logger.Printf(">>> (initial) %v", Message{Header: hdr})
+	c.logger.ReceivedMsg(hdr, c.version)
 	if hdr.typ != MsgReaderEventNotification {
 		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, hdr.typ)
 	}
@@ -985,14 +1011,12 @@ func (c *Client) negotiate() error {
 	}
 
 	if sv.CurrentVersion == c.version {
-		c.logger.Printf("device version matches Client: %v", c.version)
 		return nil
 	}
 
 	ver := c.version
 	if c.version > sv.MaxSupportedVersion {
 		ver = sv.MaxSupportedVersion
-		c.logger.Printf("downgrading Client version to match device max: %v", ver)
 		c.version = ver
 
 		// if the device is already using this, no need to set it
@@ -1000,8 +1024,6 @@ func (c *Client) negotiate() error {
 			return nil
 		}
 	}
-
-	c.logger.Printf("requesting device use version %v", ver)
 
 	m, err := NewByteMessage(MsgSetProtocolVersion, []byte{uint8(c.version)})
 	if err != nil {

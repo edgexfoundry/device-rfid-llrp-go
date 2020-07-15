@@ -79,7 +79,7 @@ func collectData() error {
 		return err
 	}
 
-	r, err := NewClient(WithConn(conn))
+	r, err := NewClient(conn)
 	if err != nil {
 		return err
 	}
@@ -225,7 +225,7 @@ func benchmarkSend(b *testing.B) {
 		return
 	}
 
-	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(conn, WithVersion(Version1_1), WithLogger(nil))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -286,7 +286,7 @@ func benchmarkConnect(b *testing.B) {
 		return
 	}
 
-	r, err := NewClient(WithConn(conn), WithVersion(Version1_1), WithLogger(devNullLog{}))
+	r, err := NewClient(conn, WithVersion(Version1_1), WithLogger(nil))
 	if err != nil {
 		b.Fatal(err)
 	}
