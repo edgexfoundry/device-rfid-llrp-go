@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
+	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/retry"
 	"io/ioutil"
 	"net"
 	"sync"
@@ -445,50 +446,93 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		return c, nil
 	}
 
-	// Probably need other info too, like the device.
 	addr, err := getAddr(p)
 	if err != nil {
 		return nil, err
 	}
+}
 
+func (d *Driver) createClient(name string, addr net.Addr) (*llrp.Client, error) {
 	// It's important it holds the lock while creating a new Client.
+	// If two requests arrive at about the same time and target the same device,
+	// one will block waiting for the lock and the other will create and add a Client.
+	// If both requests created a new Client,
+	// at most only one would succeed in connecting,
+	// so we want to only create one Client, add it to the map,
+	// and return that Client to all callers requesting it.
+	// However,
+	// After adding the Client, it unlocks, then attempts to connect
+	// (really the connect can happen before unlock, since it happens in a goroutine).
+	// Once it unlocks, the other request gains the lock and must recheck the map.
+	// It will retrieve the freshly created Client, and thus return it.
+	// Both requests will attempt their Send,
+	// which will block until the Client connects (or fails to do so),
+	// or until they cancel their Send attempt (e.g., timing out).
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
-
-	// Check if something else created the Client before we got the lock.
-	c, ok = d.clients[name]
+	c, ok := d.clients[name]
 	if ok {
 		return c, nil
 	}
 
-	conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
-	if err != nil {
-		return nil, err
+	// At this point, a single request is creating the Client,
+	// though others may be blocked waiting to check the clients map.
+	// The goal is to create a Client quickly put it in the map, and return it.
+	// After returning (read: in a new goroutine), we manage its connection.
+	// In the meantime, multiple callers needing a connection to the same reader
+	// will get back a valid Client on which they can Send methods,
+	// though those Send methods will block until either the Client is connected
+	// or the connection fails (in which case they'll correctly see the failure).
+	// Requests for other Client connections will be blocked for a short time
+	// while the
+
+	tryDial := func() (*llrp.Client, error) {
+		conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
+		if err != nil {
+			return nil, err
+		}
+
+		toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
+
+		return llrp.NewClient(conn,
+			llrp.WithName(name),
+			llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
+			llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
+			llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
+		)
 	}
 
-	toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
-
-	c, err = llrp.NewClient(conn,
-		llrp.WithName(name),
-		llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
-		llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
-		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
-	)
-
+	c, err = tryDial()
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
+		var c *llrp.Client
+		err := retry.Slow.RetrySome(retry.Forever, func() (recoverable bool, err error) {
+			c, err = tryDial()
+			neterr, ok := err.(net.Error)
+			recoverable = ok && neterr.Temporary()
+			return
+		})
+
+		if err != nil {
+		}
+
 		// blocks until the Client is closed
 		err = c.Connect()
-
+		d.removeClient(c.Name, false)
 		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
 		}
 
 		d.lc.Error(err.Error())
-		// todo: retry the connection?
+
+		// client closed without call to Close or Shutdown;
+		// try to reconnect
+		retry.Slow.RetrySome(retry.Forever, func() (recoverable bool, err error) {
+			if
+		})
 	}()
 
 	d.clients[name] = c
@@ -498,11 +542,12 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 // removeClient deletes a Client from the clients map.
 func (d *Driver) removeClient(deviceName string, force bool) {
 	d.clientsMapMu.Lock()
+	defer d.clientsMapMu.Unlock()
+
 	if c, ok := d.clients[deviceName]; ok {
 		delete(d.clients, deviceName)
 		go d.stopClient(c, force)
 	}
-	d.clientsMapMu.Unlock()
 }
 
 func (d *Driver) stopClient(c *llrp.Client, force bool) {

@@ -328,7 +328,8 @@ func (l *StdLogger) HandlerPanic(hdr Header, err error) {
 }
 
 var (
-	// ErrClientClosed is returned if an operation is attempted on a closed Client.
+	// ErrClientClosed is returned if an operation is attempted on a closed Client,
+	// indicating that Shutdown or Close was called.
 	// It may be wrapped, so to check for it, use errors.Is.
 	ErrClientClosed = goErrs.New("client closed")
 )
@@ -926,11 +927,24 @@ func (c *Client) checkInitialMessage() error {
 		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
 	}
 
-	if ren.isConnectSuccess() {
-		return errors.Wrapf(err, "connection not successful: %+v", ren)
+	connAttempt := ren.ReaderEventNotificationData.ConnectionAttemptEvent
+	if connAttempt == nil {
+		return errors.Errorf("initial reader event did not include connection attempt: %v", ren)
 	}
 
-	return nil
+	switch ConnectionAttemptEventType(*connAttempt) {
+	case ConnSuccess:
+		return nil
+	case ConnExistsClientInitiated, ConnExistsReaderInitiated:
+		return errors.New("reader is already connected to another client")
+	case ConnAttemptedAgain:
+		// This status should never occur as the first message.
+		// If another Client is connected already,
+		// that Client should see this event, not us.
+		return errors.New("reader indicates we're already connected")
+	}
+
+	return errors.New("connection failed for unknown reasons")
 }
 
 // getSupportedVersion returns device's current and supported LLRP versions.
