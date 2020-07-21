@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# example - sends an ROSpec, enables it, waits a bit, prints tag reads, disables/deletes the RO.
+# example.sh - sends an ROSpec, enables it,
+#   waits a bit, prints tag reads, disables/deletes the RO.
 #
-# This script is very simple and basically no error checking.
+# This script is very simple and has basically no error checking.
 # Use at your own risk.
 #
 # This script assumes you have the following tools available:
@@ -13,7 +14,7 @@ HOST=localhost
 DATA_PORT=48080
 META_PORT=48081
 CMDS_PORT=48082
-ROSPEC_LOCATION="./internal/llrp/testdata/ROSpec.json"
+ROSPEC_LOCATION="ROSpec.json"
 
 set -euo pipefail
 IFS=$'\n\t'
