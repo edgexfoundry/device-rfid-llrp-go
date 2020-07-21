@@ -1,7 +1,7 @@
 package driver
 
 import (
-	"github.com/iomz/go-llrp"
+	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"log"
 	"net"
 	"strconv"
@@ -27,7 +27,32 @@ func emuServer(port int) {
 	}
 
 	// Send back READER_EVENT_NOTIFICATION
+
+	// header
+	hdr := llrp.NewHdrOnlyMsg(llrp.MsgReaderEventNotification)
+	bytes, err := hdr.MarshalBinary()
+	_, err = conn.Write(bytes)
+	if err != nil {
+		log.Fatalf("error writing bytes: %s", err.Error())
+	}
+
+	// message data
 	currentTime := uint64(time.Now().UTC().Nanosecond() / 1000)
-	conn.Write(llrp.ReaderEventNotification(1, currentTime))
+	var success llrp.ConnectionAttemptEvent
+	success = 0
+	renData := llrp.ReaderEventNotificationData{
+		UTCTimestamp:           llrp.UTCTimestamp(currentTime),
+		ConnectionAttemptEvent: &success,
+	}
+
+	bytes, err = renData.MarshalBinary()
+	if err != nil {
+		log.Fatalf("error marshalling binary: %s", err.Error())
+	}
+
+	_, err = conn.Write(bytes)
+	if err != nil {
+		log.Fatalf("error writing bytes: %s", err.Error())
+	}
 
 }
