@@ -104,6 +104,7 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 		v = &CloseConnectionResponse{}
 	case MsgROAccessReport.String():
 		v = &ROAccessReport{}
+		// note no default needed: the first couple lines of the test check for `nil`.
 	}
 
 	// This tests the following two conversions using data captured from a reader:

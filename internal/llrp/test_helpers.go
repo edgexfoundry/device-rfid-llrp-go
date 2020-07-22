@@ -26,6 +26,14 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 		t.Fatal(err)
 	}
 
+	opts := []ClientOpt{WithTimeout(300 * time.Second)}
+	if testing.Short() {
+		opts[0] = WithTimeout(10 * time.Second)
+	}
+	if testing.Verbose() {
+		opts = append(opts, WithStdLogger())
+	}
+
 	if r, err = NewClient(conn, WithTimeout(300*time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -61,6 +69,10 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 	return r
 }
 
+// TestDevice is a useful mock of an LLRP device.
+//
+// Create one view NewTestDevice,
+// then start it with ImpersonateReader,
 type TestDevice struct {
 	Client, reader *Client
 
@@ -74,6 +86,7 @@ type TestDevice struct {
 	errors []error
 }
 
+// NewTestDevice returns a TestDevice with a client ready to connect.
 func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration) (*TestDevice, error) {
 	cConn, rConn := net.Pipe()
 
@@ -121,6 +134,9 @@ func (td *TestDevice) Version() VersionNum {
 	return td.w.header.version
 }
 
+// errCheck appends non-nil errors to its errors list and returns true.
+// If err is nil, it simply returns false.
+// It is safe for concurrent use.
 func (td *TestDevice) errCheck(err error) bool {
 	if err != nil {
 		td.errsMu.Lock()
@@ -130,6 +146,10 @@ func (td *TestDevice) errCheck(err error) bool {
 	return err != nil
 }
 
+// wrongVersion checks if a message has a version different from the TestDevice.
+// If so, it writes an LLRPStatus with the correct error and returns true.
+// Otherwise, it returns false.
+// Use it to quickly check the input and bail on any mismatched versions.
 func (td *TestDevice) wrongVersion(msg Message) bool {
 	if td.Version() == msg.version {
 		return false
@@ -142,6 +162,7 @@ func (td *TestDevice) wrongVersion(msg Message) bool {
 	return true
 }
 
+// getSupportedVersion responds to the GetSupportedVersion message.
 func (td *TestDevice) getSupportedVersion(_ *Client, msg Message) {
 	if td.wrongVersion(msg) {
 		return
@@ -160,6 +181,7 @@ func (td *TestDevice) getSupportedVersion(_ *Client, msg Message) {
 	_ = td.errCheck(td.w.Write(msg.id, rsp))
 }
 
+// setVersion responds to the SetProtocolVersion message.
 func (td *TestDevice) setVersion(_ *Client, msg Message) {
 	if td.Version() == Version1_0_1 {
 		_ = td.wrongVersion(msg)
@@ -194,10 +216,12 @@ func (td *TestDevice) setVersion(_ *Client, msg Message) {
 	td.write(msg.id, &SetProtocolVersionResponse{})
 }
 
+// write a given Outgoing message with the given id.
 func (td *TestDevice) write(mid messageID, out Outgoing) {
 	_ = td.errCheck(td.w.Write(mid, out))
 }
 
+// handleUnknownMessage responds with the correct LLRPStatus for unknown messages.
 func (td *TestDevice) handleUnknownMessage(_ *Client, msg Message) {
 	if td.wrongVersion(msg) {
 		return
@@ -209,15 +233,21 @@ func (td *TestDevice) handleUnknownMessage(_ *Client, msg Message) {
 	}})
 }
 
+// ImpersonateReader prepares the TestDevice to impersonate an LLRP reader,
+// as if a Client had correctly dialed it, but before version negotiation begins.
 func (td *TestDevice) ImpersonateReader() {
 	td.write(td.mid, NewConnectMessage(ConnSuccess))
 	td.mid++
 	close(td.reader.ready)
+	// This is notably simpler than actually correctly managing the message queues.
+	// All outgoing messages must be sent via the TestDevice's writer,
+	// which IS NOT safe for concurrent use.
 	td.errCheck(td.reader.handleIncoming())
 }
 
 // Close the Reader (RFID device) by attempting to send CloseMessage,
 // then close net.Conn, returning any error from it.
+// This is an abnormal close condition in LLRP.
 func (td *TestDevice) Close() (err error) {
 	defer func() {
 		closeErr := td.reader.Close()
@@ -231,6 +261,7 @@ func (td *TestDevice) Close() (err error) {
 	return
 }
 
+// closeConnection handles a client request to close the connection.
 func (td *TestDevice) closeConnection(_ *Client, msg Message) {
 	if td.wrongVersion(msg) {
 		return
@@ -239,6 +270,9 @@ func (td *TestDevice) closeConnection(_ *Client, msg Message) {
 	td.write(msg.id, &CloseConnectionResponse{})
 }
 
+// ConnectClient correctly connects the Client to the TestDevice and returns it.
+// It registers a Cleanup function to Shutdown the Client and report errors
+// once the test is completed, so it is not necessary to do so yourself.
 func (td *TestDevice) ConnectClient(t *testing.T) (c *Client) {
 	c = td.Client
 
