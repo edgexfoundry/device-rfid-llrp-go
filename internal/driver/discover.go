@@ -252,6 +252,7 @@ func newDiscoveredDevice(ip string, port string) dsModels.DiscoveredDevice {
 			"tcp": {
 				"host": ip,
 				"port": port,
+				"llrp": "llrp", // for EdgeX provision watcher
 			},
 		},
 		Description: "LLRP RFID Reader",

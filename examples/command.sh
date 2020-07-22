@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# command.sh - simple script to interact with EdgeX's core-command
+#   to see and manipulate ROs, reader config, and reader capabilities.
+#   Use --help to view usage.
+
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -21,8 +25,8 @@ usage() {
     echo "    -d | --device NAME  specific device to use     default: all LLRP devices"
     echo "    -h | --host HOST    edgex-core-commands host   default: localhost"
     echo "    -p | --port PORT    edgex-core-commands port   default: 48082"
-    echo "    -v | --verbose      verbose curl output        default: false" 
-    echo "    -s | --silent       silent curl output         default: false"
+    echo "    -v | --verbose      use verbose curl output"
+    echo "    -s | --silent       use silent curl output"
     echo ""
     echo "examples:"
     echo "      $0 list devices"
@@ -45,13 +49,16 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     shift; DEVICE=$1
     ;;
   -p | --core-cmds-port )
-    shift; DATA_PORT=$1
+    shift; CMDS_PORT=$1
     ;;
   -v | --verbose )
     CURL_OPTS="-vvvvo-"
     ;;
   -s | --silent )
     CURL_OPTS='-so-'
+    ;;
+  --help )
+    usage; exit
     ;;
   *)
     echo "unknown flag $1"
@@ -64,7 +71,7 @@ devices() {
     if [[ -n "$DEVICE" ]]; then
         echo "$DEVICE"
     else
-        curl ${CURL_OPTS} ${HOST}:${CMDS_PORT}/api/v1/device | jq '[.[]|select(.labels[]=="LLRP")]'
+        curl ${CURL_OPTS} "$HOST:$CMDS_PORT/api/v1/device" | jq '[.[]|select(.labels[]=="LLRP")]'
     fi
 }
 
@@ -77,10 +84,10 @@ put_file() {
     TYPE=${2}
     FILE_PATH="${3}"
     
-    devices | jq '.[].commands[]|select(.name=="'$CMD_NAME'")|.put.url' | \
+    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.put.url' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
-            --data '@'<(jq '.|{'${TYPE}': @text}' ${FILE_PATH})
+            --data '@'<(jq '.|{'"$TYPE"': @text}' "$FILE_PATH")
 }
 
 put_num() {
@@ -92,10 +99,10 @@ put_num() {
     TYPE=${2}
     NUM="${3}"
     
-    devices | jq '.[].commands[]|select(.name=="'$CMD_NAME'")|.put.url' | \
+    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.put.url' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
-            --data '{"'${TYPE}'": "'$NUM'"}'
+            --data '{"'"$TYPE"'": "'"$NUM"'"}'
 }
 
 get() {
@@ -105,7 +112,7 @@ get() {
     
     CMD_NAME="Get${1}"
     
-    devices | jq '.[].commands[]|select(.name=="'$CMD_NAME'")|.get.url' | \
+    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.get.url' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} | jq '.readings[].value|fromjson'
 }
@@ -138,16 +145,16 @@ fi
 
 case "$1" in
     list)
-        shift; list $*
+        shift; list "$@"
         ;;
     get)
-        shift; get $*
+        shift; get "$@"
         ;;
     set | add)
-        put_file $*
+        put_file "$@"
         ;;
     enable | start | stop | disable | delete)
-        put_num $*
+        put_num "$@"
         ;;
     *)
         echo "unknown ACTION: $1"

@@ -349,6 +349,7 @@ func (c *Client) Connect() error {
 	defer c.Close()
 
 	if err := c.checkInitialMessage(); err != nil {
+		close(c.ready)
 		return err
 	}
 
@@ -362,6 +363,8 @@ func (c *Client) Connect() error {
 		}
 	}
 
+	// The `ready` channel gates (external) Send requests until after
+	// the first few LLRP messages are taken care of by the Client.
 	close(c.ready)
 
 	var err error
@@ -510,6 +513,16 @@ func (c *Client) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		return 0, nil, errors.Wrap(ErrClientClosed, "message not sent")
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
+	}
+
+	// We know we're ready, (otherwise we would have returned),
+	// but we can't be certain one of these isn't also true.
+	select {
+	case <-c.done:
+		return 0, nil, errors.Wrap(ErrClientClosed, "message not sent")
+	case <-ctx.Done():
+		return 0, nil, ctx.Err()
+	default: // now we're certain
 	}
 
 	var mOut Message
@@ -908,6 +921,15 @@ func (c *Client) checkInitialMessage() error {
 		return err
 	}
 
+	c.logger.ReceivedMsg(hdr, c.version)
+
+	if hdr.payloadLen > MaxBufferedPayloadSz {
+		return errors.Errorf("initial connection message has huge size; "+
+			"it almost certainly not a valid ReaderEventNotification: %d "+
+			"(note: max buffered payload size is %d)",
+			hdr.payloadLen, MaxBufferedPayloadSz)
+	}
+
 	buf := make([]byte, hdr.payloadLen)
 	if _, err := io.ReadFull(c.conn, buf); err != nil {
 		return errors.Wrap(err, "failed to read message payload")
@@ -917,7 +939,6 @@ func (c *Client) checkInitialMessage() error {
 		c.handleGuarded(h, Message{Header: hdr, payload: bytes.NewBuffer(buf)})
 	}
 
-	c.logger.ReceivedMsg(hdr, c.version)
 	if hdr.typ != MsgReaderEventNotification {
 		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, hdr.typ)
 	}

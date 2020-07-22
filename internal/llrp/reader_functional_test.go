@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// ex: go test -reader="localhost:5084"
+// ex: go test -reader="192.0.2.1:5084"
 // if using Goland, put that in the 'program arguments' part of the test config
 var readerAddr = flag.String("reader", "", "address of an LLRP reader; enables functional tests")
 var update = flag.Bool("update", false, "rather than testing, record messages to the testdata directory")
@@ -91,12 +91,6 @@ func collectData() error {
 		connErrs <- r.Connect()
 	}()
 
-	select {
-	case <-r.ready:
-	case <-time.After(10 * time.Second):
-		return errors.New("reader not ready")
-	}
-
 	if r.version > Version1_0_1 {
 		if err := getAndWrite(r, MsgGetSupportedVersion, nil, &GetSupportedVersionResponse{}); err != nil {
 			return err
@@ -125,6 +119,7 @@ func collectData() error {
 		}
 	}
 
+	// We skip Shutdown because we directly sent CloseConnection.
 	if err := r.Close(); err != nil {
 		errs = append(errs, err)
 	}
@@ -146,6 +141,7 @@ func collectData() error {
 	return <-connErrs
 }
 
+// getAndWrite
 func getAndWrite(r *Client, mt MessageType, payload encoding.BinaryMarshaler, resultValue encoding.BinaryUnmarshaler) error {
 	var data []byte
 	if payload != nil {
@@ -195,132 +191,6 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 	}
 
 	return nil
-}
-
-func BenchmarkClientFunctional(b *testing.B) {
-	addr := *readerAddr
-	if addr == "" {
-		b.Skip("no reader set for functional tests; use -test.reader=\"host:port\" to run")
-	}
-
-	b.Run("Connect", func(bb *testing.B) {
-		bb.ReportAllocs()
-		for i := 0; i < bb.N; i++ {
-			benchmarkConnect(bb)
-		}
-	})
-
-	b.Run("Send", benchmarkSend)
-}
-
-func benchmarkSend(b *testing.B) {
-	conn, err := net.Dial("tcp", *readerAddr)
-
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := conn.SetDeadline(time.Now().Add(240 * time.Second)); err != nil {
-		b.Fatal(err)
-		return
-	}
-
-	r, err := NewClient(conn, WithVersion(Version1_1), WithLogger(nil))
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	connErrs := make(chan error, 1)
-	go func() {
-		defer close(connErrs)
-		connErrs <- r.Connect()
-	}()
-
-	defer func() {
-		_ = r.Close()
-		for err := range connErrs {
-			if !errors.Is(err, ErrClientClosed) {
-				b.Fatalf("%+v", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		mt, m, err := r.SendMessage(ctx, MsgGetSupportedVersion, nil)
-		if MsgGetSupportedVersionResponse != mt {
-			b.Errorf("expected %v; got %v", MsgGetSupportedVersionResponse, mt)
-		}
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(m) == 0 {
-			b.Fatal("no message response")
-		}
-	}
-	b.StopTimer()
-
-	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := r.Shutdown(ctx); err != nil {
-		b.Errorf("%+v", err)
-		if err := r.Close(); err != nil {
-			b.Error(err)
-		}
-	}
-}
-
-func benchmarkConnect(b *testing.B) {
-	conn, err := net.Dial("tcp", *readerAddr)
-
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := conn.SetDeadline(time.Now().Add(120 * time.Second)); err != nil {
-		b.Fatal(err)
-		return
-	}
-
-	r, err := NewClient(conn, WithVersion(Version1_1), WithLogger(nil))
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	connErrs := make(chan error, 1)
-	go func() {
-		defer close(connErrs)
-		connErrs <- r.Connect()
-	}()
-
-	defer func() {
-		_ = r.Close()
-		for err := range connErrs {
-			if !errors.Is(err, ErrClientClosed) {
-				b.Fatalf("%+v", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_, _, err = r.SendMessage(ctx, MsgGetSupportedVersion, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := r.Shutdown(ctx); err != nil {
-		b.Errorf("%+v", err)
-		if err := r.Close(); err != nil {
-			b.Error(err)
-		}
-	}
 }
 
 func testGatherTagReads(t *testing.T) {
