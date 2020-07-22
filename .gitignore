@@ -55,3 +55,8 @@ logs/
 **/reports
 **/*.xml
 **/*.html
+
+# Don't save _every_ RO report
+internal/llrp/testdata/**/*.json
+internal/llrp/testdata/**/*.bytes
+!internal/llrp/testdata/roAccessReports/*-00?*

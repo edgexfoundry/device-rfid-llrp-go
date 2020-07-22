@@ -6,6 +6,9 @@
 package driver
 
 import (
+	"context"
+	"encoding"
+	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
@@ -56,7 +59,14 @@ func (d *Driver) service() ServiceWrapper {
 // Initialize performs protocol-specific initialization for the device
 // service.
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
-	d.lc = lc
+	if lc == nil {
+		// prevent panics from this annoyance
+		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc.Error("EdgeX initialized us with a nil logger >:(")
+	} else {
+		d.lc = lc
+	}
+
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
 
@@ -73,6 +83,24 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 type protocolMap = map[string]contract.ProtocolProperties
 
+const (
+	ResourceReaderCap          = "ReaderCapabilities"
+	ResourceReaderConfig       = "ReaderConfig"
+	ResourceReaderNotification = "ReaderEventNotification"
+	ResourceROSpec             = "ROSpec"
+	ResourceROSpecID           = "ROSpecID"
+	ResourceAccessSpec         = "AccessSpec"
+	ResourceAccessSpecID       = "AccessSpecID"
+	ResourceROAccessReport     = "ROAccessReport"
+
+	ResourceAction = "Action"
+	ActionDelete   = "Delete"
+	ActionEnable   = "Enable"
+	ActionDisable  = "Disable"
+	ActionStart    = "Start"
+	ActionStop     = "Stop"
+)
+
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
@@ -82,12 +110,46 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	_, err := d.getClient(devName, p)
+	c, err := d.getClient(devName, p)
 	if err != nil {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
 	var responses = make([]*dsModels.CommandValue, len(reqs))
+	for i := range reqs {
+		var llrpReq llrp.Outgoing
+		var llrpResp llrp.Incoming
+
+		switch reqs[i].DeviceResourceName {
+		case ResourceReaderConfig:
+			llrpReq = &llrp.GetReaderConfig{}
+			llrpResp = &llrp.GetReaderConfigResponse{}
+		case ResourceReaderCap:
+			llrpReq = &llrp.GetReaderCapabilities{}
+			llrpResp = &llrp.GetReaderCapabilitiesResponse{}
+		case ResourceROSpec:
+			llrpReq = &llrp.GetROSpecs{}
+			llrpResp = &llrp.GetROSpecsResponse{}
+		case ResourceAccessSpec:
+			llrpReq = &llrp.GetAccessSpecs{}
+			llrpResp = &llrp.GetAccessSpecsResponse{}
+		}
+
+		if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+			return nil, err
+		}
+
+		respData, err := json.Marshal(llrpResp)
+		if err != nil {
+			return nil, err
+		}
+
+		responses[i] = dsModels.NewStringValue(
+			reqs[i].DeviceResourceName, time.Now().UnixNano(), string(respData))
+	}
 
 	return responses, nil
 }
@@ -99,6 +161,174 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest, params []*dsModels.CommandValue) error {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
+
+	if len(reqs) == 0 {
+		return errors.New("missing requests")
+	}
+
+	c, err := d.getClient(devName, p)
+	if err != nil {
+		return err
+	}
+
+	getParam := func(name string, idx int, key string) (*dsModels.CommandValue, error) {
+		if idx > len(params) {
+			return nil, errors.Errorf("%s needs at least %d parameters, but got %d",
+				name, idx, len(params))
+		}
+
+		cv := params[idx]
+		if cv == nil {
+			return nil, errors.Errorf("%s requires parameter %s", name, key)
+		}
+
+		if cv.DeviceResourceName != key {
+			return nil, errors.Errorf("%s expected parameter %d: %s, but got %s",
+				name, idx, key, cv.DeviceResourceName)
+		}
+
+		return cv, nil
+	}
+
+	getStrParam := func(name string, idx int, key string) (string, error) {
+		if cv, err := getParam(name, idx, key); err != nil {
+			return "", err
+		} else {
+			return cv.StringValue()
+		}
+	}
+
+	getUint32Param := func(name string, idx int, key string) (uint32, error) {
+		if cv, err := getParam(name, idx, key); err != nil {
+			return 0, err
+		} else {
+			return cv.Uint32Value()
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	var llrpReq llrp.Outgoing  // the message to send
+	var llrpResp llrp.Incoming // the expected response
+	var reqData []byte         // incoming JSON request data, if present
+	var dataTarget interface{} // used if the reqData in a subfield of the llrpReq
+
+	switch reqs[0].DeviceResourceName {
+	case ResourceReaderConfig:
+		data, err := getStrParam("Set"+ResourceReaderConfig, 0, ResourceReaderConfig)
+		if err != nil {
+			return err
+		}
+
+		reqData = []byte(data)
+		llrpReq = &llrp.SetReaderConfig{}
+		llrpResp = &llrp.SetReaderConfigResponse{}
+	case ResourceROSpec:
+		data, err := getStrParam("Add"+ResourceROSpec, 0, ResourceROSpec)
+		if err != nil {
+			return err
+		}
+
+		reqData = []byte(data)
+
+		addSpec := llrp.AddROSpec{}
+		dataTarget = &addSpec.ROSpec // the incoming data is an ROSpec, not AddROSpec
+		llrpReq = &addSpec           // but we want to send AddROSpec, not just ROSpec
+		llrpResp = &llrp.AddROSpecResponse{}
+	case ResourceROSpecID:
+		if len(params) != 2 {
+			return errors.Errorf("expected 2 resources for ROSpecID op, but got %d", len(params))
+		}
+
+		action, err := getStrParam(ResourceROSpec, 1, ResourceAction)
+		if err != nil {
+			return err
+		}
+
+		roID, err := getUint32Param(action+ResourceROSpec, 0, ResourceROSpecID)
+		if err != nil {
+			return err
+		}
+
+		switch action {
+		default:
+			return errors.Errorf("unknown ROSpecID action: %q", action)
+		case ActionEnable:
+			llrpReq = &llrp.EnableROSpec{ROSpecID: roID}
+			llrpResp = &llrp.EnableROSpecResponse{}
+		case ActionStart:
+			llrpReq = &llrp.StartROSpec{ROSpecID: roID}
+			llrpResp = &llrp.StartROSpecResponse{}
+		case ActionStop:
+			llrpReq = &llrp.StopROSpec{ROSpecID: roID}
+			llrpResp = &llrp.StopROSpecResponse{}
+		case ActionDisable:
+			llrpReq = &llrp.DisableROSpec{ROSpecID: roID}
+			llrpResp = &llrp.DisableROSpecResponse{}
+		case ActionDelete:
+			llrpReq = &llrp.DeleteROSpec{ROSpecID: roID}
+			llrpResp = &llrp.DeleteROSpecResponse{}
+		}
+
+	case ResourceAccessSpecID:
+		if len(reqs) != 2 {
+			return errors.Errorf("expected 2 resources for AccessSpecID op, but got %d", len(reqs))
+		}
+
+		action := reqs[1].DeviceResourceName
+
+		asID, err := getUint32Param(action+ResourceAccessSpecID, 0, ResourceAccessSpecID)
+		if err != nil {
+			return err
+		}
+
+		switch action {
+		default:
+			return errors.Errorf("unknown ROSpecID action: %q", action)
+		case ActionEnable:
+			llrpReq = &llrp.EnableAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.EnableAccessSpecResponse{}
+		case ActionDisable:
+			llrpReq = &llrp.DisableAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.DisableAccessSpecResponse{}
+		case ActionDelete:
+			llrpReq = &llrp.DeleteAccessSpec{AccessSpecID: asID}
+			llrpResp = &llrp.DeleteAccessSpecResponse{}
+		}
+	}
+
+	if reqData != nil {
+		if dataTarget != nil {
+			if err := json.Unmarshal(reqData, dataTarget); err != nil {
+				return errors.Wrap(err, "failed to unmarshal request")
+			}
+		} else {
+			if err := json.Unmarshal(reqData, llrpReq); err != nil {
+				return errors.Wrap(err, "failed to unmarshal request")
+			}
+		}
+	}
+
+	// SendFor will handle turning ErrorMessages and failing LLRPStatuses into errors.
+	if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+		return err
+	}
+
+	go func(resName, devName string, resp llrp.Incoming) {
+		respData, err := json.Marshal(resp)
+		if err != nil {
+			d.lc.Error("failed to marshal response", "message", resName, "error", err)
+			return
+		}
+
+		cv := dsModels.NewStringValue(resName, time.Now().UnixNano(), string(respData))
+		d.asyncCh <- &dsModels.AsyncValues{
+			DeviceName:    devName,
+			CommandValues: []*dsModels.CommandValue{cv},
+		}
+	}(reqs[0].DeviceResourceName, c.Name, llrpResp)
+
 	return nil
 }
 
@@ -108,14 +338,31 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 // readings (if supported).
 func (d *Driver) Stop(force bool) error {
 	// Then Logging Client might not be initialized
-	if d.lc != nil {
-		d.lc.Debug(fmt.Sprintf("LLRP-Driver.Stop called: force=%v", force))
+	if d.lc == nil {
+		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc.Error("EdgeX called Stop without calling Initialize >:(")
 	}
+	d.lc.Debug("LLRP-Driver.Stop called", "force", force)
+
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
-	for _, r := range d.clients {
-		go r.Close() // best effort
+
+	var wg *sync.WaitGroup
+	if !force {
+		wg = new(sync.WaitGroup)
+		wg.Add(len(d.clients))
+		defer wg.Wait()
 	}
+
+	for _, c := range d.clients {
+		go func(c *llrp.Client) {
+			d.stopClient(c, force)
+			if !force {
+				wg.Done()
+			}
+		}(c)
+	}
+
 	d.clients = make(map[string]*llrp.Client)
 	return nil
 }
@@ -141,8 +388,47 @@ func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminSta
 // when a Device associated with this Device Service is removed
 func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
-	d.removeClient(deviceName)
+	d.removeClient(deviceName, false)
 	return nil
+}
+
+// handleAsyncMessages forwards JSON-marshaled messages to EdgeX.
+//
+// Note that the message types that end up here depend on the subscriptions
+// when the Client is created, so if you want to add another,
+// you'll need to wire up the handler in the getClient code.
+func (d *Driver) handleAsyncMessages(c *llrp.Client, msg llrp.Message) {
+	var resourceName string
+	var event encoding.BinaryUnmarshaler
+
+	switch msg.Type() {
+	default:
+		return
+	case llrp.MsgReaderEventNotification:
+		resourceName = ResourceReaderNotification
+		event = &llrp.ReaderEventNotification{}
+	case llrp.MsgROAccessReport:
+		resourceName = ResourceROAccessReport
+		event = &llrp.ROAccessReport{}
+	}
+
+	if err := msg.UnmarshalTo(event); err != nil {
+		d.lc.Error("failed to unmarshal async event from LLRP", "error", err.Error())
+		return
+	}
+
+	data, err := json.Marshal(event)
+	if err != nil {
+		d.lc.Error("failed to marshal async event to JSON", "error", err.Error())
+		return
+	}
+
+	cv := dsModels.NewStringValue(resourceName, time.Now().UnixNano(), string(data))
+
+	d.asyncCh <- &dsModels.AsyncValues{
+		DeviceName:    c.Name,
+		CommandValues: []*dsModels.CommandValue{cv},
+	}
 }
 
 // getOrCreate returns a Client, creating one if needed.
@@ -153,10 +439,10 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	// Try with just a read lock.
 	d.clientsMapMu.RLock()
-	r, ok := d.clients[name]
+	c, ok := d.clients[name]
 	d.clientsMapMu.RUnlock()
 	if ok {
-		return r, nil
+		return c, nil
 	}
 
 	// Probably need other info too, like the device.
@@ -170,9 +456,9 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	defer d.clientsMapMu.Unlock()
 
 	// Check if something else created the Client before we got the lock.
-	r, ok = d.clients[name]
+	c, ok = d.clients[name]
 	if ok {
-		return r, nil
+		return c, nil
 	}
 
 	conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
@@ -180,14 +466,22 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		return nil, err
 	}
 
-	r, err = llrp.NewClient(llrp.WithConn(conn))
+	toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
+
+	c, err = llrp.NewClient(conn,
+		llrp.WithName(name),
+		llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
+		llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
+		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
+	)
+
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
 		// blocks until the Client is closed
-		err = r.Connect()
+		err = c.Connect()
 
 		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
 			return
@@ -197,26 +491,39 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 		// todo: retry the connection?
 	}()
 
-	d.clients[name] = r
-	return r, nil
+	d.clients[name] = c
+	return c, nil
 }
 
 // removeClient deletes a Client from the clients map.
-func (d *Driver) removeClient(deviceName string) {
+func (d *Driver) removeClient(deviceName string, force bool) {
 	d.clientsMapMu.Lock()
-	r, ok := d.clients[deviceName]
-	if ok {
-		go r.Close() // best effort
+	if c, ok := d.clients[deviceName]; ok {
+		delete(d.clients, deviceName)
+		go d.stopClient(c, force)
 	}
-	delete(d.clients, deviceName)
 	d.clientsMapMu.Unlock()
-	return
+}
+
+func (d *Driver) stopClient(c *llrp.Client, force bool) {
+	if !force {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		err := c.Shutdown(ctx)
+		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
+			return
+		}
+		d.lc.Error("error attempting graceful client shutdown", "error", err.Error())
+	}
+
+	if err := c.Close(); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
+		d.lc.Error("error attempting forceful client shutdown", "error", err.Error())
+	}
 }
 
 // getAddr extracts an address from a protocol mapping.
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
-// todo: TLS options? retry/timeout options? LLRP version options?
 func getAddr(protocols protocolMap) (net.Addr, error) {
 	tcpInfo := protocols["tcp"]
 	if tcpInfo == nil {

@@ -1,0 +1,42 @@
+{
+	"TagReportData": [
+		{
+			"EPCData": {
+				"EPCNumBits": 0,
+				"EPC": null
+			},
+			"EPC96": {
+				"EPC": "MBQwpVwKwwAAAAAJ"
+			},
+			"ROSpecID": null,
+			"SpecIndex": null,
+			"InventoryParameterSpecID": null,
+			"AntennaID": 1,
+			"PeakRSSI": -54,
+			"ChannelIndex": null,
+			"FirstSeenUTC": 1594174805147920,
+			"FirstSeenUptime": null,
+			"LastSeenUTC": null,
+			"LastSeenUptime": null,
+			"TagSeenCount": null,
+			"C1G2PC": null,
+			"C1G2XPCW1": null,
+			"C1G2XPCW2": null,
+			"C1G2CRC": null,
+			"AccessSpecID": null,
+			"C1G2ReadOpSpecResult": null,
+			"C1G2WriteOpSpecResult": null,
+			"C1G2KillOpSpecResult": null,
+			"C1G2LockOpSpecResult": null,
+			"C1G2BlockEraseOpSpecResult": null,
+			"C1G2BlockWriteOpSpecResult": null,
+			"C1G2RecommissionOpSpecResult": null,
+			"C1G2BlockPermalockOpSpecResult": null,
+			"C1G2GetBlockPermalockStatusOpSpecResult": null,
+			"ClientRequestOpSpecResult": null,
+			"Custom": null
+		}
+	],
+	"RFSurveyReportData": null,
+	"Custom": null
+}

@@ -7,289 +7,305 @@ labels:
 description: "Device profile of RFID based readers that communicate using LLRP protocol"
 
 deviceResources:
-  - name: "READER_CAPABILITIES"
-    description: "Capabilities of a reader"
+  - name: "ReaderCapabilities"
+    description: "The capabilities of a reader"
     properties:
       value:
         { type: "String", readWrite: "R", defaultValue: "" }
       units:
         { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "ADD_ROSPEC"
-    description: "Add a ROSPEC to a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "DELETE_ROSPEC"
-    description: "Delete a ROSPEC in a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "ENABLE_ROSPEC"
-    description: "Enable ROSPEC in a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "DISABLE_ROSPEC"
-    description: "Disable ROSPEC in a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "START_ROSPEC"
-    description: "Start a ROSPEC in a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "STOP_ROSPEC"
-    description: "Stop a ROSPEC in a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "READER_CONFIG"
+
+  - name: "ReaderConfig"
     description: "Current configuration info of a reader"
     properties:
       value:
         { type: "String", readWrite: "RW", defaultValue: "" }
       units:
         { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "ADD_ACCESSSPEC"
-    description: "Create a new AccessSpec at the reader"
+
+  - name: "ROSpecID"
+    description: "Client-generated Reader Operation Specification Identifier"
+    properties:
+      value: { type: "uint32", readWrite: "RW", defaultValue: "1" }
+      units: { type: "String", readWrite: "R", defaultValue: "" }
+
+  - name: "AccessSpecID"
+    description: "Client-generated Access Specification Identifier"
+    properties:
+      value: { type: "uint32", readWrite: "RW", defaultValue: "1" }
+      units: { type: "String", readWrite: "R", defaultValue: "" }
+
+  - name: "ROSpec"
+    description: >-
+      An ROSpec is a "Reader Operation Specification", i.e.,
+      a declarative description of when and how
+      a reader should turn on its antennas and report data.
+      It's passed via EdgeX as a string-encoded JSON struct.
+    properties:
+      value: { type: "String", readWrite: "RW", defaultValue: "" }
+      units: { type: "String", readWrite: "R", defaultValue: "" }
+
+  - name: "AccessSpec"
+    description: ""
     properties:
       value:
-        { type: "String", readWrite: "W", defaultValue: "" }
+        { type: "String", readWrite: "RW", defaultValue: "" }
       units:
         { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "DELETE_ACCESSSPEC"
-    description: "Delete an AccessSpec at the reader"
+
+  - name: "Action"
+    description: >-
+      EdgeX's Device Service SDK only distinguishes between "GET" and "PUT";
+      everything else must be a deviceResources.
+      Since we won't have, e.g., information about the HTTP path used in a request,
+      this resource exists only to distinguish actions to take on other resources.
     properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "ENABLE_ACCESSSPEC"
-    description: "Enable an AccessSpec at the reader"
-    properties:
-      value:
-        { type: "String", readWrite: "W", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "RO_ACCESS_REPORT"
-    description: "Get tag reports from a reader"
-    properties:
-      value:
-        { type: "String", readWrite: "R", defaultValue: "" }
-      units:
-        { type: "String", readWrite: "R", defaultValue: "" }
-  - name: "READER_EVENT_NOTIFICATION"
-    description: "Notify client whenever an event subscribed to by the client occurs"
+      value: { "type": "String", readWrite: "W", defaultValue: "" }
+      units: { type: "String", readWrite: "R", defaultValue: "" }
+
+  - name: "ROAccessReport"
+    description: >-
+      An ROAccessReport is the main report type in LLRP.
+      They contain the TagReportData or RFSurveyReportData,
+      as well as any Custom parameter data.
+      The data returned depends on the device's default report configuration
+      and the specific ROSpec's report configuration,
+      as well as the environmental conditions
+      that influence what tag data is successfully read.
     properties:
       value:
         { type: "String", readWrite: "R", defaultValue: "" }
       units:
         { type: "String", readWrite: "R", defaultValue: "" }
-#  - name: "ALL_ON"
-#    description: "Start reading of all the readers connected"
-#    properties:
-#      value:
-#        { type: "String", readWrite: "W", defaultValue: "" }
-#      units:
-#        { type: "String", readWrite: "R", defaultValue: "" }
-#  - name: "INACTIVE"
-#    description: "Stop reading of all the readers connected"
-#    properties:
-#      value:
-#        { type: "String", readWrite: "W", defaultValue: "" }
-#      units:
-#        { type: "String", readWrite: "R", defaultValue: "" }
+
+  - name: "ReaderEventNotification"
+    description: >-
+      Readers generate Reader Event Notifications for a variety of events,
+      including changes in connectivity, antenna additions/removals,
+      GPIO state changes, new report data, and exception events.
+      Some event notifications are configurable.
+    properties:
+      value:
+        { type: "String", readWrite: "R", defaultValue: "" }
+      units:
+        { type: "String", readWrite: "R", defaultValue: "" }
 
 deviceCommands:
-  - name: GET_READER_CAPABILITIES
+  - name: capabilities
     get:
-      - { index: "1", operation: "get", deviceResource: "READER_CAPABILITIES"}
-  - name: ADD_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "ADD_ROSPEC"}
-  - name: DELETE_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "DELETE_ROSPEC"}
-  - name: ENABLE_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "ENABLE_ROSPEC"}
-  - name: DISABLE_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "DISABLE_ROSPEC"}
-  - name: START_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "START_ROSPEC"}
-  - name: STOP_ROSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "STOP_ROSPEC"}
-  - name: READER_CONFIG
+      - { index: "1", operation: "get", deviceResource: "ReaderCapabilities"}
+
+  - name: config
     get:
-      - { index: "1", operation: "get", deviceResource: "READER_CONFIG"}
+      - { index: "1", operation: "get", deviceResource: "ReaderConfig"}
     set:
-      - { index: "1", operation: "set", deviceResource: "READER_CONFIG"}
-  - name: ADD_ACCESSSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "ADD_ACCESSSPEC"}
-  - name: ENABLE_ACCESSSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "ENABLE_ACCESSSPEC"}
-  - name: DELETE_ACCESSSPEC
-    set:
-      - { index: "1", operation: "set", deviceResource: "DELETE_ACCESSSPEC"}
-  - name: GET_REPORT
+      - { index: "1", operation: "set", deviceResource: "ReaderConfig"}
+
+  - name: roSpec
     get:
-      - { index: "1", operation: "get", deviceResource: "RO_ACCESS_REPORT"}
+      - { index: "1", operation: "get", deviceResource: "ROSpec"}
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpec"}
+  - name: enableROSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpecID", parameter: 0}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Enable"}
+  - name: startROSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpecID", parameter: 0}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Start"}
+  - name: stopROSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpecID", parameter: 0}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Stop"}
+  - name: disableROSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpecID", parameter: 0}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Disable"}
+  - name: deleteROSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "ROSpecID"}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Delete"}
+
+  - name: accessSpec
+    get:
+      - { index: "1", operation: "get", deviceResource: "AccessSpec"}
+    set:
+      - { index: "1", operation: "set", deviceResource: "AccessSpec"}
+  - name: enableAccessSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "AccessSpecID", parameter: "0"}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Enable"}
+  - name: disableAccessSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "AccessSpecID", parameter: "0"}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Disable"}
+  - name: deleteAccessSpec
+    set:
+      - { index: "1", operation: "set", deviceResource: "AccessSpecID"}
+      - { index: "2", operation: "set", deviceResource: "Action", parameter: "Delete"}
 
 coreCommands:
-  - name: GET_READER_CAPABILITIES
+  - name: GetReaderCapabilities
     get:
-      path: "/api/v1/device/{deviceId}/GET_READER_CAPABILITIES"
+      path: "/api/v1/device/{deviceId}/capabilities"
       responses:
         - code: "200"
-          description: "Get capabilities of a reader"
-          expectedValues: ["READER_CAPABILITIES"]
+          description: "Get a reader's capabilities."
+          expectedValues: ["ReaderCapabilities"]
         - code: "500"
           description: "Error"
           expectedValues: []
-  - name: ADD_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/ADD_ROSPEC"
-      parameterNames: ["ADD_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Add a ROSPEC to a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: DELETE_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/DELETE_ROSPEC"
-      parameterNames: ["DELETE_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Delete a ROSPEC in a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: ENABLE_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/ENABLE_ROSPEC"
-      parameterNames: ["ENABLE_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Enable a ROSPEC in a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: DISABLE_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/DISABLE_ROSPEC"
-      parameterNames: ["DISABLE_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Disable a ROSPEC in a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: START_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/START_ROSPEC"
-      parameterNames: ["START_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Start a ROSPEC in a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: STOP_ROSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/STOP_ROSPEC"
-      parameterNames: ["STOP_ROSPEC"]
-      responses:
-        - code: "200"
-          description: "Stop a ROSPEC in a reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: READER_CONFIG
+
+  - name: GetReaderConfig
     get:
-      path: "/api/v1/device/{deviceId}/READER_CONFIG"
+      path: "/api/v1/device/{deviceId}/config"
       responses:
         - code: "200"
-          description: "Get the current configuration info of a reader"
-          expectedValues: ["READER_CONFIG"]
+          description: "Get the reader's current configuration."
+          expectedValues: ["ReaderConfig"]
         - code: "500"
           description: "Error"
           expectedValues: []
+
+  - name: SetReaderConfig
     put:
-      path: "/api/v1/device/{deviceId}/READER_CONFIG"
-      parameterNames: ["READER_CONFIG"]
+      path: "/api/v1/device/{deviceId}/config"
+      parameterNames: ["ReaderConfig"]
       responses:
         - code: "200"
-          description: "Set configuration of a reader"
+          description: "Set a reader's configuration."
           expectedValues: []
         - code: "500"
           description: "Error"
           expectedValues: []
-  - name: ADD_ACCESSSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/ADD_ACCESSSPEC"
-      parameterNames: ["ADD_ACCESSSPEC"]
-      responses:
-        - code: "200"
-          description: "Create a new AccessSpec at the reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: ENABLE_ACCESSSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/ENABLE_ACCESSSPEC"
-      parameterNames: ["ENABLE_ACCESSSPEC"]
-      responses:
-        - code: "200"
-          description: "Enable an AccessSpec at the reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: DELETE_ACCESSSPEC
-    put:
-      path: "/api/v1/device/{deviceId}/DELETE_ACCESSSPEC"
-      parameterNames: ["DELETE_ACCESSSPEC"]
-      responses:
-        - code: "200"
-          description: "Delete an AccessSpec at the reader"
-          expectedValues: []
-        - code: "500"
-          description: "Error"
-          expectedValues: []
-  - name: GET_REPORT
+
+  - name: GetROSpec
     get:
-      path: "/api/v1/device/{deviceId}/GET_REPORT"
+      path: "/api/v1/device/{deviceId}/roSpec"
       responses:
         - code: "200"
-          description: "Get tag reports from a reader"
-          expectedValues: ["RO_ACCESS_REPORT"]
+          description: "Get ROSpecs."
+          expectedValues: ["ROSpec"]
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: AddROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/roSpec"
+      parameterNames: ["ROSpec"]
+      responses:
+        - code: "200"
+          description: "Add an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: EnableROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/enableROSpec"
+      parameterNames: ["ROSpecID"]
+      responses:
+        - code: "200"
+          description: "Enable an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: StartROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/startROSpec"
+      parameterNames: ["ROSpecID"]
+      responses:
+        - code: "200"
+          description: "Start an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: StopROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/stopROSpec"
+      parameterNames: ["ROSpecID"]
+      responses:
+        - code: "200"
+          description: "Stop an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: DisableROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/disableROSpec"
+      parameterNames: ["ROSpecID"]
+      responses:
+        - code: "200"
+          description: "Disable an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: DeleteROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/deleteROSpec"
+      parameterNames: ["ROSpecID"]
+      responses:
+        - code: "200"
+          description: "Delete an ROSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: GetAccessSpec
+    get:
+      path: "/api/v1/device/{deviceId}/accessSpec"
+      responses:
+        - code: "200"
+          description: "Get AccessSpecs."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: AddAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/accessSpec"
+      parameterNames: ["AccessSpec"]
+      responses:
+        - code: "200"
+          description: "Add an AccessSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: DisableAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/disableAccessSpec"
+      parameterNames: ["AccessSpecID"]
+      responses:
+        - code: "200"
+          description: "Disable an AccessSpec."
+          expectedValues: []
+        - code: "500"
+          description: "Error"
+          expectedValues: []
+
+  - name: DeleteAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/deleteAccessSpec"
+      parameterNames: ["AccessSpecID"]
+      responses:
+        - code: "200"
+          description: "Delete an AccessSpec."
+          expectedValues: []
         - code: "500"
           description: "Error"
           expectedValues: []

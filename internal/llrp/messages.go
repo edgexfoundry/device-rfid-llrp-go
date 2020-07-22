@@ -9,11 +9,13 @@ package llrp
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/binary"
 	"fmt"
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
+	"time"
 )
 
 // MessageType corresponds to the LLRP binary encoding for message headers.
@@ -52,6 +54,7 @@ func (mt MessageType) responseType() (MessageType, bool) {
 	return t, ok
 }
 
+// messageID is just a uint32, but aliased to make its purpose clear
 type messageID uint32
 
 type awaitMap = map[messageID]chan<- Message
@@ -128,6 +131,22 @@ func (h *Header) MarshalBinary() ([]byte, error) {
 	return header, nil
 }
 
+// WriteTo write a binary header to the given destination.
+// It returns an error if payloadLen is too big or it uses a reserved message type,
+// as well as the normal underlying Writer errors.
+func (h *Header) WriteTo(w io.Writer) (int64, error) {
+	if err := validateHeader(h.payloadLen, h.typ); err != nil {
+		return 0, err
+	}
+
+	header := make([]byte, HeaderSz)
+	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
+	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
+	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
+	n, err := w.Write(header)
+	return int64(n), errors.Wrap(err, "WriteTo failed")
+}
+
 // validateHeader returns an error if the parameters aren't valid for an LLRP header.
 func validateHeader(payloadLen uint32, typ MessageType) error {
 	if typ > maxMsgType {
@@ -165,7 +184,7 @@ type Message struct {
 // This returns an error if discarding fails.
 // It's safe to call this multiple times.
 func (m Message) Close() error {
-	if m.payload == nil {
+	if _, isBuffer := m.payload.(byteProvider); m.payload == nil || isBuffer {
 		return nil
 	}
 
@@ -268,4 +287,246 @@ func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 // msgErr returns a new error for LLRP message issues.
 func msgErr(why string, v ...interface{}) error {
 	return errors.Errorf("invalid LLRP message: "+why, v...)
+}
+
+type byteProvider interface {
+	Bytes() []byte
+}
+
+// data buffers and returns the Message payload data.
+//
+// If the Message is not yet buffered, it is read from the underlying connection.
+// This can fail for all the usual reasons, as well as
+// if the header's payload length field indicates the message exceeds
+// the MaxBufferedPayloadSz, which is an arbitrary, compile-time constant.
+// In practice, however, few messages are likely to reach this size,
+// and its more likely an indication of a bug.
+//
+// If the Message is already buffered, it returns a slice that aliases the data:
+// that is, modifications to the returned buffer are visible to all readers.
+// If the caller wishes to modify the data, they should make a local copy.
+func (m *Message) data() ([]byte, error) {
+	if m.payload == nil {
+		return nil, nil
+	}
+
+	if b, ok := m.payload.(byteProvider); ok {
+		return b.Bytes(), nil
+	}
+
+	if m.payloadLen > MaxBufferedPayloadSz {
+		return nil, errors.Errorf("message payload exceeds buffer limit: %d > %d",
+			m.payloadLen, MaxBufferedPayloadSz)
+	}
+
+	data := make([]byte, m.payloadLen)
+	if _, err := io.ReadFull(m.payload, data); err != nil {
+		return nil, errors.Wrapf(err, "failed to read data for %v", m)
+	}
+
+	m.payload = bytes.NewBuffer(data)
+	return data, nil
+}
+
+func (m *Message) UnmarshalTo(v encoding.BinaryUnmarshaler) error {
+	data, err := m.data()
+	if err != nil {
+		return err
+	}
+
+	return v.UnmarshalBinary(data)
+}
+
+type Statusable interface {
+	Status() LLRPStatus
+}
+
+type Incoming interface {
+	encoding.BinaryUnmarshaler
+	Type() MessageType
+}
+
+type Outgoing interface {
+	encoding.BinaryMarshaler
+	Type() MessageType
+}
+
+// NewROSpec returns a valid, basic ROSpec parameter.
+func NewROSpec() *ROSpec {
+	return &ROSpec{
+		ROSpecID:           1,
+		Priority:           0,
+		ROSpecCurrentState: ROSpecStateDisabled,
+		ROBoundarySpec: ROBoundarySpec{
+			StartTrigger: ROSpecStartTrigger{
+				Trigger: ROStartTriggerImmediate,
+			},
+			StopTrigger: ROSpecStopTrigger{
+				Trigger:              ROStopTriggerDuration,
+				DurationTriggerValue: 10,
+			},
+		},
+		AISpecs: []AISpec{{
+			AntennaIDs: []AntennaID{0},
+			StopTrigger: AISpecStopTrigger{
+				Trigger: AIStopTriggerNone,
+			},
+			InventoryParameterSpecs: []InventoryParameterSpec{{
+				InventoryParameterSpecID: 1,
+				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
+			}},
+		}},
+	}
+}
+
+// SetPeriodic configures an ROSpec to send tag reports at least within the period interval.
+// If the ROSpec doesn't have a ReportSpec, it adds one with PeakRSSI enabled.
+func (ros *ROSpec) SetPeriodic(period time.Duration) {
+	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
+		Trigger:              ROStopTriggerDuration,
+		DurationTriggerValue: Millisecs32(period.Milliseconds()),
+	}
+
+	if ros.ROReportSpec == nil {
+		ros.ROReportSpec = &ROReportSpec{
+			TagReportContentSelector: TagReportContentSelector{
+				EnableROSpecID:             false,
+				EnableSpecIndex:            false,
+				EnableInventoryParamSpecID: false,
+				EnableAntennaID:            false,
+				EnableChannelIndex:         false,
+				EnablePeakRSSI:             true,
+				EnableFirstSeenTimestamp:   false,
+				EnableLastSeenTimestamp:    false,
+				EnableTagSeenCount:         false,
+				EnableAccessSpecID:         false,
+				C1G2EPCMemorySelector:      nil,
+				Custom:                     nil,
+			},
+		}
+	}
+
+	ros.ROReportSpec.Trigger = ROReportTriggerType(2)
+	ros.ROReportSpec.N = 0
+}
+
+// Add returns an EnableROSpec message for this ROSpecID.
+func (ros *ROSpec) Add() *AddROSpec {
+	return &AddROSpec{ROSpec: *ros}
+}
+
+// Enable returns an EnableROSpec message for this ROSpecID.
+func (ros *ROSpec) Enable() *EnableROSpec {
+	return &EnableROSpec{ROSpecID: ros.ROSpecID}
+}
+
+// Disable returns an EnableROSpec message for this ROSpecID.
+func (ros *ROSpec) Disable() *DisableROSpec {
+	return &DisableROSpec{ROSpecID: ros.ROSpecID}
+}
+
+// Delete returns an EnableROSpec message for this ROSpecID.
+func (ros *ROSpec) Delete() *DeleteROSpec {
+	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
+}
+
+// GetUnmarshaler returns a BinaryUnmarshaler for the message type.
+// If the message type is unknown, it returns nil.
+func (mt MessageType) GetUnmarshaler() encoding.BinaryUnmarshaler {
+	var u encoding.BinaryUnmarshaler
+	switch mt {
+	case MsgGetSupportedVersion:
+		u = &GetSupportedVersion{}
+	case MsgGetSupportedVersionResponse:
+		u = &GetSupportedVersionResponse{}
+	case MsgSetProtocolVersion:
+		u = &SetProtocolVersion{}
+	case MsgSetProtocolVersionResponse:
+		u = &SetProtocolVersionResponse{}
+	case MsgGetReaderCapabilities:
+		u = &GetReaderCapabilities{}
+	case MsgGetReaderCapabilitiesResponse:
+		u = &GetReaderCapabilitiesResponse{}
+	case MsgAddROSpec:
+		u = &AddROSpec{}
+	case MsgAddROSpecResponse:
+		u = &AddROSpecResponse{}
+	case MsgDeleteROSpec:
+		u = &DeleteROSpec{}
+	case MsgDeleteROSpecResponse:
+		u = &DeleteROSpecResponse{}
+	case MsgStartROSpec:
+		u = &StartROSpec{}
+	case MsgStartROSpecResponse:
+		u = &StartROSpecResponse{}
+	case MsgStopROSpec:
+		u = &StopROSpec{}
+	case MsgStopROSpecResponse:
+		u = &StopROSpecResponse{}
+	case MsgEnableROSpec:
+		u = &EnableROSpec{}
+	case MsgEnableROSpecResponse:
+		u = &EnableROSpecResponse{}
+	case MsgDisableROSpec:
+		u = &DisableROSpec{}
+	case MsgDisableROSpecResponse:
+		u = &DisableROSpecResponse{}
+	case MsgGetROSpecs:
+		u = &GetROSpecs{}
+	case MsgGetROSpecsResponse:
+		u = &GetROSpecsResponse{}
+	case MsgAddAccessSpec:
+		u = &AddAccessSpec{}
+	case MsgAddAccessSpecResponse:
+		u = &AddAccessSpecResponse{}
+	case MsgDeleteAccessSpec:
+		u = &DeleteAccessSpec{}
+	case MsgDeleteAccessSpecResponse:
+		u = &DeleteAccessSpecResponse{}
+	case MsgEnableAccessSpec:
+		u = &EnableAccessSpec{}
+	case MsgEnableAccessSpecResponse:
+		u = &EnableAccessSpecResponse{}
+	case MsgDisableAccessSpec:
+		u = &DisableAccessSpec{}
+	case MsgDisableAccessSpecResponse:
+		u = &DisableROSpecResponse{}
+	case MsgGetAccessSpecs:
+		u = &GetAccessSpecs{}
+	case MsgGetAccessSpecsResponse:
+		u = &GetAccessSpecsResponse{}
+	case MsgClientRequestOp:
+		u = &ClientRequestOp{}
+	case MsgClientRequestOpResponse:
+		u = &ClientRequestOpResponse{}
+	case MsgGetReport:
+		u = &GetReport{}
+	case MsgROAccessReport:
+		u = &ROAccessReport{}
+	case MsgKeepAlive:
+		u = &KeepAlive{}
+	case MsgKeepAliveAck:
+		u = &KeepAliveAck{}
+	case MsgReaderEventNotification:
+		u = &ReaderEventNotification{}
+	case MsgEnableEventsAndReports:
+		u = &EnableEventsAndReports{}
+	case MsgErrorMessage:
+		u = &ErrorMessage{}
+	case MsgGetReaderConfig:
+		u = &GetReaderConfig{}
+	case MsgGetReaderConfigResponse:
+		u = &GetReaderConfigResponse{}
+	case MsgSetReaderConfig:
+		u = &SetReaderConfig{}
+	case MsgSetReaderConfigResponse:
+		u = &SetReaderConfigResponse{}
+	case MsgCloseConnection:
+		u = &CloseConnection{}
+	case MsgCloseConnectionResponse:
+		u = &CloseConnectionResponse{}
+	case MsgCustomMessage:
+		u = &CustomMessage{}
+	}
+	return u
 }

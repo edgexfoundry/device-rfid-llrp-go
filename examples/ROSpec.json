@@ -1,0 +1,64 @@
+{
+	"ROSpecID": 1,
+	"Priority": 0,
+	"ROSpecCurrentState": 0,
+	"ROBoundarySpec": {
+		"StartTrigger": {
+			"Trigger": 1,
+			"PeriodicTrigger": null,
+			"GPITrigger": null
+		},
+		"StopTrigger": {
+			"Trigger": 1,
+			"DurationTriggerValue": 5000,
+			"GPITriggerValue": null
+		}
+	},
+	"AISpecs": [
+		{
+			"AntennaIDs": [
+				0
+			],
+			"StopTrigger": {
+				"Trigger": 0,
+				"DurationTriggerValue": 0,
+				"GPITrigger": null,
+				"TagObservationTrigger": null
+			},
+			"InventoryParameterSpecs": [
+				{
+					"InventoryParameterSpecID": 1,
+					"AirProtocolID": 1,
+					"AntennaConfigurations": null,
+					"Custom": null
+				}
+			],
+			"Custom": null
+		}
+	],
+	"RFSurveySpecs": null,
+	"Custom": null,
+	"LoopSpec": null,
+	"ROReportSpec": {
+		"Trigger": 2,
+		"N": 0,
+		"TagReportContentSelector": {
+			"EnableROSpecID": true,
+			"EnableSpecIndex": true,
+			"EnableInventoryParamSpecID": true,
+			"EnableAntennaID": true,
+			"EnableChannelIndex": true,
+			"EnablePeakRSSI": true,
+			"EnableFirstSeenTimestamp": true,
+			"EnableLastSeenTimestamp": true,
+			"EnableTagSeenCount": true,
+			"EnableAccessSpecID": true,
+			"C1G2EPCMemorySelectors": {
+				"CRCEnabled": true,
+				"PCBitsEnabled": true
+			},
+			"Custom": null
+		},
+		"Custom": null
+	}
+}

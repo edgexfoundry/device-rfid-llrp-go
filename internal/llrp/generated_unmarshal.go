@@ -11,61 +11,66 @@ import (
 	"github.com/pkg/errors"
 )
 
-// dBm16 is a 16-bit dBm value. In LLRP, it's used for maximum receive sensitivity.
-type dBm16 = int16
+// DecibelMilliwatt16 is a 16-bit dBm value. In LLRP, it's used for maximum receive
+// sensitivity.
+type DecibelMilliwatt16 = int16
 
-// dBm8 is a 8-bit dBm value. In LLRP, it's used to represent RSSI.
-type dBm8 = int8
+// DecibelMilliwatt8 is a 8-bit dBm value. In LLRP, it's used to represent (received
+// signal strength indicator) RSSI.
+type DecibelMilliwatt8 = int8
 
-// dBiX100 is dBi*100, i.e., 0.01dBi or 1 millibel. In LLRP, it's used for fractional dBi
-// antenna gain values.
-type dBiX100 = uint16
+// MillibelIsotropic is dBi*100, i.e., 0.01dBi (decibel relative isotropic). In LLRP, it's
+// used for fractional dBi antenna gain values.
+type MillibelIsotropic = uint16
 
-// dBmX100 is dBm*100, i.e., 0.01dBm or 1 millibel milliwatt. In LLRP, it's used primarily
-// for fractional dBm transmit power values.
-type dBmX100 = uint16
+// MillibelMilliwatt is dBm*100, i.e. 0.01dBm or 1 millibel milliwatt. In LLRP, it's used
+// primarily for fractional dBm transmit power values.
+type MillibelMilliwatt = uint16
 
-// dB or decibel is 1/10 of a bel, which is the either the log10 of the ratio of a power
+// Decibel is 1/10 of a bel, which is the either the log10 of the ratio of a power
 // quantity relative a reference, or 2*log10 of the ratio of an amplitude quantity
 // relative a reference field.
 //
 // In LLRP, it's used primarily for receive sensitivity values relative the device maximum
 // sensitivity.
-type dB = uint16
+type Decibel = uint16
 
-// microSecs64 is a 64-bit number of microseconds.
+// Microsecs64 is a 64-bit number of microseconds.
 //
 // It's usually used to represent a time offset since a known reference, Unix Epoch or the
 // reader's start.
-type microSecs64 = uint64
+type Microsecs64 = uint64
 
-// microSecs64 is a 32-bit number of milliseconds.
+// Millisecs32 is a 32-bit number of milliseconds.
 //
 // It's used to represent a time offset since a known reference, usually Unix Epoch or a
 // message receipt time. Other times, it's used as a time period or timeout, in which case
 // 0 may mean "never timeout".
-type milliSecs32 = uint32
+type Millisecs32 = uint32
 
-// milliSecs16 is a 16-bit number of milliseconds.
+// Millisecs16 is a 16-bit number of milliseconds.
 //
 // It's used to represent a timeouts or duration triggers.
-type milliSecs16 = uint16
+type Millisecs16 = uint16
 
-// nanoSecs32 is a 32-bit number of nanoseconds used for some Tari values.
-type nanoSecs32 = uint32
+// Nanosecs32 is a 32-bit number of nanoseconds used for some Tari values.
+type Nanosecs32 = uint32
 
-// nanoSecs16 is a 16-bit number of nanoseconds used for some Tari values or for RF
-// Control.
-type nanoSecs16 = uint16
+// Nanosecs16 is a 16-bit number of nanoseconds as used for some Tari values.
+type Nanosecs16 = uint16
 
-// kHz is kilo-Hertz, used for frequency values.
-type kHz = uint32
+// Kilohertz measure frequency in 1000s of cycles per second.
+type Kilohertz = uint32
 
-// bps is bits per second, used in backscatter data rates.
-type bps = uint32
+// BitsPerSec are used to describe backscatter data rates.
+type BitsPerSec = uint32
 
 // C1G2MemoryBankType selection.
 type C1G2MemoryBankType = uint8
+
+// C1G2ProtoConEPCMemLength indicates number of (valid) EPC bits in the EPC Memory (bank
+// 1) of a Gen2 tag.
+type C1G2ProtoConEPCMemLength = uint8
 type C1G2BlockPermalockResultType uint8
 
 const (
@@ -93,16 +98,11 @@ const (
 
 // CountryCodeType is an ISO-3166 country code.
 type CountryCodeType uint16
-type C1G2TagInventoryTargetType uint8
 
-const (
-	InvTargetSL            = C1G2TagInventoryTargetType(0)
-	InvTargetInventoriedS0 = C1G2TagInventoryTargetType(1)
-	InvTargetInventoriedS1 = C1G2TagInventoryTargetType(2)
-	InvTargetInventoriedS2 = C1G2TagInventoryTargetType(3)
-	InvTargetInventoriedS3 = C1G2TagInventoryTargetType(4)
-)
+const Unspecified = CountryCodeType(0)
 
+// CommStandardType enumerates communication standards known to LLRP.
+type CommStandardType uint16
 type ROSpecCurrentStateType uint8
 
 const (
@@ -161,6 +161,17 @@ const (
 
 type AccessReportTriggerType uint8
 type ROReportTriggerType uint8
+
+const (
+	None            = ROReportTriggerType(0)
+	NTagsOrAIEnd    = ROReportTriggerType(1)
+	NTagsOrROEnd    = ROReportTriggerType(2)
+	NSecondsOrAIEnd = ROReportTriggerType(3)
+	NSecondsOrROEnd = ROReportTriggerType(4)
+	NMillisOrAIEnd  = ROReportTriggerType(5)
+	NMillisOrROEnd  = ROReportTriggerType(6)
+)
+
 type ConnectionAttemptEventType uint16
 
 const (
@@ -203,6 +214,7 @@ const (
 	RFSurveyStopTriggerNIteration = RFSurveySpecStopTriggerType(2)
 )
 
+// AISpecStopTriggerType specifies when an Antenna Operation should terminate.
 type AISpecStopTriggerType uint8
 
 const (
@@ -292,14 +304,6 @@ const (
 	LockDataUserMemory = LockDataType(4)
 )
 
-type C1G2FilterTruncateActionType uint8
-
-const (
-	FilterActionUnspecified   = C1G2FilterTruncateActionType(0)
-	FilterActionDoNotTruncate = C1G2FilterTruncateActionType(1)
-	FilterActionTruncate      = C1G2FilterTruncateActionType(2)
-)
-
 // VersionNum corresponds to an LLRP version number.
 //
 // The version number is 3 bits and embedded in each message sent between a Reader and
@@ -353,14 +357,14 @@ const (
 	StatusDeviceError           = StatusCode(401)
 )
 
-type ReaderCapabilitiesRequestedDataType uint8
+type ReaderCapability uint8
 
 const (
-	ReaderCapAll                         = ReaderCapabilitiesRequestedDataType(0)
-	ReaderCapGeneralDeviceCapabilities   = ReaderCapabilitiesRequestedDataType(1)
-	ReaderCapLLRPCapabilities            = ReaderCapabilitiesRequestedDataType(2)
-	ReaderCapRegulatorCapabilities       = ReaderCapabilitiesRequestedDataType(3)
-	ReaderCapAirProtocolLLRPCapabilities = ReaderCapabilitiesRequestedDataType(4)
+	ReaderCapAll                         = ReaderCapability(0)
+	ReaderCapGeneralDeviceCapabilities   = ReaderCapability(1)
+	ReaderCapLLRPCapabilities            = ReaderCapability(2)
+	ReaderCapRegulatorCapabilities       = ReaderCapability(3)
+	ReaderCapAirProtocolLLRPCapabilities = ReaderCapability(4)
 )
 
 type ReaderConfigRequestedDataType uint8
@@ -388,10 +392,34 @@ type C1G2LockResultType uint8
 type C1G2RecommissionResultType uint8
 type C1G2WriteOpSpecResultType uint8
 type C1G2ReadOpSpecResultType uint8
+type C1G2TagInventoryTargetType uint8
+
+const (
+	InvTargetSL            = C1G2TagInventoryTargetType(0)
+	InvTargetInventoriedS0 = C1G2TagInventoryTargetType(1)
+	InvTargetInventoriedS1 = C1G2TagInventoryTargetType(2)
+	InvTargetInventoriedS2 = C1G2TagInventoryTargetType(3)
+	InvTargetInventoriedS3 = C1G2TagInventoryTargetType(4)
+)
+
+type C1G2FilterTruncateActionType uint8
+
+const (
+	FilterActionUnspecified   = C1G2FilterTruncateActionType(0)
+	FilterActionDoNotTruncate = C1G2FilterTruncateActionType(1)
+	FilterActionTruncate      = C1G2FilterTruncateActionType(2)
+)
+
 type C1G2TagInventoryStateAwareFilterActionType uint8
+type SingActAwareState uint8
+
+const (
+	SingActAwareStateA = SingActAwareState(0)
+	SingActAwareStateB = SingActAwareState(1)
+)
+
 type C1G2TagInventoryStateUnawareFilterActionType uint8
-type C1G2SingulationControlSessionType uint8
-type C1G2TagInventoryStateAwareSingulationActionFlags uint8
+type C1G2SingulationSession = uint8
 type C1G2RecommissionFlags uint8
 
 const (
@@ -472,6 +500,11 @@ func (m *GetSupportedVersion) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetSupportedVersion) Type() MessageType {
+	return MsgGetSupportedVersion
+}
+
 // GetSupportedVersionResponse is Message 56, GetSupportedVersionResponse.
 type GetSupportedVersionResponse struct {
 	CurrentVersion      VersionNum
@@ -510,6 +543,16 @@ func (m *GetSupportedVersionResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetSupportedVersionResponse) Type() MessageType {
+	return MsgGetSupportedVersionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetSupportedVersionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // SetProtocolVersion is Message 47, SetProtocolVersion.
 type SetProtocolVersion struct {
 	TargetVersion VersionNum
@@ -523,6 +566,11 @@ func (m *SetProtocolVersion) UnmarshalBinary(data []byte) error {
 	}
 	m.TargetVersion = VersionNum(data[0] >> 5)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*SetProtocolVersion) Type() MessageType {
+	return MsgSetProtocolVersion
 }
 
 // SetProtocolVersionResponse is Message 57, SetProtocolVersionResponse.
@@ -558,9 +606,19 @@ func (m *SetProtocolVersionResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*SetProtocolVersionResponse) Type() MessageType {
+	return MsgSetProtocolVersionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *SetProtocolVersionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetReaderCapabilities is Message 1, GetReaderCapabilities.
 type GetReaderCapabilities struct {
-	ReaderCapabilitiesRequestedData ReaderCapabilitiesRequestedDataType
+	ReaderCapabilitiesRequestedData ReaderCapability
 	Custom                          []Custom
 }
 
@@ -570,7 +628,7 @@ func (m *GetReaderCapabilities) UnmarshalBinary(data []byte) error {
 		return errors.Errorf("GetReaderCapabilities length should be at "+
 			"least 1, but is %d", len(data))
 	}
-	m.ReaderCapabilitiesRequestedData = ReaderCapabilitiesRequestedDataType(data[0])
+	m.ReaderCapabilitiesRequestedData = ReaderCapability(data[0])
 	data = data[1:]
 	// sub-parameters
 	if len(data) == 0 {
@@ -602,6 +660,11 @@ paramGroup0:
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetReaderCapabilities) Type() MessageType {
+	return MsgGetReaderCapabilities
 }
 
 // GetReaderCapabilitiesResponse is Message 11, GetReaderCapabilitiesResponse.
@@ -705,7 +768,22 @@ paramGroup2:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetReaderCapabilitiesResponse) Type() MessageType {
+	return MsgGetReaderCapabilitiesResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetReaderCapabilitiesResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // AddROSpec is Message 20, AddROSpec.
+//
+// AddROSpec adds an Reader Operation Specification.
+//
+// ROSpecs must be added in the Disabled state, and it's up to the client to set the
+// ROSpecID. That ID is used to reference the spec in other messages.
 type AddROSpec struct {
 	ROSpec ROSpec
 }
@@ -735,6 +813,11 @@ func (m *AddROSpec) UnmarshalBinary(data []byte) error {
 			"%d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*AddROSpec) Type() MessageType {
+	return MsgAddROSpec
 }
 
 // AddROSpecResponse is Message 30, AddROSpecResponse.
@@ -770,6 +853,16 @@ func (m *AddROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*AddROSpecResponse) Type() MessageType {
+	return MsgAddROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *AddROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DeleteROSpec is Message 21, DeleteROSpec.
 type DeleteROSpec struct {
 	ROSpecID uint32
@@ -783,6 +876,11 @@ func (m *DeleteROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DeleteROSpec) Type() MessageType {
+	return MsgDeleteROSpec
 }
 
 // DeleteROSpecResponse is Message 31, DeleteROSpecResponse.
@@ -818,6 +916,16 @@ func (m *DeleteROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DeleteROSpecResponse) Type() MessageType {
+	return MsgDeleteROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DeleteROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // StartROSpec is Message 22, StartROSpec.
 type StartROSpec struct {
 	ROSpecID uint32
@@ -831,6 +939,11 @@ func (m *StartROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*StartROSpec) Type() MessageType {
+	return MsgStartROSpec
 }
 
 // StartROSpecResponse is Message 32, StartROSpecResponse.
@@ -866,7 +979,20 @@ func (m *StartROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*StartROSpecResponse) Type() MessageType {
+	return MsgStartROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *StartROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // StopROSpec is Message 23, StopROSpec.
+//
+// StopROSpec stops a spec if it's currently executing, overriding all other priorities
+// and moving it to Inactive.
 type StopROSpec struct {
 	ROSpecID uint32
 }
@@ -879,6 +1005,11 @@ func (m *StopROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*StopROSpec) Type() MessageType {
+	return MsgStopROSpec
 }
 
 // StopROSpecResponse is Message 33, StopROSpecResponse.
@@ -914,7 +1045,23 @@ func (m *StopROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*StopROSpecResponse) Type() MessageType {
+	return MsgStopROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *StopROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // EnableROSpec is Message 24, EnableROSpec.
+//
+// EnableROSpec moves and ROSpec from Disabled to Inactive.
+//
+// The SpecID may be 0, in which case all ROSpecs will be enabled. If the ROSpec has an
+// Immediate start trigger, enabling it will also activate it, provided no other necessary
+// prevent it from starting (e.g., its priority is lower than another enabled spec).
 type EnableROSpec struct {
 	ROSpecID uint32
 }
@@ -927,6 +1074,11 @@ func (m *EnableROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableROSpec) Type() MessageType {
+	return MsgEnableROSpec
 }
 
 // EnableROSpecResponse is Message 34, EnableROSpecResponse.
@@ -962,6 +1114,16 @@ func (m *EnableROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*EnableROSpecResponse) Type() MessageType {
+	return MsgEnableROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *EnableROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DisableROSpec is Message 25, DisableROSpec.
 type DisableROSpec struct {
 	ROSpecID uint32
@@ -975,6 +1137,11 @@ func (m *DisableROSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.ROSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DisableROSpec) Type() MessageType {
+	return MsgDisableROSpec
 }
 
 // DisableROSpecResponse is Message 35, DisableROSpecResponse.
@@ -1010,6 +1177,16 @@ func (m *DisableROSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DisableROSpecResponse) Type() MessageType {
+	return MsgDisableROSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DisableROSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetROSpecs is Message 26, GetROSpecs.
 type GetROSpecs struct{}
 
@@ -1021,6 +1198,11 @@ func (m *GetROSpecs) UnmarshalBinary(data []byte) error {
 			len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetROSpecs) Type() MessageType {
+	return MsgGetROSpecs
 }
 
 // GetROSpecsResponse is Message 36, GetROSpecsResponse.
@@ -1081,6 +1263,16 @@ paramGroup1:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetROSpecsResponse) Type() MessageType {
+	return MsgGetROSpecsResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetROSpecsResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // AddAccessSpec is Message 40, AddAccessSpec.
 type AddAccessSpec struct {
 	AccessSpec AccessSpec
@@ -1112,6 +1304,11 @@ func (m *AddAccessSpec) UnmarshalBinary(data []byte) error {
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*AddAccessSpec) Type() MessageType {
+	return MsgAddAccessSpec
 }
 
 // AddAccessSpecResponse is Message 50, AddAccessSpecResponse.
@@ -1147,6 +1344,16 @@ func (m *AddAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*AddAccessSpecResponse) Type() MessageType {
+	return MsgAddAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *AddAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DeleteAccessSpec is Message 41, DeleteAccessSpec.
 type DeleteAccessSpec struct {
 	AccessSpecID uint32
@@ -1160,6 +1367,11 @@ func (m *DeleteAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DeleteAccessSpec) Type() MessageType {
+	return MsgDeleteAccessSpec
 }
 
 // DeleteAccessSpecResponse is Message 51, DeleteAccessSpecResponse.
@@ -1195,6 +1407,16 @@ func (m *DeleteAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DeleteAccessSpecResponse) Type() MessageType {
+	return MsgDeleteAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DeleteAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // EnableAccessSpec is Message 42, EnableAccessSpec.
 type EnableAccessSpec struct {
 	AccessSpecID uint32
@@ -1208,6 +1430,11 @@ func (m *EnableAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableAccessSpec) Type() MessageType {
+	return MsgEnableAccessSpec
 }
 
 // EnableAccessSpecResponse is Message 52, EnableAccessSpecResponse.
@@ -1243,6 +1470,16 @@ func (m *EnableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*EnableAccessSpecResponse) Type() MessageType {
+	return MsgEnableAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *EnableAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // DisableAccessSpec is Message 43, DisableAccessSpec.
 type DisableAccessSpec struct {
 	AccessSpecID uint32
@@ -1256,6 +1493,11 @@ func (m *DisableAccessSpec) UnmarshalBinary(data []byte) error {
 	}
 	m.AccessSpecID = binary.BigEndian.Uint32(data)
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*DisableAccessSpec) Type() MessageType {
+	return MsgDisableAccessSpec
 }
 
 // DisableAccessSpecResponse is Message 53, DisableAccessSpecResponse.
@@ -1291,6 +1533,16 @@ func (m *DisableAccessSpecResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*DisableAccessSpecResponse) Type() MessageType {
+	return MsgDisableAccessSpecResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *DisableAccessSpecResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetAccessSpecs is Message 44, GetAccessSpecs.
 type GetAccessSpecs struct{}
 
@@ -1302,6 +1554,11 @@ func (m *GetAccessSpecs) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetAccessSpecs) Type() MessageType {
+	return MsgGetAccessSpecs
 }
 
 // GetAccessSpecsResponse is Message 54, GetAccessSpecsResponse.
@@ -1362,6 +1619,16 @@ paramGroup1:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetAccessSpecsResponse) Type() MessageType {
+	return MsgGetAccessSpecsResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetAccessSpecsResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // ClientRequestOp is Message 45, ClientRequestOp.
 type ClientRequestOp struct {
 	TagReportData TagReportData
@@ -1393,6 +1660,11 @@ func (m *ClientRequestOp) UnmarshalBinary(data []byte) error {
 			"unexpected %d bytes remain", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*ClientRequestOp) Type() MessageType {
+	return MsgClientRequestOp
 }
 
 // ClientRequestOpResponse is Message 55, ClientRequestOpResponse.
@@ -1428,6 +1700,11 @@ func (m *ClientRequestOpResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ClientRequestOpResponse) Type() MessageType {
+	return MsgClientRequestOpResponse
+}
+
 // GetReport is Message 60, GetReport.
 type GetReport struct{}
 
@@ -1439,6 +1716,11 @@ func (m *GetReport) UnmarshalBinary(data []byte) error {
 			len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*GetReport) Type() MessageType {
+	return MsgGetReport
 }
 
 // ROAccessReport is Message 61, ROAccessReport.
@@ -1498,6 +1780,11 @@ paramGroup0:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ROAccessReport) Type() MessageType {
+	return MsgROAccessReport
+}
+
 // KeepAlive is Message 62, KeepAlive.
 type KeepAlive struct{}
 
@@ -1511,6 +1798,11 @@ func (m *KeepAlive) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*KeepAlive) Type() MessageType {
+	return MsgKeepAlive
+}
+
 // KeepAliveAck is Message 72, KeepAliveAck.
 type KeepAliveAck struct{}
 
@@ -1522,6 +1814,11 @@ func (m *KeepAliveAck) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*KeepAliveAck) Type() MessageType {
+	return MsgKeepAliveAck
 }
 
 // ReaderEventNotification is Message 63, ReaderEventNotification.
@@ -1557,6 +1854,11 @@ func (m *ReaderEventNotification) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ReaderEventNotification) Type() MessageType {
+	return MsgReaderEventNotification
+}
+
 // EnableEventsAndReports is Message 64, EnableEventsAndReports.
 type EnableEventsAndReports struct{}
 
@@ -1568,6 +1870,11 @@ func (m *EnableEventsAndReports) UnmarshalBinary(data []byte) error {
 			"has %d bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*EnableEventsAndReports) Type() MessageType {
+	return MsgEnableEventsAndReports
 }
 
 // ErrorMessage is Message 100, ErrorMessage.
@@ -1603,13 +1910,23 @@ func (m *ErrorMessage) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*ErrorMessage) Type() MessageType {
+	return MsgErrorMessage
+}
+
+// Status returns this message's LLRPStatus
+func (m *ErrorMessage) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // GetReaderConfig is Message 2, GetReaderConfig.
 type GetReaderConfig struct {
-	AntennaID                 uint16
-	ReaderConfigRequestedData ReaderConfigRequestedDataType
-	GPIPortNum                uint16
-	GPOPortNum                uint16
-	Custom                    []Custom
+	AntennaID     AntennaID
+	RequestedData ReaderConfigRequestedDataType
+	GPIPortNum    uint16
+	GPOPortNum    uint16
+	Custom        []Custom
 }
 
 // UnmarshalBinary Message 2, GetReaderConfig.
@@ -1618,8 +1935,8 @@ func (m *GetReaderConfig) UnmarshalBinary(data []byte) error {
 		return errors.Errorf("GetReaderConfig length should be at least 7, "+
 			"but is %d", len(data))
 	}
-	m.AntennaID = binary.BigEndian.Uint16(data)
-	m.ReaderConfigRequestedData = ReaderConfigRequestedDataType(data[2])
+	m.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
+	m.RequestedData = ReaderConfigRequestedDataType(data[2])
 	m.GPIPortNum = binary.BigEndian.Uint16(data[3:])
 	m.GPOPortNum = binary.BigEndian.Uint16(data[5:])
 	data = data[7:]
@@ -1655,11 +1972,16 @@ paramGroup0:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetReaderConfig) Type() MessageType {
+	return MsgGetReaderConfig
+}
+
 // GetReaderConfigResponse is Message 12, GetReaderConfigResponse.
 type GetReaderConfigResponse struct {
 	LLRPStatus                  LLRPStatus
 	Identification              *Identification
-	AntennaPropertiess          []AntennaProperties
+	AntennaProperties           []AntennaProperties
 	AntennaConfigurations       []AntennaConfiguration
 	ReaderEventNotificationSpec *ReaderEventNotificationSpec
 	ROReportSpec                *ROReportSpec
@@ -1726,7 +2048,7 @@ paramGroup2:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			m.AntennaPropertiess = append(m.AntennaPropertiess, tmp)
+			m.AntennaProperties = append(m.AntennaProperties, tmp)
 		case ParamAntennaConfiguration:
 			var tmp AntennaConfiguration
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -1851,11 +2173,21 @@ paramGroup6:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*GetReaderConfigResponse) Type() MessageType {
+	return MsgGetReaderConfigResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *GetReaderConfigResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // SetReaderConfig is Message 3, SetReaderConfig.
 type SetReaderConfig struct {
 	ResetToFactoryDefaults      bool
 	ReaderEventNotificationSpec *ReaderEventNotificationSpec
-	AntennaPropertiess          []AntennaProperties
+	AntennaProperties           []AntennaProperties
 	AntennaConfigurations       []AntennaConfiguration
 	ROReportSpec                *ROReportSpec
 	AccessReportSpec            *AccessReportSpec
@@ -1908,7 +2240,7 @@ paramGroup1:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			m.AntennaPropertiess = append(m.AntennaPropertiess, tmp)
+			m.AntennaProperties = append(m.AntennaProperties, tmp)
 		case ParamAntennaConfiguration:
 			var tmp AntennaConfiguration
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -2025,6 +2357,11 @@ paramGroup5:
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*SetReaderConfig) Type() MessageType {
+	return MsgSetReaderConfig
+}
+
 // SetReaderConfigResponse is Message 13, SetReaderConfigResponse.
 type SetReaderConfigResponse struct {
 	LLRPStatus LLRPStatus
@@ -2058,6 +2395,16 @@ func (m *SetReaderConfigResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*SetReaderConfigResponse) Type() MessageType {
+	return MsgSetReaderConfigResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *SetReaderConfigResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // CloseConnection is Message 14, CloseConnection.
 type CloseConnection struct{}
 
@@ -2069,6 +2416,11 @@ func (m *CloseConnection) UnmarshalBinary(data []byte) error {
 			"bytes", len(data))
 	}
 	return nil
+}
+
+// Type returns this message's MessageType
+func (*CloseConnection) Type() MessageType {
+	return MsgCloseConnection
 }
 
 // CloseConnectionResponse is Message 4, CloseConnectionResponse.
@@ -2104,6 +2456,16 @@ func (m *CloseConnectionResponse) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*CloseConnectionResponse) Type() MessageType {
+	return MsgCloseConnectionResponse
+}
+
+// Status returns this message's LLRPStatus
+func (m *CloseConnectionResponse) Status() LLRPStatus {
+	return m.LLRPStatus
+}
+
 // CustomMessage is Message 1023, CustomMessage.
 type CustomMessage struct {
 	VendorID       uint32
@@ -2128,6 +2490,11 @@ func (m *CustomMessage) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Type returns this message's MessageType
+func (*CustomMessage) Type() MessageType {
+	return MsgCustomMessage
+}
+
 // AntennaID is Parameter 1, AntennaID.
 type AntennaID uint16
 
@@ -2141,7 +2508,7 @@ func (p *AntennaID) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUTC is Parameter 2, FirstSeenUTC.
-type FirstSeenUTC microSecs64
+type FirstSeenUTC Microsecs64
 
 // UnmarshalBinary Parameter 2, FirstSeenUTC.
 func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2153,7 +2520,7 @@ func (p *FirstSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // FirstSeenUptime is Parameter 3, FirstSeenUptime.
-type FirstSeenUptime microSecs64
+type FirstSeenUptime Microsecs64
 
 // UnmarshalBinary Parameter 3, FirstSeenUptime.
 func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2165,7 +2532,7 @@ func (p *FirstSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUTC is Parameter 4, LastSeenUTC.
-type LastSeenUTC microSecs64
+type LastSeenUTC Microsecs64
 
 // UnmarshalBinary Parameter 4, LastSeenUTC.
 func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
@@ -2177,7 +2544,7 @@ func (p *LastSeenUTC) UnmarshalBinary(data []byte) error {
 }
 
 // LastSeenUptime is Parameter 5, LastSeenUptime.
-type LastSeenUptime microSecs64
+type LastSeenUptime Microsecs64
 
 // UnmarshalBinary Parameter 5, LastSeenUptime.
 func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
@@ -2189,14 +2556,14 @@ func (p *LastSeenUptime) UnmarshalBinary(data []byte) error {
 }
 
 // PeakRSSI is Parameter 6, PeakRSSI.
-type PeakRSSI dBm8
+type PeakRSSI DecibelMilliwatt8
 
 // UnmarshalBinary Parameter 6, PeakRSSI.
 func (p *PeakRSSI) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPeakRSSI, 1, len(data), true); err != nil {
 		return err
 	}
-	*p = PeakRSSI(dBm8(data[0]))
+	*p = PeakRSSI(DecibelMilliwatt8(data[0]))
 	return nil
 }
 
@@ -2261,14 +2628,38 @@ func (p *C1G2CRC) UnmarshalBinary(data []byte) error {
 }
 
 // C1G2PC is Parameter 12, C1G2PC.
-type C1G2PC uint16
+//
+// This is the 16-bit Protocol Control field of the EPC Memory (bank 1). It indicates the
+// number of EPC bits a tag returns to a reader, (regardless of the physical memory bank
+// size), whether or not the tag has user memory (and contains data), whether or not an
+// XPC is present, and whether the EPC memory bank contains a binary encoded EPC or an ISO
+// Unique Item Identifier.
+type C1G2PC struct {
+	EPCMemoryLength C1G2ProtoConEPCMemLength
+	HasUserMemory   bool
+	// HasXPC is true if the Extended Protocol Control Word 1 exists (word 21 of EPC Memory).
+	HasXPC bool
+	// IsISO15961 is true if the final 8 bits of the PC are an ISO Application Family
+	// Identifier (AFI), as defined in ISO15961. If so, the remainder of the EPC bank
+	// contains a Unique Item Identifier (UII) appropriate for that AFI. If false, the final
+	// 8 bits of the PC are (or may be) Attribute Bits (applies to Gen2 v1.x tags only), and
+	// the remainder of the EPC memory bank is a binary encoded EPC.
+	IsISO15961 bool
+	// AttributesOrAFI is either the EPC C1G2 Attributes bits, or an ISO15961 AFI, depending
+	// on the whether IsISO15961 is true.
+	AttributesOrAFI byte
+}
 
 // UnmarshalBinary Parameter 12, C1G2PC.
 func (p *C1G2PC) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2PC, 2, len(data), true); err != nil {
 		return err
 	}
-	*p = C1G2PC(binary.BigEndian.Uint16(data))
+	p.EPCMemoryLength = data[0] >> 3
+	p.HasUserMemory = data[0]>>2&1 != 0
+	p.HasXPC = data[0]>>1&1 != 0
+	p.IsISO15961 = data[0]&1 != 0
+	p.AttributesOrAFI = byte(data[1])
 	return nil
 }
 
@@ -2376,7 +2767,9 @@ func (p *C1G2XPCW2) UnmarshalBinary(data []byte) error {
 }
 
 // UTCTimestamp is Parameter 128, UTCTimestamp.
-type UTCTimestamp microSecs64
+//
+// Microseconds since the beginning of time, midnight 1970-Jan-1.
+type UTCTimestamp Microsecs64
 
 // UnmarshalBinary Parameter 128, UTCTimestamp.
 func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
@@ -2388,7 +2781,9 @@ func (p *UTCTimestamp) UnmarshalBinary(data []byte) error {
 }
 
 // Uptime is Parameter 129, Uptime.
-type Uptime microSecs64
+//
+// Microseconds since the Reader started.
+type Uptime Microsecs64
 
 // UnmarshalBinary Parameter 129, Uptime.
 func (p *Uptime) UnmarshalBinary(data []byte) error {
@@ -2400,14 +2795,38 @@ func (p *Uptime) UnmarshalBinary(data []byte) error {
 }
 
 // GeneralDeviceCapabilities is Parameter 137, GeneralDeviceCapabilities.
+//
+// This parameter specifies what the Reader supports, primarily with respect to antenna
+// control. It also gives some identifying information about the device make, model, and
+// firmware.
+//
+// Some LLRP messages permit either a UTC timestamp or Uptime parameter. If HasUTCClock is
+// false, the Reader uses Uptime, and reports the number of microseconds since it powered
+// on. If it has a UTC clock, then it reports its timestamps as microseconds since the
+// beginning of time (1970-Jan-01, midnight).
+//
+// The most common messages carry a timestamp, so they'll have one or the other of UTC or
+// Uptime, but not both. In most cases, this package use pointer struct fields for 0..1
+// parameters, allowing nil to signal that the parameter isn't present. For reasons
+// related to implementation simplicity and performance, both UTC and Uptime are presented
+// as non-pointer struct fields. During unmarshaling, it'll set the correct value and
+// leave the other 0 (or report an error if both are present or both are missing). During
+// marshaling, if both are set, it will only marshal the UTC value.
+//
+// If a Reader doesn't support controlling receive sensitivity, it returns a single table
+// entry with the value 0. If it supports multiple antennas each with unique
+// sensitivities, the table contains an entry for the union of all possible sensitivities,
+// and the PerAntennaReceiveSensitivityRanges maps antenna IDs to ranges of indices into
+// this table.
 type GeneralDeviceCapabilities struct {
-	MaxSupportedAntennas               uint16
-	CanSetAntennaProperties            bool
-	HasUTCClockCapability              bool
-	DeviceManufacturerName             uint32
-	ModelName                          uint32
-	ReaderFirmwareVersion              string
-	ReceiveSensitivityTableEntries     []ReceiveSensitivityTableEntry
+	MaxSupportedAntennas    uint16
+	CanSetAntennaProperties bool
+	HasUTCClock             bool
+	// DeviceManufacturer is an IANA Private Enterprise Number (PEN).
+	DeviceManufacturer                 uint32
+	Model                              uint32
+	FirmwareVersion                    string
+	ReceiveSensitivities               []ReceiveSensitivityTableEntry
 	PerAntennaReceiveSensitivityRanges []PerAntennaReceiveSensitivityRange
 	GPIOCapabilities                   GPIOCapabilities
 	PerAntennaAirProtocols             []PerAntennaAirProtocol
@@ -2421,14 +2840,14 @@ func (p *GeneralDeviceCapabilities) UnmarshalBinary(data []byte) error {
 	}
 	p.MaxSupportedAntennas = binary.BigEndian.Uint16(data)
 	p.CanSetAntennaProperties = data[2]>>7 != 0
-	p.HasUTCClockCapability = data[2]>>6&1 != 0
-	p.DeviceManufacturerName = binary.BigEndian.Uint32(data[4:])
-	p.ModelName = binary.BigEndian.Uint32(data[8:])
+	p.HasUTCClock = data[2]>>6&1 != 0
+	p.DeviceManufacturer = binary.BigEndian.Uint32(data[4:])
+	p.Model = binary.BigEndian.Uint32(data[8:])
 	if strLen := int(binary.BigEndian.Uint16(data[12:])); strLen > len(data[14:]) {
-		return errors.Errorf("ReaderFirmwareVersion (string) declares it has "+
-			"%d bytes, but only %d bytes are available", strLen, len(data[14:]))
+		return errors.Errorf("FirmwareVersion (string) declares it has %d "+
+			"bytes, but only %d bytes are available", strLen, len(data[14:]))
 	} else if strLen != 0 {
-		p.ReaderFirmwareVersion = string(data[14 : strLen+14])
+		p.FirmwareVersion = string(data[14 : strLen+14])
 		data = data[strLen+14:]
 	} else {
 		data = data[14:]
@@ -2449,7 +2868,7 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.ReceiveSensitivityTableEntries = append(p.ReceiveSensitivityTableEntries, tmp)
+			p.ReceiveSensitivities = append(p.ReceiveSensitivities, tmp)
 		default:
 			break paramGroup0
 		}
@@ -2524,7 +2943,7 @@ paramGroup3:
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
 		p.MaximumReceiveSensitivity = new(MaximumReceiveSensitivity)
-		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data[4:])))
+		*p.MaximumReceiveSensitivity = MaximumReceiveSensitivity(DecibelMilliwatt16(binary.BigEndian.Uint16(data[4:])))
 		data = data[subLen:]
 	}
 	if len(data) > 0 {
@@ -2536,9 +2955,11 @@ paramGroup3:
 
 // ReceiveSensitivityTableEntry is Parameter 139, ReceiveSensitivityTableEntry.
 type ReceiveSensitivityTableEntry struct {
-	TableIndex uint16
-	// ReceiveSensitivity is relative the maximum.
-	ReceiveSensitivity dB
+	Index uint16
+	// ReceiveSensitivity is relative the maximum supported by the device, or the maximum
+	// reported in the device capabilities, for readers that support changing it (requires
+	// LLRP v1.1+).
+	ReceiveSensitivity Decibel
 }
 
 // UnmarshalBinary Parameter 139, ReceiveSensitivityTableEntry.
@@ -2546,14 +2967,14 @@ func (p *ReceiveSensitivityTableEntry) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamReceiveSensitivityTableEntry, 4, len(data), true); err != nil {
 		return err
 	}
-	p.TableIndex = binary.BigEndian.Uint16(data)
+	p.Index = binary.BigEndian.Uint16(data)
 	p.ReceiveSensitivity = binary.BigEndian.Uint16(data[2:])
 	return nil
 }
 
 // PerAntennaAirProtocol is Parameter 140, PerAntennaAirProtocol.
 type PerAntennaAirProtocol struct {
-	AntennaID      uint16
+	AntennaID      AntennaID
 	AirProtocolIDs []AirProtocolIDType
 }
 
@@ -2562,7 +2983,7 @@ func (p *PerAntennaAirProtocol) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPerAntennaAirProtocol, 4, len(data), false); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	if arrLen := int(binary.BigEndian.Uint16(data[2:])); arrLen > len(data[4:]) {
 		return errors.Errorf("AirProtocolIDs ([]AirProtocolIDType) declares "+
 			"it has %d bytes, but only %d bytes are available", arrLen,
@@ -2608,11 +3029,11 @@ type LLRPCapabilities struct {
 	SupportsEventsAndReportHolding         bool
 	MaxPriorityLevelSupported              uint8
 	ClientRequestedOpSpecTimeout           uint16
-	MaxNumROSpecs                          uint32
-	MaxNumSpecsPerROSpec                   uint32
-	MaxNumInventoryParameterSpecsPerAISpec uint32
-	MaxNumAccessSpecs                      uint32
-	MaxNumOpSpecsPerAccessSpec             uint32
+	MaxROSpecs                             uint32
+	MaxSpecsPerROSpec                      uint32
+	MaxInventoryParameterSpecsPerAISpec    uint32
+	MaxAccessSpecs                         uint32
+	MaxOpSpecsPerAccessSpec                uint32
 }
 
 // UnmarshalBinary Parameter 142, LLRPCapabilities.
@@ -2627,11 +3048,11 @@ func (p *LLRPCapabilities) UnmarshalBinary(data []byte) error {
 	p.SupportsEventsAndReportHolding = data[0]>>3&1 != 0
 	p.MaxPriorityLevelSupported = data[1]
 	p.ClientRequestedOpSpecTimeout = binary.BigEndian.Uint16(data[2:])
-	p.MaxNumROSpecs = binary.BigEndian.Uint32(data[4:])
-	p.MaxNumSpecsPerROSpec = binary.BigEndian.Uint32(data[8:])
-	p.MaxNumInventoryParameterSpecsPerAISpec = binary.BigEndian.Uint32(data[12:])
-	p.MaxNumAccessSpecs = binary.BigEndian.Uint32(data[16:])
-	p.MaxNumOpSpecsPerAccessSpec = binary.BigEndian.Uint32(data[20:])
+	p.MaxROSpecs = binary.BigEndian.Uint32(data[4:])
+	p.MaxSpecsPerROSpec = binary.BigEndian.Uint32(data[8:])
+	p.MaxInventoryParameterSpecsPerAISpec = binary.BigEndian.Uint32(data[12:])
+	p.MaxAccessSpecs = binary.BigEndian.Uint32(data[16:])
+	p.MaxOpSpecsPerAccessSpec = binary.BigEndian.Uint32(data[20:])
 	return nil
 }
 
@@ -2700,9 +3121,9 @@ paramGroup1:
 
 // UHFBandCapabilities is Parameter 144, UHFBandCapabilities.
 type UHFBandCapabilities struct {
-	TransmitPowerLevelTableEntrys []TransmitPowerLevelTableEntry
-	FrequencyInformations         []FrequencyInformation
-	UHFC1G2RFModeTables           []UHFC1G2RFModeTable
+	TransmitPowerLevels           []TransmitPowerLevelTableEntry
+	FrequencyInformation          FrequencyInformation
+	C1G2RFModes                   UHFC1G2RFModeTable
 	RFSurveyFrequencyCapabilities *RFSurveyFrequencyCapabilities
 }
 
@@ -2727,21 +3148,43 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.TransmitPowerLevelTableEntrys = append(p.TransmitPowerLevelTableEntrys, tmp)
-		case ParamFrequencyInformation:
-			var tmp FrequencyInformation
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.FrequencyInformations = append(p.FrequencyInformations, tmp)
-		case ParamUHFC1G2RFModeTable:
-			var tmp UHFC1G2RFModeTable
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.UHFC1G2RFModeTables = append(p.UHFC1G2RFModeTables, tmp)
+			p.TransmitPowerLevels = append(p.TransmitPowerLevels, tmp)
 		default:
 			break paramGroup0
+		}
+		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamFrequencyInformation, 4, len(data), false); err != nil {
+		return err
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamFrequencyInformation {
+		return errors.Errorf("expected ParamFrequencyInformation, but found "+
+			"%v", subType)
+	} else {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamFrequencyInformation says it has %d "+
+				"bytes, but only %d bytes remain", subLen, len(data))
+		}
+		if err := p.FrequencyInformation.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+		data = data[subLen:]
+	}
+	if err := hasEnoughBytes(ParamUHFC1G2RFModeTable, 4, len(data), false); err != nil {
+		return err
+	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType != ParamUHFC1G2RFModeTable {
+		return errors.Errorf("expected ParamUHFC1G2RFModeTable, but found "+
+			"%v", subType)
+	} else {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamUHFC1G2RFModeTable says it has %d bytes, "+
+				"but only %d bytes remain", subLen, len(data))
+		}
+		if err := p.C1G2RFModes.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
 		}
 		data = data[subLen:]
 	}
@@ -2770,7 +3213,7 @@ paramGroup0:
 // TransmitPowerLevelTableEntry is Parameter 145, TransmitPowerLevelTableEntry.
 type TransmitPowerLevelTableEntry struct {
 	Index              uint16
-	TransmitPowerValue dBmX100
+	TransmitPowerValue MillibelMilliwatt
 }
 
 // UnmarshalBinary Parameter 145, TransmitPowerLevelTableEntry.
@@ -2784,6 +3227,16 @@ func (p *TransmitPowerLevelTableEntry) UnmarshalBinary(data []byte) error {
 }
 
 // FrequencyInformation is Parameter 146, FrequencyInformation.
+//
+// In hopping regulatory regions, Hopping is true, and the Reader will send zero or more
+// FrequencyHopTables, each with a HopTableID and list of frequencies. In fixed frequency
+// regulatory regions, Hopping is false, and the Reader sends a fixed frequency table
+// instead.
+//
+// In both cases, the "table" is just a list of available frequencies. The "ChannelIndex"
+// is a frequency's 1-based offset in its list, so ChannelIndex 1 is Frequencies[0]. Other
+// parameters will reference these values using a ChannelIndex, as well as the HopTableID
+// if Hopping is true.
 type FrequencyInformation struct {
 	Hopping             bool
 	FrequencyHopTables  []FrequencyHopTable
@@ -2847,7 +3300,7 @@ paramGroup0:
 // FrequencyHopTable is Parameter 147, FrequencyHopTable.
 type FrequencyHopTable struct {
 	HopTableID  uint8
-	Frequencies []kHz
+	Frequencies []Kilohertz
 }
 
 // UnmarshalBinary Parameter 147, FrequencyHopTable.
@@ -2858,10 +3311,10 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 	p.HopTableID = data[0]
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data[2:])); int64(arrLen)*4 > int64(len(data[4:])) {
-		return errors.Errorf("Frequencies ([]kHz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]Kilohertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[4:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]kHz, arrLen)
+		p.Frequencies = make([]Kilohertz, arrLen)
 		for i, pos := 0, 4; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -2878,7 +3331,7 @@ func (p *FrequencyHopTable) UnmarshalBinary(data []byte) error {
 
 // FixedFrequencyTable is Parameter 148, FixedFrequencyTable.
 type FixedFrequencyTable struct {
-	Frequencies []kHz
+	Frequencies []Kilohertz
 }
 
 // UnmarshalBinary Parameter 148, FixedFrequencyTable.
@@ -2888,10 +3341,10 @@ func (p *FixedFrequencyTable) UnmarshalBinary(data []byte) error {
 	}
 	// cast the len check to int64 to prevent overflow issues
 	if arrLen := int(binary.BigEndian.Uint16(data)); int64(arrLen)*4 > int64(len(data[2:])) {
-		return errors.Errorf("Frequencies ([]kHz) declares it has %d*4 "+
+		return errors.Errorf("Frequencies ([]Kilohertz) declares it has %d*4 "+
 			"bytes, but only %d bytes are available", arrLen, len(data[2:]))
 	} else if arrLen != 0 {
-		p.Frequencies = make([]kHz, arrLen)
+		p.Frequencies = make([]Kilohertz, arrLen)
 		for i, pos := 0, 2; i < arrLen; i, pos = i+1, pos+4 {
 			p.Frequencies[i] = binary.BigEndian.Uint32(data[pos:])
 		}
@@ -2908,7 +3361,7 @@ func (p *FixedFrequencyTable) UnmarshalBinary(data []byte) error {
 
 // PerAntennaReceiveSensitivityRange is Parameter 149, PerAntennaReceiveSensitivityRange.
 type PerAntennaReceiveSensitivityRange struct {
-	AntennaID                  uint16
+	AntennaID                  AntennaID
 	ReceiveSensitivityIndexMin uint16
 	ReceiveSensitivityIndexMax uint16
 }
@@ -2918,13 +3371,44 @@ func (p *PerAntennaReceiveSensitivityRange) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamPerAntennaReceiveSensitivityRange, 6, len(data), true); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	p.ReceiveSensitivityIndexMin = binary.BigEndian.Uint16(data[2:])
 	p.ReceiveSensitivityIndexMax = binary.BigEndian.Uint16(data[4:])
 	return nil
 }
 
 // ROSpec is Parameter 177, ROSpec.
+//
+// ROSpec is a Reader Operation Specification.
+//
+// An ROSpec describes the operations executed at one or more antennas, specified one or
+// more AISpecs, RFSurveySpecs, or CustomSpecs. Specs are executed in the order in which
+// they appear, and reports reference the relevant spec via a 1-indexed SpecIndex. Not all
+// devices support RFSurveySpecs. LoopSpecs are only supported with LLRP version 1.1.
+//
+// The RFID device picks which ROSpec to execute based on a number of conditions
+// (described below). When it does so, the ROSpec transitions from Inactive to Active, and
+// the device may send an event notification (if configured to do so). While Active, if
+// the ROSpec's reporting conditions are satisfied, the device sends ROAccessReports,
+// which contain TagReportData matching either the device's configured defaults report
+// information, or the TagReportContentSelector if the RO defines an ROReportSpec.
+//
+// The client defines an ROSpec via the AddROSpec Message. They must define the spec in
+// the Disabled state, with an ROSpecID >0, or the device must reject it. Once defined,
+// the client uses the ROSpecID to modify its state, and the device may include the
+// ROSpecID in reports that reference it. Other relevant messages for controlling ROSpecs:
+//
+//     - Enable ROSpec
+//
+//     - Disable ROSpec
+//
+//     - Start ROSpec
+//
+//     - Stop ROSpec
+//
+//     - Delete ROSpec
+//
+//     - Get ROSpecs
 type ROSpec struct {
 	ROSpecID           uint32
 	Priority           uint8
@@ -3032,8 +3516,8 @@ paramGroup2:
 
 // ROBoundarySpec is Parameter 178, ROBoundarySpec.
 type ROBoundarySpec struct {
-	ROSpecStartTrigger ROSpecStartTrigger
-	ROSpecStopTrigger  ROSpecStopTrigger
+	StartTrigger ROSpecStartTrigger
+	StopTrigger  ROSpecStopTrigger
 }
 
 // UnmarshalBinary Parameter 178, ROBoundarySpec.
@@ -3051,7 +3535,7 @@ func (p *ROBoundarySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpecStartTrigger says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.ROSpecStartTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.StartTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -3068,7 +3552,7 @@ func (p *ROBoundarySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamROSpecStopTrigger says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.ROSpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.StopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -3082,9 +3566,9 @@ func (p *ROBoundarySpec) UnmarshalBinary(data []byte) error {
 
 // ROSpecStartTrigger is Parameter 179, ROSpecStartTrigger.
 type ROSpecStartTrigger struct {
-	ROSpecStartTriggerType ROSpecStartTriggerType
-	PeriodicTriggerValue   *PeriodicTriggerValue
-	GPITriggerValue        *GPITriggerValue
+	Trigger         ROSpecStartTriggerType
+	PeriodicTrigger *PeriodicTriggerValue
+	GPITrigger      *GPITriggerValue
 }
 
 // UnmarshalBinary Parameter 179, ROSpecStartTrigger.
@@ -3092,7 +3576,7 @@ func (p *ROSpecStartTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamROSpecStartTrigger, 1, len(data), false); err != nil {
 		return err
 	}
-	p.ROSpecStartTriggerType = ROSpecStartTriggerType(data[0])
+	p.Trigger = ROSpecStartTriggerType(data[0])
 	data = data[1:]
 	// sub-parameters
 	if len(data) == 0 {
@@ -3109,13 +3593,13 @@ paramGroup0:
 		}
 		switch pt {
 		case ParamPeriodicTriggerValue:
-			p.PeriodicTriggerValue = new(PeriodicTriggerValue)
-			if err := p.PeriodicTriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.PeriodicTrigger = new(PeriodicTriggerValue)
+			if err := p.PeriodicTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		case ParamGPITriggerValue:
-			p.GPITriggerValue = new(GPITriggerValue)
-			if err := p.GPITriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.GPITrigger = new(GPITriggerValue)
+			if err := p.GPITrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		default:
@@ -3132,8 +3616,8 @@ paramGroup0:
 
 // PeriodicTriggerValue is Parameter 180, PeriodicTriggerValue.
 type PeriodicTriggerValue struct {
-	Offset       milliSecs32
-	Period       milliSecs32
+	Offset       Millisecs32
+	Period       Millisecs32
 	UTCTimestamp *UTCTimestamp
 }
 
@@ -3168,9 +3652,9 @@ func (p *PeriodicTriggerValue) UnmarshalBinary(data []byte) error {
 
 // GPITriggerValue is Parameter 181, GPITriggerValue.
 type GPITriggerValue struct {
-	GPIPortNum uint16
-	GPIEvent   bool
-	Timeout    milliSecs32
+	Port    uint16
+	Event   bool
+	Timeout Millisecs32
 }
 
 // UnmarshalBinary Parameter 181, GPITriggerValue.
@@ -3178,17 +3662,17 @@ func (p *GPITriggerValue) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamGPITriggerValue, 7, len(data), true); err != nil {
 		return err
 	}
-	p.GPIPortNum = binary.BigEndian.Uint16(data)
-	p.GPIEvent = data[2]>>7 != 0
+	p.Port = binary.BigEndian.Uint16(data)
+	p.Event = data[2]>>7 != 0
 	p.Timeout = binary.BigEndian.Uint32(data[3:])
 	return nil
 }
 
 // ROSpecStopTrigger is Parameter 182, ROSpecStopTrigger.
 type ROSpecStopTrigger struct {
-	ROSpecStopTriggerType ROSpecStopTriggerType
-	DurationTriggerValue  milliSecs32
-	GPITriggerValue       *GPITriggerValue
+	Trigger              ROSpecStopTriggerType
+	DurationTriggerValue Millisecs32
+	GPITriggerValue      *GPITriggerValue
 }
 
 // UnmarshalBinary Parameter 182, ROSpecStopTrigger.
@@ -3196,7 +3680,7 @@ func (p *ROSpecStopTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamROSpecStopTrigger, 5, len(data), false); err != nil {
 		return err
 	}
-	p.ROSpecStopTriggerType = ROSpecStopTriggerType(data[0])
+	p.Trigger = ROSpecStopTriggerType(data[0])
 	p.DurationTriggerValue = binary.BigEndian.Uint32(data[1:])
 	data = data[5:]
 	// sub-parameters
@@ -3223,11 +3707,20 @@ func (p *ROSpecStopTrigger) UnmarshalBinary(data []byte) error {
 }
 
 // AISpec is Parameter 183, AISpec.
+//
+// AISpec defines antenna inventory operations, which LLRP defines as "the smallest unit
+// of interaction between a Reader and tags in the antenna's field-of-view."
+//
+// An AISpec gives a list of InventoryParameterSpecs, which define how the RFID device
+// should singulate tags. It combines this with an stop trigger and list of antennas. Each
+// inventory spec is executed for each antenna, and the stop condition applies to the
+// aggregate of these AI operations. The device chooses the order in which the operations
+// are executed, regardless of the order presented.
 type AISpec struct {
 	// AntennaIDs tells the device which antennas to use. If any of them are zero, then
 	// they're all used, regardless of any other value in the array.
 	AntennaIDs              []AntennaID
-	AISpecStopTrigger       AISpecStopTrigger
+	StopTrigger             AISpecStopTrigger
 	InventoryParameterSpecs []InventoryParameterSpec
 	Custom                  []Custom
 }
@@ -3263,7 +3756,7 @@ func (p *AISpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAISpecStopTrigger says it has %d bytes, "+
 				"but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.AISpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.StopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -3322,9 +3815,9 @@ paramGroup2:
 
 // AISpecStopTrigger is Parameter 184, AISpecStopTrigger.
 type AISpecStopTrigger struct {
-	AISpecStopTriggerType AISpecStopTriggerType
-	DurationTriggerValue  milliSecs32
-	GPITriggerValue       *GPITriggerValue
+	Trigger               AISpecStopTriggerType
+	DurationTriggerValue  Millisecs32
+	GPITrigger            *GPITriggerValue
 	TagObservationTrigger *TagObservationTrigger
 }
 
@@ -3333,7 +3826,7 @@ func (p *AISpecStopTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamAISpecStopTrigger, 5, len(data), false); err != nil {
 		return err
 	}
-	p.AISpecStopTriggerType = AISpecStopTriggerType(data[0])
+	p.Trigger = AISpecStopTriggerType(data[0])
 	p.DurationTriggerValue = binary.BigEndian.Uint32(data[1:])
 	data = data[5:]
 	// sub-parameters
@@ -3351,8 +3844,8 @@ paramGroup0:
 		}
 		switch pt {
 		case ParamGPITriggerValue:
-			p.GPITriggerValue = new(GPITriggerValue)
-			if err := p.GPITriggerValue.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.GPITrigger = new(GPITriggerValue)
+			if err := p.GPITrigger.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		case ParamTagObservationTrigger:
@@ -3374,11 +3867,11 @@ paramGroup0:
 
 // TagObservationTrigger is Parameter 185, TagObservationTrigger.
 type TagObservationTrigger struct {
-	TagObservationTriggerType TagObservationTriggerType
-	NumberofTags              uint16
-	NumberofAttempts          uint16
-	T                         milliSecs16
-	Timeout                   milliSecs32
+	Trigger          TagObservationTriggerType
+	NumberofTags     uint16
+	NumberofAttempts uint16
+	T                Millisecs16
+	Timeout          Millisecs32
 }
 
 // UnmarshalBinary Parameter 185, TagObservationTrigger.
@@ -3386,7 +3879,7 @@ func (p *TagObservationTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamTagObservationTrigger, 12, len(data), true); err != nil {
 		return err
 	}
-	p.TagObservationTriggerType = TagObservationTriggerType(data[0])
+	p.Trigger = TagObservationTriggerType(data[0])
 	p.NumberofTags = binary.BigEndian.Uint16(data[2:])
 	p.NumberofAttempts = binary.BigEndian.Uint16(data[4:])
 	p.T = binary.BigEndian.Uint16(data[6:])
@@ -3450,11 +3943,11 @@ paramGroup0:
 
 // RFSurveySpec is Parameter 187, RFSurveySpec.
 type RFSurveySpec struct {
-	AntennaID               uint16
-	StartFrequency          kHz
-	EndFrequency            kHz
-	RFSurveySpecStopTrigger RFSurveySpecStopTrigger
-	Custom                  []Custom
+	AntennaID      AntennaID
+	StartFrequency Kilohertz
+	EndFrequency   Kilohertz
+	Trigger        RFSurveySpecStopTrigger
+	Custom         []Custom
 }
 
 // UnmarshalBinary Parameter 187, RFSurveySpec.
@@ -3462,7 +3955,7 @@ func (p *RFSurveySpec) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamRFSurveySpec, 23, len(data), false); err != nil {
 		return err
 	}
-	p.AntennaID = binary.BigEndian.Uint16(data)
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data))
 	p.StartFrequency = binary.BigEndian.Uint32(data[2:])
 	p.EndFrequency = binary.BigEndian.Uint32(data[6:])
 	data = data[10:]
@@ -3476,7 +3969,7 @@ func (p *RFSurveySpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamRFSurveySpecStopTrigger says it has %d "+
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.RFSurveySpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.Trigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -3514,9 +4007,9 @@ paramGroup1:
 
 // RFSurveySpecStopTrigger is Parameter 188, RFSurveySpecStopTrigger.
 type RFSurveySpecStopTrigger struct {
-	RFSurveySpecStopTriggerType RFSurveySpecStopTriggerType
-	Duration                    milliSecs32
-	N                           milliSecs32
+	Trigger  RFSurveySpecStopTriggerType
+	Duration Millisecs32
+	N        Millisecs32
 }
 
 // UnmarshalBinary Parameter 188, RFSurveySpecStopTrigger.
@@ -3524,7 +4017,7 @@ func (p *RFSurveySpecStopTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamRFSurveySpecStopTrigger, 9, len(data), true); err != nil {
 		return err
 	}
-	p.RFSurveySpecStopTriggerType = RFSurveySpecStopTriggerType(data[0])
+	p.Trigger = RFSurveySpecStopTriggerType(data[0])
 	p.Duration = binary.BigEndian.Uint32(data[1:])
 	p.N = binary.BigEndian.Uint32(data[5:])
 	return nil
@@ -3532,15 +4025,15 @@ func (p *RFSurveySpecStopTrigger) UnmarshalBinary(data []byte) error {
 
 // AccessSpec is Parameter 207, AccessSpec.
 type AccessSpec struct {
-	AccessSpecID          uint32
-	AntennaID             uint16
-	AirProtocolID         AirProtocolIDType
-	IsActive              bool
-	ROSpecID              uint32
-	AccessSpecStopTrigger AccessSpecStopTrigger
-	AccessCommand         AccessCommand
-	AccessReportSpec      *AccessReportSpec
-	Custom                []Custom
+	AccessSpecID     uint32
+	AntennaID        AntennaID
+	AirProtocolID    AirProtocolIDType
+	IsActive         bool
+	ROSpecID         uint32
+	Trigger          AccessSpecStopTrigger
+	AccessCommand    AccessCommand
+	AccessReportSpec *AccessReportSpec
+	Custom           []Custom
 }
 
 // UnmarshalBinary Parameter 207, AccessSpec.
@@ -3549,7 +4042,7 @@ func (p *AccessSpec) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	p.AccessSpecID = binary.BigEndian.Uint32(data)
-	p.AntennaID = binary.BigEndian.Uint16(data[4:])
+	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data[4:]))
 	p.AirProtocolID = AirProtocolIDType(data[6])
 	p.IsActive = data[7]>>7 != 0
 	p.ROSpecID = binary.BigEndian.Uint32(data[8:])
@@ -3564,7 +4057,7 @@ func (p *AccessSpec) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamAccessSpecStopTrigger says it has %d "+
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.AccessSpecStopTrigger.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.Trigger.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -3632,8 +4125,8 @@ paramGroup2:
 
 // AccessSpecStopTrigger is Parameter 208, AccessSpecStopTrigger.
 type AccessSpecStopTrigger struct {
-	AccessSpecStopTriggerType AccessSpecStopTriggerType
-	OperationCountValue       uint16
+	Trigger             AccessSpecStopTriggerType
+	OperationCountValue uint16
 }
 
 // UnmarshalBinary Parameter 208, AccessSpecStopTrigger.
@@ -3641,7 +4134,7 @@ func (p *AccessSpecStopTrigger) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamAccessSpecStopTrigger, 3, len(data), true); err != nil {
 		return err
 	}
-	p.AccessSpecStopTriggerType = AccessSpecStopTriggerType(data[0])
+	p.Trigger = AccessSpecStopTriggerType(data[0])
 	p.OperationCountValue = binary.BigEndian.Uint16(data[1:])
 	return nil
 }
@@ -3952,8 +4445,8 @@ func (p *Identification) UnmarshalBinary(data []byte) error {
 
 // GPOWriteData is Parameter 219, GPOWriteData.
 type GPOWriteData struct {
-	GPOPort uint16
-	GPOData bool
+	Port uint16
+	Data bool
 }
 
 // UnmarshalBinary Parameter 219, GPOWriteData.
@@ -3961,15 +4454,15 @@ func (p *GPOWriteData) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamGPOWriteData, 3, len(data), true); err != nil {
 		return err
 	}
-	p.GPOPort = binary.BigEndian.Uint16(data)
-	p.GPOData = data[2]>>7 != 0
+	p.Port = binary.BigEndian.Uint16(data)
+	p.Data = data[2]>>7 != 0
 	return nil
 }
 
 // KeepAliveSpec is Parameter 220, KeepAliveSpec.
 type KeepAliveSpec struct {
-	KeepAliveTriggerType KeepAliveTriggerType
-	Interval             milliSecs32
+	Trigger  KeepAliveTriggerType
+	Interval Millisecs32
 }
 
 // UnmarshalBinary Parameter 220, KeepAliveSpec.
@@ -3977,7 +4470,7 @@ func (p *KeepAliveSpec) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamKeepAliveSpec, 5, len(data), true); err != nil {
 		return err
 	}
-	p.KeepAliveTriggerType = KeepAliveTriggerType(data[0])
+	p.Trigger = KeepAliveTriggerType(data[0])
 	p.Interval = binary.BigEndian.Uint32(data[1:])
 	return nil
 }
@@ -3988,7 +4481,7 @@ type AntennaProperties struct {
 	AntennaID        AntennaID
 	// AntennaGain is the composite forward gain of the antenna, including cable loss,
 	// relative a hypothetical isotropic antenna, expressed in 1/100ths of dBi.
-	AntennaGain dBiX100
+	AntennaGain MillibelIsotropic
 }
 
 // UnmarshalBinary Parameter 221, AntennaProperties.
@@ -4004,11 +4497,11 @@ func (p *AntennaProperties) UnmarshalBinary(data []byte) error {
 
 // AntennaConfiguration is Parameter 222, AntennaConfiguration.
 type AntennaConfiguration struct {
-	AntennaID             AntennaID
-	RFReceiver            *RFReceiver
-	RFTransmitter         *RFTransmitter
-	C1G2InventoryCommands []C1G2InventoryCommand
-	Custom                []Custom
+	AntennaID            AntennaID
+	RFReceiver           *RFReceiver
+	RFTransmitter        *RFTransmitter
+	C1G2InventoryCommand *C1G2InventoryCommand
+	Custom               []Custom
 }
 
 // UnmarshalBinary Parameter 222, AntennaConfiguration.
@@ -4040,6 +4533,11 @@ paramGroup0:
 			if err := p.RFTransmitter.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
+		case ParamC1G2InventoryCommand:
+			p.C1G2InventoryCommand = new(C1G2InventoryCommand)
+			if err := p.C1G2InventoryCommand.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
 		default:
 			break paramGroup0
 		}
@@ -4058,12 +4556,6 @@ paramGroup1:
 				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2InventoryCommand:
-			var tmp C1G2InventoryCommand
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2InventoryCommands = append(p.C1G2InventoryCommands, tmp)
 		case ParamCustom:
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -4096,9 +4588,20 @@ func (p *RFReceiver) UnmarshalBinary(data []byte) error {
 
 // RFTransmitter is Parameter 224, RFTransmitter.
 type RFTransmitter struct {
-	HopTableID                        uint16
-	ChannelIndexInFixedFrequencyTable uint16
-	TransmitPowerTableIndex           uint16
+	// HopTableID for jurisdictions that require frequency hopping. Hop tables are presented
+	// in the Reader's capabilities, under RegulatorCapabilities -> UHFBandCapabilities ->
+	// C1G2RFModes.
+	HopTableID uint16
+	// ChannelIndex within the Fixed Frequency Table, for jurisdictions that do not permit
+	// frequency hopping. The fixed frequency information is presented in the Reader's
+	// capabilities, under RegulatorCapabilities -> UHFBandCapabilities ->
+	// FrequencyInformation. Unlike other tables, this table does not have entries with IDs;
+	// instead, the ChannelIndex is the 1-based offset within the array.
+	ChannelIndex uint16
+	// TransmitPowerIndex, as from the for jurisdictions that do not permit frequency
+	// hopping. The power levels are presented in the Reader's capabilities, under
+	// RegulatorCapabilities -> UHFBandCapabilities -> TransmitPowerLevels.
+	TransmitPowerIndex uint16
 }
 
 // UnmarshalBinary Parameter 224, RFTransmitter.
@@ -4107,16 +4610,16 @@ func (p *RFTransmitter) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	p.HopTableID = binary.BigEndian.Uint16(data)
-	p.ChannelIndexInFixedFrequencyTable = binary.BigEndian.Uint16(data[2:])
-	p.TransmitPowerTableIndex = binary.BigEndian.Uint16(data[4:])
+	p.ChannelIndex = binary.BigEndian.Uint16(data[2:])
+	p.TransmitPowerIndex = binary.BigEndian.Uint16(data[4:])
 	return nil
 }
 
 // GPIPortCurrentState is Parameter 225, GPIPortCurrentState.
 type GPIPortCurrentState struct {
-	GPIPort        uint16
-	GPIPortEnabled bool
-	GPIState       GPIStateType
+	Port    uint16
+	Enabled bool
+	State   GPIStateType
 }
 
 // UnmarshalBinary Parameter 225, GPIPortCurrentState.
@@ -4124,9 +4627,9 @@ func (p *GPIPortCurrentState) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamGPIPortCurrentState, 4, len(data), true); err != nil {
 		return err
 	}
-	p.GPIPort = binary.BigEndian.Uint16(data)
-	p.GPIPortEnabled = data[2]>>7 != 0
-	p.GPIState = GPIStateType(data[3])
+	p.Port = binary.BigEndian.Uint16(data)
+	p.Enabled = data[2]>>7 != 0
+	p.State = GPIStateType(data[3])
 	return nil
 }
 
@@ -4144,7 +4647,7 @@ func (p *EventsAndReports) UnmarshalBinary(data []byte) error {
 
 // ROReportSpec is Parameter 237, ROReportSpec.
 type ROReportSpec struct {
-	ROReportTriggerType      ROReportTriggerType
+	Trigger                  ROReportTriggerType
 	N                        uint16
 	TagReportContentSelector TagReportContentSelector
 	Custom                   []Custom
@@ -4155,7 +4658,7 @@ func (p *ROReportSpec) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamROReportSpec, 9, len(data), false); err != nil {
 		return err
 	}
-	p.ROReportTriggerType = ROReportTriggerType(data[0])
+	p.Trigger = ROReportTriggerType(data[0])
 	p.N = binary.BigEndian.Uint16(data[1:])
 	data = data[3:]
 	// sub-parameters
@@ -4216,7 +4719,7 @@ type TagReportContentSelector struct {
 	EnableLastSeenTimestamp    bool
 	EnableTagSeenCount         bool
 	EnableAccessSpecID         bool
-	C1G2EPCMemorySelectors     []C1G2EPCMemorySelector
+	C1G2EPCMemorySelector      *C1G2EPCMemorySelector
 	Custom                     []Custom
 }
 
@@ -4240,8 +4743,23 @@ func (p *TagReportContentSelector) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
+	if subType := ParamType(binary.BigEndian.Uint16(data)); subType == ParamC1G2EPCMemorySelector {
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("ParamC1G2EPCMemorySelector says it has %d "+
+				"bytes, but only %d bytes remain", subLen, len(data))
+		}
+		p.C1G2EPCMemorySelector = new(C1G2EPCMemorySelector)
+		if err := p.C1G2EPCMemorySelector.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
+		data = data[subLen:]
+	}
+	if len(data) == 0 {
+		return nil
+	}
 
-paramGroup0:
+paramGroup1:
 	for len(data) > 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
@@ -4250,12 +4768,6 @@ paramGroup0:
 				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2EPCMemorySelector:
-			var tmp C1G2EPCMemorySelector
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2EPCMemorySelectors = append(p.C1G2EPCMemorySelectors, tmp)
 		case ParamCustom:
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
@@ -4263,7 +4775,7 @@ paramGroup0:
 			}
 			p.Custom = append(p.Custom, tmp)
 		default:
-			break paramGroup0
+			break paramGroup1
 		}
 		data = data[subLen:]
 	}
@@ -4288,35 +4800,35 @@ func (p *AccessReportSpec) UnmarshalBinary(data []byte) error {
 
 // TagReportData is Parameter 240, TagReportData.
 type TagReportData struct {
-	EPCData                                  EPCData
-	EPC96                                    EPC96
-	ROSpecID                                 *ROSpecID
-	SpecIndex                                *SpecIndex
-	InventoryParameterSpecID                 *InventoryParameterSpecID
-	AntennaID                                *AntennaID
-	PeakRSSI                                 *PeakRSSI
-	ChannelIndex                             *ChannelIndex
-	FirstSeenUTC                             *FirstSeenUTC
-	FirstSeenUptime                          *FirstSeenUptime
-	LastSeenUTC                              *LastSeenUTC
-	LastSeenUptime                           *LastSeenUptime
-	TagSeenCount                             *TagSeenCount
-	C1G2PCs                                  []C1G2PC
-	C1G2XPCW1s                               []C1G2XPCW1
-	C1G2XPCW2s                               []C1G2XPCW2
-	C1G2CRCs                                 []C1G2CRC
-	AccessSpecID                             *AccessSpecID
-	C1G2ReadOpSpecResults                    []C1G2ReadOpSpecResult
-	C1G2WriteOpSpecResults                   []C1G2WriteOpSpecResult
-	C1G2KillOpSpecResults                    []C1G2KillOpSpecResult
-	C1G2LockOpSpecResults                    []C1G2LockOpSpecResult
-	C1G2BlockEraseOpSpecResults              []C1G2BlockEraseOpSpecResult
-	C1G2BlockWriteOpSpecResults              []C1G2BlockWriteOpSpecResult
-	C1G2RecommissionOpSpecResults            []C1G2RecommissionOpSpecResult
-	C1G2BlockPermalockOpSpecResults          []C1G2BlockPermalockOpSpecResult
-	C1G2GetBlockPermalockStatusOpSpecResults []C1G2GetBlockPermalockStatusOpSpecResult
-	ClientRequestOpSpecResults               []ClientRequestOpSpecResult
-	Custom                                   []Custom
+	EPCData                                 EPCData
+	EPC96                                   EPC96
+	ROSpecID                                *ROSpecID
+	SpecIndex                               *SpecIndex
+	InventoryParameterSpecID                *InventoryParameterSpecID
+	AntennaID                               *AntennaID
+	PeakRSSI                                *PeakRSSI
+	ChannelIndex                            *ChannelIndex
+	FirstSeenUTC                            *FirstSeenUTC
+	FirstSeenUptime                         *FirstSeenUptime
+	LastSeenUTC                             *LastSeenUTC
+	LastSeenUptime                          *LastSeenUptime
+	TagSeenCount                            *TagSeenCount
+	C1G2PC                                  *C1G2PC
+	C1G2XPCW1                               *C1G2XPCW1
+	C1G2XPCW2                               *C1G2XPCW2
+	C1G2CRC                                 *C1G2CRC
+	AccessSpecID                            *AccessSpecID
+	C1G2ReadOpSpecResult                    *C1G2ReadOpSpecResult
+	C1G2WriteOpSpecResult                   *C1G2WriteOpSpecResult
+	C1G2KillOpSpecResult                    *C1G2KillOpSpecResult
+	C1G2LockOpSpecResult                    *C1G2LockOpSpecResult
+	C1G2BlockEraseOpSpecResult              *C1G2BlockEraseOpSpecResult
+	C1G2BlockWriteOpSpecResult              *C1G2BlockWriteOpSpecResult
+	C1G2RecommissionOpSpecResult            *C1G2RecommissionOpSpecResult
+	C1G2BlockPermalockOpSpecResult          *C1G2BlockPermalockOpSpecResult
+	C1G2GetBlockPermalockStatusOpSpecResult *C1G2GetBlockPermalockStatusOpSpecResult
+	ClientRequestOpSpecResult               *ClientRequestOpSpecResult
+	Custom                                  []Custom
 }
 
 // UnmarshalBinary Parameter 240, TagReportData.
@@ -4363,7 +4875,16 @@ func (p *TagReportData) UnmarshalBinary(data []byte) error {
 
 paramGroup1:
 	for len(data) > 1 {
-		pt := ParamType(data[0] & 0x7F)
+		var pt ParamType
+		if data[0]&0x80 != 0 {
+			// TV parameter
+			pt = ParamType(data[0] & 0x7F)
+		} else if len(data) < 4 {
+			return errors.Errorf("expecting a TLV header, but %d < 4 byte "+
+				"remain", len(data))
+		} else {
+			pt = ParamType(binary.BigEndian.Uint16(data))
+		}
 		switch pt {
 		case ParamROSpecID:
 			p.ROSpecID = new(ROSpecID)
@@ -4383,7 +4904,7 @@ paramGroup1:
 			data = data[3:]
 		case ParamPeakRSSI:
 			p.PeakRSSI = new(PeakRSSI)
-			*p.PeakRSSI = PeakRSSI(dBm8(data[1]))
+			*p.PeakRSSI = PeakRSSI(DecibelMilliwatt8(data[1]))
 			data = data[2:]
 		case ParamChannelIndex:
 			p.ChannelIndex = new(ChannelIndex)
@@ -4409,6 +4930,131 @@ paramGroup1:
 			p.TagSeenCount = new(TagSeenCount)
 			*p.TagSeenCount = TagSeenCount(binary.BigEndian.Uint16(data[1:]))
 			data = data[3:]
+		case ParamC1G2PC:
+			p.C1G2PC = new(C1G2PC)
+			if err := p.C1G2PC.UnmarshalBinary(data[1:3]); err != nil {
+				return err
+			}
+			data = data[3:]
+		case ParamC1G2XPCW1:
+			p.C1G2XPCW1 = new(C1G2XPCW1)
+			*p.C1G2XPCW1 = C1G2XPCW1(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamC1G2XPCW2:
+			p.C1G2XPCW2 = new(C1G2XPCW2)
+			*p.C1G2XPCW2 = C1G2XPCW2(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamC1G2CRC:
+			p.C1G2CRC = new(C1G2CRC)
+			*p.C1G2CRC = C1G2CRC(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
+		case ParamAccessSpecID:
+			p.AccessSpecID = new(AccessSpecID)
+			*p.AccessSpecID = AccessSpecID(binary.BigEndian.Uint32(data[1:]))
+			data = data[5:]
+		case ParamC1G2ReadOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2ReadOpSpecResult = new(C1G2ReadOpSpecResult)
+			if err := p.C1G2ReadOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2WriteOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2WriteOpSpecResult = new(C1G2WriteOpSpecResult)
+			if err := p.C1G2WriteOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2KillOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2KillOpSpecResult = new(C1G2KillOpSpecResult)
+			if err := p.C1G2KillOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2LockOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d "+
+					"bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2LockOpSpecResult = new(C1G2LockOpSpecResult)
+			if err := p.C1G2LockOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockEraseOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has "+
+					"%d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockEraseOpSpecResult = new(C1G2BlockEraseOpSpecResult)
+			if err := p.C1G2BlockEraseOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockWriteOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has "+
+					"%d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockWriteOpSpecResult = new(C1G2BlockWriteOpSpecResult)
+			if err := p.C1G2BlockWriteOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2RecommissionOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it "+
+					"has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2RecommissionOpSpecResult = new(C1G2RecommissionOpSpecResult)
+			if err := p.C1G2RecommissionOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2BlockPermalockOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it "+
+					"has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2BlockPermalockOpSpecResult = new(C1G2BlockPermalockOpSpecResult)
+			if err := p.C1G2BlockPermalockOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamC1G2GetBlockPermalockStatusOpSpecResult:
+			subLen := binary.BigEndian.Uint16(data[2:])
+			if int(subLen) > len(data) {
+				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says "+
+					"it has %d bytes, but only %d bytes remain", subLen, len(data))
+			}
+			p.C1G2GetBlockPermalockStatusOpSpecResult = new(C1G2GetBlockPermalockStatusOpSpecResult)
+			if err := p.C1G2GetBlockPermalockStatusOpSpecResult.UnmarshalBinary(data[4:subLen]); err != nil {
+				return err
+			}
+			data = data[subLen:]
+		case ParamClientRequestOpSpecResult:
+			p.ClientRequestOpSpecResult = new(ClientRequestOpSpecResult)
+			*p.ClientRequestOpSpecResult = ClientRequestOpSpecResult(binary.BigEndian.Uint16(data[1:]))
+			data = data[3:]
 		default:
 			break paramGroup1
 		}
@@ -4418,195 +5064,24 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 1 {
-		pt := ParamType(data[0] & 0x7F)
-		switch pt {
-		case ParamC1G2PC:
-			var tmp C1G2PC
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2PCs = append(p.C1G2PCs, tmp)
-			data = data[3:]
-		case ParamC1G2XPCW1:
-			var tmp C1G2XPCW1
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2XPCW1s = append(p.C1G2XPCW1s, tmp)
-			data = data[3:]
-		case ParamC1G2XPCW2:
-			var tmp C1G2XPCW2
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2XPCW2s = append(p.C1G2XPCW2s, tmp)
-			data = data[3:]
-		case ParamC1G2CRC:
-			var tmp C1G2CRC
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.C1G2CRCs = append(p.C1G2CRCs, tmp)
-			data = data[3:]
-		default:
-			break paramGroup2
-		}
-	}
-	if len(data) == 0 {
-		return nil
-	}
-	if subType := ParamType(data[0] & 0x7F); subType == ParamAccessSpecID {
-		p.AccessSpecID = new(AccessSpecID)
-		*p.AccessSpecID = AccessSpecID(binary.BigEndian.Uint32(data[1:]))
-	}
-	if len(data) == 0 {
-		return nil
-	}
-
-paramGroup4:
-	for len(data) > 1 {
-		var pt ParamType
-		if data[0]&0x80 != 0 {
-			// TV parameter
-			pt = ParamType(data[0] & 0x7F)
-		} else if len(data) < 4 {
-			return errors.Errorf("expecting a TLV header, but %d < 4 byte "+
-				"remain", len(data))
-		} else {
-			pt = ParamType(binary.BigEndian.Uint16(data))
+	for len(data) > 4 {
+		pt := ParamType(binary.BigEndian.Uint16(data))
+		subLen := binary.BigEndian.Uint16(data[2:])
+		if int(subLen) > len(data) {
+			return errors.Errorf("%v says it has %d bytes, but only %d bytes "+
+				"remain", pt, subLen, len(data))
 		}
 		switch pt {
-		case ParamC1G2ReadOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2ReadOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2ReadOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2ReadOpSpecResults = append(p.C1G2ReadOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2WriteOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2WriteOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2WriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2WriteOpSpecResults = append(p.C1G2WriteOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2KillOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2KillOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2KillOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2KillOpSpecResults = append(p.C1G2KillOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2LockOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2LockOpSpecResult says it has %d "+
-					"bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2LockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2LockOpSpecResults = append(p.C1G2LockOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockEraseOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockEraseOpSpecResult says it has "+
-					"%d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockEraseOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockEraseOpSpecResults = append(p.C1G2BlockEraseOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockWriteOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockWriteOpSpecResult says it has "+
-					"%d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockWriteOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockWriteOpSpecResults = append(p.C1G2BlockWriteOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2RecommissionOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2RecommissionOpSpecResult says it "+
-					"has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2RecommissionOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2RecommissionOpSpecResults = append(p.C1G2RecommissionOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2BlockPermalockOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2BlockPermalockOpSpecResult says it "+
-					"has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2BlockPermalockOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2BlockPermalockOpSpecResults = append(p.C1G2BlockPermalockOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamC1G2GetBlockPermalockStatusOpSpecResult:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamC1G2GetBlockPermalockStatusOpSpecResult says "+
-					"it has %d bytes, but only %d bytes remain", subLen, len(data))
-			}
-			var tmp C1G2GetBlockPermalockStatusOpSpecResult
-			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
-				return err
-			}
-			p.C1G2GetBlockPermalockStatusOpSpecResults = append(p.C1G2GetBlockPermalockStatusOpSpecResults, tmp)
-			data = data[subLen:]
-		case ParamClientRequestOpSpecResult:
-			var tmp ClientRequestOpSpecResult
-			if err := tmp.UnmarshalBinary(data[1:3]); err != nil {
-				return err
-			}
-			p.ClientRequestOpSpecResults = append(p.ClientRequestOpSpecResults, tmp)
-			data = data[3:]
 		case ParamCustom:
-			subLen := binary.BigEndian.Uint16(data[2:])
-			if int(subLen) > len(data) {
-				return errors.Errorf("ParamCustom says it has %d bytes, but only "+
-					"%d bytes remain", subLen, len(data))
-			}
 			var tmp Custom
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 			p.Custom = append(p.Custom, tmp)
-			data = data[subLen:]
 		default:
-			break paramGroup4
+			break paramGroup2
 		}
+		data = data[subLen:]
 	}
 	if len(data) > 0 {
 		return errors.Errorf("finished reading TagReportData, but an "+
@@ -4648,10 +5123,10 @@ func (p *EPCData) UnmarshalBinary(data []byte) error {
 
 // RFSurveyReportData is Parameter 242, RFSurveyReportData.
 type RFSurveyReportData struct {
-	ROSpecID                 *ROSpecID
-	SpecIndex                *SpecIndex
-	FrequencyRSSILevelEntrys []FrequencyRSSILevelEntry
-	Custom                   []Custom
+	ROSpecID                  *ROSpecID
+	SpecIndex                 *SpecIndex
+	FrequencyRSSILevelEntries []FrequencyRSSILevelEntry
+	Custom                    []Custom
 }
 
 // UnmarshalBinary Parameter 242, RFSurveyReportData.
@@ -4692,7 +5167,7 @@ paramGroup1:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.FrequencyRSSILevelEntrys = append(p.FrequencyRSSILevelEntrys, tmp)
+			p.FrequencyRSSILevelEntries = append(p.FrequencyRSSILevelEntries, tmp)
 		default:
 			break paramGroup1
 		}
@@ -4730,11 +5205,16 @@ paramGroup2:
 }
 
 // FrequencyRSSILevelEntry is Parameter 243, FrequencyRSSILevelEntry.
+//
+// RSSI stands for "received signal strength indicator" and is a measure of the amount of
+// power in a received radio signal. RSSI will vary based on several factors, including
+// distance to a tag, the tag's orientation in space, and environmental factors that
+// change how radio signals propagate and interfere.
 type FrequencyRSSILevelEntry struct {
-	Frequency    kHz
-	Bandwidth    kHz
-	AverageRSSI  dBm8
-	PeakRSSI     dBm8
+	Frequency    Kilohertz
+	Bandwidth    Kilohertz
+	AverageRSSI  DecibelMilliwatt8
+	PeakRSSI     DecibelMilliwatt8
 	UTCTimestamp UTCTimestamp
 	Uptime       Uptime
 }
@@ -4746,8 +5226,8 @@ func (p *FrequencyRSSILevelEntry) UnmarshalBinary(data []byte) error {
 	}
 	p.Frequency = binary.BigEndian.Uint32(data)
 	p.Bandwidth = binary.BigEndian.Uint32(data[4:])
-	p.AverageRSSI = dBm8(data[8])
-	p.PeakRSSI = dBm8(data[9])
+	p.AverageRSSI = DecibelMilliwatt8(data[8])
+	p.PeakRSSI = DecibelMilliwatt8(data[9])
 	data = data[10:]
 	// sub-parameters
 	{
@@ -5005,9 +5485,9 @@ func (p *HoppingEvent) UnmarshalBinary(data []byte) error {
 // GPIEvent is sent when a GPI changes state. If it triggers an ROSpec to start or stop,
 // it's sent before the ROSpecEvent parameter.
 type GPIEvent struct {
-	GPIPort uint16
-	// GPIEvent is the Reader-defined value of GPI that triggered the event.
-	GPIEvent bool
+	Port uint16
+	// Event is the Reader-defined value of GPI that triggered the event.
+	Event bool
 }
 
 // UnmarshalBinary Parameter 248, GPIEvent.
@@ -5015,14 +5495,14 @@ func (p *GPIEvent) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamGPIEvent, 3, len(data), true); err != nil {
 		return err
 	}
-	p.GPIPort = binary.BigEndian.Uint16(data)
-	p.GPIEvent = data[2]>>7 != 0
+	p.Port = binary.BigEndian.Uint16(data)
+	p.Event = data[2]>>7 != 0
 	return nil
 }
 
 // ROSpecEvent is Parameter 249, ROSpecEvent.
 type ROSpecEvent struct {
-	ROSpecEventType    ROSpecEventType
+	Event              ROSpecEventType
 	ROSpecID           uint32
 	PreemptingROSpecID uint32
 }
@@ -5032,7 +5512,7 @@ func (p *ROSpecEvent) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamROSpecEvent, 9, len(data), true); err != nil {
 		return err
 	}
-	p.ROSpecEventType = ROSpecEventType(data[0])
+	p.Event = ROSpecEventType(data[0])
 	p.ROSpecID = binary.BigEndian.Uint32(data[1:])
 	p.PreemptingROSpecID = binary.BigEndian.Uint32(data[5:])
 	return nil
@@ -5157,8 +5637,8 @@ paramGroup1:
 
 // RFSurveyEvent is Parameter 253, RFSurveyEvent.
 type RFSurveyEvent struct {
-	RFSurveyEventType RFSurveyEventType
-	ROSpecID          uint32
+	Event    RFSurveyEventType
+	ROSpecID uint32
 }
 
 // UnmarshalBinary Parameter 253, RFSurveyEvent.
@@ -5166,17 +5646,17 @@ func (p *RFSurveyEvent) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamRFSurveyEvent, 5, len(data), true); err != nil {
 		return err
 	}
-	p.RFSurveyEventType = RFSurveyEventType(data[0])
+	p.Event = RFSurveyEventType(data[0])
 	p.ROSpecID = binary.BigEndian.Uint32(data[1:])
 	return nil
 }
 
 // AISpecEvent is Parameter 254, AISpecEvent.
 type AISpecEvent struct {
-	AISpecEventType        AISpecEventType
-	ROSpecID               uint32
-	SpecIndex              uint16
-	C1G2SingulationDetails *C1G2SingulationDetails
+	Event              AISpecEventType
+	ROSpecID           uint32
+	SpecIndex          uint16
+	SingulationDetails *C1G2SingulationDetails
 }
 
 // UnmarshalBinary Parameter 254, AISpecEvent.
@@ -5184,7 +5664,7 @@ func (p *AISpecEvent) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamAISpecEvent, 7, len(data), false); err != nil {
 		return err
 	}
-	p.AISpecEventType = AISpecEventType(data[0])
+	p.Event = AISpecEventType(data[0])
 	p.ROSpecID = binary.BigEndian.Uint32(data[1:])
 	p.SpecIndex = binary.BigEndian.Uint16(data[5:])
 	data = data[7:]
@@ -5193,8 +5673,8 @@ func (p *AISpecEvent) UnmarshalBinary(data []byte) error {
 		return nil
 	}
 	if subType := ParamType(data[0] & 0x7F); subType == ParamC1G2SingulationDetails {
-		p.C1G2SingulationDetails = new(C1G2SingulationDetails)
-		if err := p.C1G2SingulationDetails.UnmarshalBinary(data[1:5]); err != nil {
+		p.SingulationDetails = new(C1G2SingulationDetails)
+		if err := p.SingulationDetails.UnmarshalBinary(data[1:5]); err != nil {
 			return err
 		}
 	}
@@ -5207,8 +5687,8 @@ func (p *AISpecEvent) UnmarshalBinary(data []byte) error {
 
 // AntennaEvent is Parameter 255, AntennaEvent.
 type AntennaEvent struct {
-	AntennaEventType AntennaEventType
-	AntennaID        AntennaID
+	Event     AntennaEventType
+	AntennaID AntennaID
 }
 
 // UnmarshalBinary Parameter 255, AntennaEvent.
@@ -5216,7 +5696,7 @@ func (p *AntennaEvent) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamAntennaEvent, 3, len(data), true); err != nil {
 		return err
 	}
-	p.AntennaEventType = AntennaEventType(data[0])
+	p.Event = AntennaEventType(data[0])
 	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data[1:]))
 	return nil
 }
@@ -5381,8 +5861,8 @@ type C1G2LLRPCapabilities struct {
 	SupportsTagRecommissioning bool
 	SupportsUMIMethod2         bool
 	SupportsXPC                bool
-	// MaxNumSelectFiltersPerQuery can be 0 to indicate no maximum.
-	MaxNumSelectFiltersPerQuery uint16
+	// MaxSelectFiltersPerQuery can be 0 to indicate no maximum.
+	MaxSelectFiltersPerQuery uint16
 }
 
 // UnmarshalBinary Parameter 327, C1G2LLRPCapabilities.
@@ -5396,7 +5876,7 @@ func (p *C1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
 	p.SupportsTagRecommissioning = data[0]>>4&1 != 0
 	p.SupportsUMIMethod2 = data[0]>>3&1 != 0
 	p.SupportsXPC = data[0]>>2&1 != 0
-	p.MaxNumSelectFiltersPerQuery = binary.BigEndian.Uint16(data[1:])
+	p.MaxSelectFiltersPerQuery = binary.BigEndian.Uint16(data[1:])
 	return nil
 }
 
@@ -5429,15 +5909,16 @@ func (p *C1G2LLRPCapabilities) UnmarshalBinary(data []byte) error {
 // or 8/1. Having different DivideRatios permits the same BLF with a different Tari value.
 //
 // The reader instructs the tags what type of subcarrier Modulation to use when encoding
-// their backscattered reply. At FM0, the data rate in kbps is approximately BLF in kHz.
-// Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0, and so the
-// data rate will be roughly 1/2, 1/4, or 1/8 BLF. Note that this does not affect whether
-// the tags use ASK or PSK modulation; that's determined by the tag manufacturer.
+// their backscattered reply. At FM0, the data rate in kBitsPerSec is approximately BLF in
+// Kilohertz. Essentially, Miller values require 2, 4, or 8 times as many cycles as FM0,
+// and so the data rate will be roughly 1/2, 1/4, or 1/8 BLF. Note that this does not
+// affect whether the tags use ASK or PSK modulation; that's determined by the tag
+// manufacturer.
 //
 // A vendor may have had these parameters certified by EPCglobal's Hardware Action Group's
 // Testing and Conformance group, in which case the IsEPCHagConformant will be true.
 type UHFC1G2RFModeTable struct {
-	UHFC1G2RFModeTableEntrys []UHFC1G2RFModeTableEntry
+	UHFC1G2RFModeTableEntries []UHFC1G2RFModeTableEntry
 }
 
 // UnmarshalBinary Parameter 328, UHFC1G2RFModeTable.
@@ -5461,7 +5942,7 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.UHFC1G2RFModeTableEntrys = append(p.UHFC1G2RFModeTableEntrys, tmp)
+			p.UHFC1G2RFModeTableEntries = append(p.UHFC1G2RFModeTableEntries, tmp)
 		default:
 			break paramGroup0
 		}
@@ -5485,12 +5966,12 @@ type UHFC1G2RFModeTableEntry struct {
 	Modulation            BackscatterMod
 	ForwardLinkModulation FwdLinkMod
 	SpectralMask          SpectralMaskType
-	BackscatterDataRate   bps
+	BackscatterDataRate   BitsPerSec
 	// PIERatio is 1000x the the data-0 to data-1 symbol lengths ratio.
 	PIERatio     uint32
-	MinTariTime  nanoSecs32
-	MaxTariTime  nanoSecs32
-	StepTariTime nanoSecs32
+	MinTariTime  Nanosecs32
+	MaxTariTime  Nanosecs32
+	StepTariTime Nanosecs32
 }
 
 // UnmarshalBinary Parameter 329, UHFC1G2RFModeTableEntry.
@@ -5515,9 +5996,9 @@ func (p *UHFC1G2RFModeTableEntry) UnmarshalBinary(data []byte) error {
 // C1G2InventoryCommand is Parameter 330, C1G2InventoryCommand.
 type C1G2InventoryCommand struct {
 	TagInventoryStateAware bool
-	C1G2Filters            []C1G2Filter
-	C1G2RFControl          *C1G2RFControl
-	C1G2SingulationControl *C1G2SingulationControl
+	Filters                []C1G2Filter
+	RFControl              *C1G2RFControl
+	SingulationControl     *C1G2SingulationControl
 	Custom                 []Custom
 }
 
@@ -5547,7 +6028,7 @@ paramGroup0:
 			if err := tmp.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
-			p.C1G2Filters = append(p.C1G2Filters, tmp)
+			p.Filters = append(p.Filters, tmp)
 		default:
 			break paramGroup0
 		}
@@ -5567,13 +6048,13 @@ paramGroup1:
 		}
 		switch pt {
 		case ParamC1G2RFControl:
-			p.C1G2RFControl = new(C1G2RFControl)
-			if err := p.C1G2RFControl.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.RFControl = new(C1G2RFControl)
+			if err := p.RFControl.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		case ParamC1G2SingulationControl:
-			p.C1G2SingulationControl = new(C1G2SingulationControl)
-			if err := p.C1G2SingulationControl.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.SingulationControl = new(C1G2SingulationControl)
+			if err := p.SingulationControl.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		default:
@@ -5613,11 +6094,14 @@ paramGroup2:
 }
 
 // C1G2Filter is Parameter 331, C1G2Filter.
+//
+// If the Reader supports tag-inventory-aware singulation, you can set the
+// AwareFilterAction. If not, you can use the UnawareFilterAction.
 type C1G2Filter struct {
-	TruncateAction                           C1G2FilterTruncateActionType
-	C1G2TagInventoryMask                     C1G2TagInventoryMask
-	C1G2TagInventoryStateAwareFilterAction   *C1G2TagInventoryStateAwareFilterAction
-	C1G2TagInventoryStateUnawareFilterAction *C1G2TagInventoryStateUnawareFilterAction
+	TruncateAction      C1G2FilterTruncateActionType
+	TagInventoryMask    C1G2TagInventoryMask
+	AwareFilterAction   *C1G2TagInventoryStateAwareFilterAction
+	UnawareFilterAction *C1G2TagInventoryStateUnawareFilterAction
 }
 
 // UnmarshalBinary Parameter 331, C1G2Filter.
@@ -5637,7 +6121,7 @@ func (p *C1G2Filter) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TagInventoryMask says it has %d "+
 				"bytes, but only %d bytes remain", subLen, len(data))
 		}
-		if err := p.C1G2TagInventoryMask.UnmarshalBinary(data[4:subLen]); err != nil {
+		if err := p.TagInventoryMask.UnmarshalBinary(data[4:subLen]); err != nil {
 			return err
 		}
 		data = data[subLen:]
@@ -5656,13 +6140,13 @@ paramGroup1:
 		}
 		switch pt {
 		case ParamC1G2TagInventoryStateAwareFilterAction:
-			p.C1G2TagInventoryStateAwareFilterAction = new(C1G2TagInventoryStateAwareFilterAction)
-			if err := p.C1G2TagInventoryStateAwareFilterAction.UnmarshalBinary(data[4:subLen]); err != nil {
+			p.AwareFilterAction = new(C1G2TagInventoryStateAwareFilterAction)
+			if err := p.AwareFilterAction.UnmarshalBinary(data[4:subLen]); err != nil {
 				return err
 			}
 		case ParamC1G2TagInventoryStateUnawareFilterAction:
-			p.C1G2TagInventoryStateUnawareFilterAction = new(C1G2TagInventoryStateUnawareFilterAction)
-			*p.C1G2TagInventoryStateUnawareFilterAction = C1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
+			p.UnawareFilterAction = new(C1G2TagInventoryStateUnawareFilterAction)
+			*p.UnawareFilterAction = C1G2TagInventoryStateUnawareFilterAction(C1G2TagInventoryStateUnawareFilterActionType(data[4]))
 		default:
 			break paramGroup1
 		}
@@ -5677,7 +6161,7 @@ paramGroup1:
 
 // C1G2TagInventoryMask is Parameter 332, C1G2TagInventoryMask.
 type C1G2TagInventoryMask struct {
-	C1G2MemoryBank     C1G2MemoryBankType
+	MemoryBank         C1G2MemoryBankType
 	MostSignificantBit uint16
 	TagMaskNumBits     uint16
 	TagMask            []byte
@@ -5688,7 +6172,7 @@ func (p *C1G2TagInventoryMask) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2TagInventoryMask, 5, len(data), false); err != nil {
 		return err
 	}
-	p.C1G2MemoryBank = data[0] >> 6
+	p.MemoryBank = data[0] >> 6
 	p.MostSignificantBit = binary.BigEndian.Uint16(data[1:])
 	p.TagMaskNumBits = binary.BigEndian.Uint16(data[3:])
 	// Go right shift on signed ints is arithmetic, not logical
@@ -5713,8 +6197,8 @@ func (p *C1G2TagInventoryMask) UnmarshalBinary(data []byte) error {
 // C1G2TagInventoryStateAwareFilterAction is Parameter 333,
 // C1G2TagInventoryStateAwareFilterAction.
 type C1G2TagInventoryStateAwareFilterAction struct {
-	C1G2TagInventoryTarget                 C1G2TagInventoryTargetType
-	C1G2TagInventoryStateAwareFilterAction C1G2TagInventoryStateAwareFilterActionType
+	Target       C1G2TagInventoryTargetType
+	FilterAction C1G2TagInventoryStateAwareFilterActionType
 }
 
 // UnmarshalBinary Parameter 333, C1G2TagInventoryStateAwareFilterAction.
@@ -5722,8 +6206,8 @@ func (p *C1G2TagInventoryStateAwareFilterAction) UnmarshalBinary(data []byte) er
 	if err := hasEnoughBytes(ParamC1G2TagInventoryStateAwareFilterAction, 2, len(data), true); err != nil {
 		return err
 	}
-	p.C1G2TagInventoryTarget = C1G2TagInventoryTargetType(data[0])
-	p.C1G2TagInventoryStateAwareFilterAction = C1G2TagInventoryStateAwareFilterActionType(data[1])
+	p.Target = C1G2TagInventoryTargetType(data[0])
+	p.FilterAction = C1G2TagInventoryStateAwareFilterActionType(data[1])
 	return nil
 }
 
@@ -5742,8 +6226,19 @@ func (p *C1G2TagInventoryStateUnawareFilterAction) UnmarshalBinary(data []byte) 
 
 // C1G2RFControl is Parameter 335, C1G2RFControl.
 type C1G2RFControl struct {
-	IndexIntoUHFC1G2RFModeTable uint16
-	Tari                        nanoSecs16
+	// RFModeID must match one of the ModeIDs in the C1G2RFModes table that comes in the
+	// UHFBandCapabilities (ParamType 144) section of the RegulatoryCapabilities (ParamType
+	// 143) section of the GetReaderCapabilitiesResponse (MessageType 11)
+	RFModeID uint16
+	// Tari is "Type A Reference Interval", in nanoseconds. Typically, values must be
+	// 6250-25000ns, though they may be restricted by the RFModes table. Usually, a client
+	// can use 0 to allow the Reader to select a valid value.
+	//
+	// While the details are more complicated, the Tari duration is a basis for most other
+	// protocol durations, so all else equal, a shorter Tari allows a higher bitrate, but
+	// that's an gross oversimplification. For more information, see the EPC Class 1 Gen 2
+	// standard and consult an RF engineer.
+	Tari Nanosecs16
 }
 
 // UnmarshalBinary Parameter 335, C1G2RFControl.
@@ -5751,19 +6246,20 @@ func (p *C1G2RFControl) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2RFControl, 4, len(data), true); err != nil {
 		return err
 	}
-	p.IndexIntoUHFC1G2RFModeTable = binary.BigEndian.Uint16(data)
+	p.RFModeID = binary.BigEndian.Uint16(data)
 	p.Tari = binary.BigEndian.Uint16(data[2:])
 	return nil
 }
 
 // C1G2SingulationControl is Parameter 336, C1G2SingulationControl.
 type C1G2SingulationControl struct {
-	C1G2SingulationControlSession C1G2SingulationControlSessionType
+	// Session number for the inventory operation (0-3).
+	Session C1G2SingulationSession
 	// TagPopulation expected in the antenna's field of view.
 	TagPopulation uint16
 	// TagTransitTime is a measure of the expected tag mobility.
-	TagTransitTime                              milliSecs32
-	C1G2TagInventoryStateAwareSingulationAction *C1G2TagInventoryStateAwareSingulationAction
+	TagTransitTime Millisecs32
+	InvAwareAction *C1G2TagInventoryStateAwareSingulationAction
 }
 
 // UnmarshalBinary Parameter 336, C1G2SingulationControl.
@@ -5771,7 +6267,7 @@ func (p *C1G2SingulationControl) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2SingulationControl, 7, len(data), false); err != nil {
 		return err
 	}
-	p.C1G2SingulationControlSession = C1G2SingulationControlSessionType(data[0])
+	p.Session = data[0] >> 6
 	p.TagPopulation = binary.BigEndian.Uint16(data[1:])
 	p.TagTransitTime = binary.BigEndian.Uint32(data[3:])
 	data = data[7:]
@@ -5785,8 +6281,10 @@ func (p *C1G2SingulationControl) UnmarshalBinary(data []byte) error {
 			return errors.Errorf("ParamC1G2TagInventoryStateAwareSingulationAction "+
 				"says it has %d bytes, but only %d bytes remain", subLen, len(data))
 		}
-		p.C1G2TagInventoryStateAwareSingulationAction = new(C1G2TagInventoryStateAwareSingulationAction)
-		*p.C1G2TagInventoryStateAwareSingulationAction = C1G2TagInventoryStateAwareSingulationAction(C1G2TagInventoryStateAwareSingulationActionFlags(data[4]))
+		p.InvAwareAction = new(C1G2TagInventoryStateAwareSingulationAction)
+		if err := p.InvAwareAction.UnmarshalBinary(data[4:subLen]); err != nil {
+			return err
+		}
 		data = data[subLen:]
 	}
 	if len(data) > 0 {
@@ -5798,14 +6296,18 @@ func (p *C1G2SingulationControl) UnmarshalBinary(data []byte) error {
 
 // C1G2TagInventoryStateAwareSingulationAction is Parameter 337,
 // C1G2TagInventoryStateAwareSingulationAction.
-type C1G2TagInventoryStateAwareSingulationAction C1G2TagInventoryStateAwareSingulationActionFlags
+type C1G2TagInventoryStateAwareSingulationAction struct {
+	InventoryState SingActAwareState
+	Selected       bool
+}
 
 // UnmarshalBinary Parameter 337, C1G2TagInventoryStateAwareSingulationAction.
 func (p *C1G2TagInventoryStateAwareSingulationAction) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamC1G2TagInventoryStateAwareSingulationAction, 1, len(data), true); err != nil {
 		return err
 	}
-	*p = C1G2TagInventoryStateAwareSingulationAction(C1G2TagInventoryStateAwareSingulationActionFlags(data[0]))
+	p.InventoryState = SingActAwareState(data[0] >> 7)
+	p.Selected = data[0]>>6&1 != 0
 	return nil
 }
 
@@ -6271,9 +6773,11 @@ func (p *SpecLoopEvent) UnmarshalBinary(data []byte) error {
 
 // C1G2Recommission is Parameter 357, C1G2Recommission.
 type C1G2Recommission struct {
-	OpSpecID              uint16
-	KillPassword          uint32
-	C1G2RecommissionFlags C1G2RecommissionFlags
+	OpSpecID     uint16
+	KillPassword uint32
+	SB3          bool
+	SB2          bool
+	LSB          bool
 }
 
 // UnmarshalBinary Parameter 357, C1G2Recommission.
@@ -6283,7 +6787,9 @@ func (p *C1G2Recommission) UnmarshalBinary(data []byte) error {
 	}
 	p.OpSpecID = binary.BigEndian.Uint16(data)
 	p.KillPassword = binary.BigEndian.Uint32(data[2:])
-	p.C1G2RecommissionFlags = C1G2RecommissionFlags(data[6])
+	p.SB3 = data[6]>>2&1 != 0
+	p.SB2 = data[6]>>1&1 != 0
+	p.LSB = data[6]&1 != 0
 	return nil
 }
 
@@ -6417,21 +6923,24 @@ func (p *C1G2GetBlockPermalockStatusOpSpecResult) UnmarshalBinary(data []byte) e
 }
 
 // MaximumReceiveSensitivity is Parameter 363, MaximumReceiveSensitivity.
-type MaximumReceiveSensitivity dBm16
+//
+// MaximumReceiveSensitivity is the maximum receive sensitivity supported by the Reader.
+// It's required if the Reader allows receive sensitivity control, but otherwise optional.
+type MaximumReceiveSensitivity DecibelMilliwatt16
 
 // UnmarshalBinary Parameter 363, MaximumReceiveSensitivity.
 func (p *MaximumReceiveSensitivity) UnmarshalBinary(data []byte) error {
 	if err := hasEnoughBytes(ParamMaximumReceiveSensitivity, 2, len(data), true); err != nil {
 		return err
 	}
-	*p = MaximumReceiveSensitivity(dBm16(binary.BigEndian.Uint16(data)))
+	*p = MaximumReceiveSensitivity(DecibelMilliwatt16(binary.BigEndian.Uint16(data)))
 	return nil
 }
 
 // RFSurveyFrequencyCapabilities is Parameter 365, RFSurveyFrequencyCapabilities.
 type RFSurveyFrequencyCapabilities struct {
-	MinFrequency kHz
-	MaxFrequency kHz
+	MinFrequency Kilohertz
+	MaxFrequency Kilohertz
 }
 
 // UnmarshalBinary Parameter 365, RFSurveyFrequencyCapabilities.

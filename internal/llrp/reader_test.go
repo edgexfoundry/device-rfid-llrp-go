@@ -78,7 +78,7 @@ func TestClient_readHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			lr, err := NewClient(WithConn(p2))
+			lr, err := NewClient(p2)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +120,7 @@ func TestClient_newMessage(t *testing.T) {
 	v := Version1_0_1
 	go func() {
 		defer close(errs)
-		lr, err := NewClient(WithConn(client), WithVersion(v))
+		lr, err := NewClient(client, WithVersion(v))
 		if err != nil {
 			errs <- err
 			return
@@ -130,7 +130,7 @@ func TestClient_newMessage(t *testing.T) {
 		}
 	}()
 
-	r, err := NewClient(WithConn(server))
+	r, err := NewClient(server)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestClient_SendNotConnected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewClient(WithConn(client))
+	r, err := NewClient(client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestClient_Connection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewClient(WithConn(client), WithVersion(Version1_0_1))
+	r, err := NewClient(client, WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,6 +290,8 @@ func TestClient_Connection(t *testing.T) {
 	go func() {
 		defer close(rfidErrs)
 		defer rfid.Close()
+		var err error
+
 		h := Header{version: Version1_0_1}
 		for _, op := range []func(*Header, net.Conn) error{
 			connectSuccess,
@@ -357,7 +359,7 @@ func TestClient_ManySenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewClient(WithConn(client), WithVersion(Version1_0_1))
+	r, err := NewClient(client, WithVersion(Version1_0_1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +395,7 @@ func TestClient_ManySenders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	defer cancel()
 	for i := 0; i < senders; i++ {
-		go func(i int) {
+		go func() {
 			defer msgGrp.Done()
 
 			sz := rand.Int31n(1024)
@@ -404,7 +406,7 @@ func TestClient_ManySenders(t *testing.T) {
 			if err != nil {
 				sendErrs <- err
 			}
-		}(i)
+		}()
 	}
 
 	msgGrp.Wait()
@@ -430,11 +432,6 @@ func TestClient_ManySenders(t *testing.T) {
 
 }
 
-type devNullLog struct{}
-
-func (devNullLog) Println(v ...interface{})            {}
-func (devNullLog) Printf(fmt string, v ...interface{}) {}
-
 func BenchmarkReader_ManySenders(b *testing.B) {
 	client, rfid := net.Pipe()
 	if err := client.SetDeadline(time.Now().Add(300 * time.Second)); err != nil {
@@ -445,7 +442,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	r, err := NewClient(WithConn(client), WithLogger(devNullLog{}), WithVersion(Version1_0_1))
+	r, err := NewClient(client, WithLogger(nil), WithVersion(Version1_0_1))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -484,7 +481,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		go func(i int) {
+		go func() {
 			defer msgGrp.Done()
 
 			sz := rand.Int31n(1024)
@@ -495,7 +492,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			if err != nil {
 				sendErrs <- err
 			}
-		}(i)
+		}()
 	}
 	msgGrp.Wait()
 	b.Log("closing")

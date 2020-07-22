@@ -260,7 +260,7 @@ func (m *ErrorMessage) EncodeFields(w io.Writer) error {
 // EncodeFields for Message 2, GetReaderConfig.
 func (m *GetReaderConfig) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(m.AntennaID >> 8), byte(m.AntennaID), byte(m.ReaderConfigRequestedData),
+		byte(m.AntennaID >> 8), byte(m.AntennaID), byte(m.RequestedData),
 		byte(m.GPIPortNum >> 8), byte(m.GPIPortNum),
 		byte(m.GPOPortNum >> 8), byte(m.GPOPortNum)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for GetReaderConfig")
@@ -489,7 +489,8 @@ func (p *C1G2PC) getHeader() paramHeader {
 	}
 }
 func (p *C1G2PC) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
+	if _, err := w.Write([]byte{
+		byte(p.EPCMemoryLength)<<3 | b2b(p.HasUserMemory)<<2 | b2b(p.HasXPC)<<1 | b2b(p.IsISO15961)<<0, p.AttributesOrAFI}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2PC")
 	}
 	return nil
@@ -653,7 +654,7 @@ func (p *Uptime) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 137, GeneralDeviceCapabilities.
 func (p *GeneralDeviceCapabilities) getHeader() paramHeader {
-	nParams := 1 + len(p.ReceiveSensitivityTableEntries) +
+	nParams := 1 + len(p.ReceiveSensitivities) +
 		len(p.PerAntennaReceiveSensitivityRanges) +
 		len(p.PerAntennaAirProtocols)
 	if p.MaximumReceiveSensitivity != nil {
@@ -662,11 +663,11 @@ func (p *GeneralDeviceCapabilities) getHeader() paramHeader {
 	ph := paramHeader{
 		ParamType: ParamGeneralDeviceCapabilities,
 		data:      p,
-		sz:        18 + uint16(len(p.ReaderFirmwareVersion)),
+		sz:        18 + uint16(len(p.FirmwareVersion)),
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.ReceiveSensitivityTableEntries {
-		sh := p.ReceiveSensitivityTableEntries[i].getHeader()
+	for i := range p.ReceiveSensitivities {
+		sh := p.ReceiveSensitivities[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -691,16 +692,16 @@ func (p *GeneralDeviceCapabilities) getHeader() paramHeader {
 }
 func (p *GeneralDeviceCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.MaxSupportedAntennas >> 8), byte(p.MaxSupportedAntennas), b2b(p.CanSetAntennaProperties)<<7 | b2b(p.HasUTCClockCapability)<<6, 0x00,
-		byte(p.DeviceManufacturerName >> 24), byte(p.DeviceManufacturerName >> 16), byte(p.DeviceManufacturerName >> 8), byte(p.DeviceManufacturerName),
-		byte(p.ModelName >> 24), byte(p.ModelName >> 16), byte(p.ModelName >> 8), byte(p.ModelName)}); err != nil {
+		byte(p.MaxSupportedAntennas >> 8), byte(p.MaxSupportedAntennas), b2b(p.CanSetAntennaProperties)<<7 | b2b(p.HasUTCClock)<<6, 0x00,
+		byte(p.DeviceManufacturer >> 24), byte(p.DeviceManufacturer >> 16), byte(p.DeviceManufacturer >> 8), byte(p.DeviceManufacturer),
+		byte(p.Model >> 24), byte(p.Model >> 16), byte(p.Model >> 8), byte(p.Model)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGeneralDeviceCapabilities")
 	}
-	if _, err := w.Write([]byte{byte(len(p.ReaderFirmwareVersion) >> 8), byte(len(p.ReaderFirmwareVersion) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of ReaderFirmwareVersion")
+	if _, err := w.Write([]byte{byte(len(p.FirmwareVersion) >> 8), byte(len(p.FirmwareVersion) & 0xFF)}); err != nil {
+		return errors.Wrap(err, "failed to write length of FirmwareVersion")
 	}
-	if _, err := w.Write([]byte(p.ReaderFirmwareVersion)); err != nil {
-		return errors.Wrap(err, "failed to write ReaderFirmwareVersion")
+	if _, err := w.Write([]byte(p.FirmwareVersion)); err != nil {
+		return errors.Wrap(err, "failed to write FirmwareVersion")
 	}
 	return nil
 }
@@ -714,7 +715,7 @@ func (p *ReceiveSensitivityTableEntry) getHeader() paramHeader {
 	}
 }
 func (p *ReceiveSensitivityTableEntry) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.TableIndex >> 8), byte(p.TableIndex),
+	if _, err := w.Write([]byte{byte(p.Index >> 8), byte(p.Index),
 		byte(p.ReceiveSensitivity >> 8), byte(p.ReceiveSensitivity)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamReceiveSensitivityTableEntry")
 	}
@@ -771,11 +772,11 @@ func (p *LLRPCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.CanDoRFSurvey)<<7 | b2b(p.CanReportBufferFillWarning)<<6 | b2b(p.SupportsClientRequestOpSpec)<<5 | b2b(p.CanDoTagInventoryStateAwareSingulation)<<4 | b2b(p.SupportsEventsAndReportHolding)<<3, p.MaxPriorityLevelSupported,
 		byte(p.ClientRequestedOpSpecTimeout >> 8), byte(p.ClientRequestedOpSpecTimeout),
-		byte(p.MaxNumROSpecs >> 24), byte(p.MaxNumROSpecs >> 16), byte(p.MaxNumROSpecs >> 8), byte(p.MaxNumROSpecs),
-		byte(p.MaxNumSpecsPerROSpec >> 24), byte(p.MaxNumSpecsPerROSpec >> 16), byte(p.MaxNumSpecsPerROSpec >> 8), byte(p.MaxNumSpecsPerROSpec),
-		byte(p.MaxNumInventoryParameterSpecsPerAISpec >> 24), byte(p.MaxNumInventoryParameterSpecsPerAISpec >> 16), byte(p.MaxNumInventoryParameterSpecsPerAISpec >> 8), byte(p.MaxNumInventoryParameterSpecsPerAISpec),
-		byte(p.MaxNumAccessSpecs >> 24), byte(p.MaxNumAccessSpecs >> 16), byte(p.MaxNumAccessSpecs >> 8), byte(p.MaxNumAccessSpecs),
-		byte(p.MaxNumOpSpecsPerAccessSpec >> 24), byte(p.MaxNumOpSpecsPerAccessSpec >> 16), byte(p.MaxNumOpSpecsPerAccessSpec >> 8), byte(p.MaxNumOpSpecsPerAccessSpec)}); err != nil {
+		byte(p.MaxROSpecs >> 24), byte(p.MaxROSpecs >> 16), byte(p.MaxROSpecs >> 8), byte(p.MaxROSpecs),
+		byte(p.MaxSpecsPerROSpec >> 24), byte(p.MaxSpecsPerROSpec >> 16), byte(p.MaxSpecsPerROSpec >> 8), byte(p.MaxSpecsPerROSpec),
+		byte(p.MaxInventoryParameterSpecsPerAISpec >> 24), byte(p.MaxInventoryParameterSpecsPerAISpec >> 16), byte(p.MaxInventoryParameterSpecsPerAISpec >> 8), byte(p.MaxInventoryParameterSpecsPerAISpec),
+		byte(p.MaxAccessSpecs >> 24), byte(p.MaxAccessSpecs >> 16), byte(p.MaxAccessSpecs >> 8), byte(p.MaxAccessSpecs),
+		byte(p.MaxOpSpecsPerAccessSpec >> 24), byte(p.MaxOpSpecsPerAccessSpec >> 16), byte(p.MaxOpSpecsPerAccessSpec >> 8), byte(p.MaxOpSpecsPerAccessSpec)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamLLRPCapabilities")
 	}
 	return nil
@@ -816,8 +817,7 @@ func (p *RegulatoryCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 144, UHFBandCapabilities.
 func (p *UHFBandCapabilities) getHeader() paramHeader {
-	nParams := len(p.TransmitPowerLevelTableEntrys) +
-		len(p.FrequencyInformations) + len(p.UHFC1G2RFModeTables)
+	nParams := 2 + len(p.TransmitPowerLevels)
 	if p.RFSurveyFrequencyCapabilities != nil {
 		nParams++
 	}
@@ -827,21 +827,15 @@ func (p *UHFBandCapabilities) getHeader() paramHeader {
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.TransmitPowerLevelTableEntrys {
-		sh := p.TransmitPowerLevelTableEntrys[i].getHeader()
+	for i := range p.TransmitPowerLevels {
+		sh := p.TransmitPowerLevels[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.FrequencyInformations {
-		sh := p.FrequencyInformations[i].getHeader()
-		ph.sz += sh.sz
-		ph.subs = append(ph.subs, sh)
-	}
-	for i := range p.UHFC1G2RFModeTables {
-		sh := p.UHFC1G2RFModeTables[i].getHeader()
-		ph.sz += sh.sz
-		ph.subs = append(ph.subs, sh)
-	}
+	ph.subs = append(ph.subs, p.FrequencyInformation.getHeader())
+	ph.sz += ph.subs[len(ph.subs)-1].sz
+	ph.subs = append(ph.subs, p.C1G2RFModes.getHeader())
+	ph.sz += ph.subs[len(ph.subs)-1].sz
 	if p.RFSurveyFrequencyCapabilities != nil {
 		sh := p.RFSurveyFrequencyCapabilities.getHeader()
 		ph.sz += sh.sz
@@ -1015,9 +1009,9 @@ func (p *ROBoundarySpec) getHeader() paramHeader {
 		data:      p,
 		sz:        4,
 	}
-	ph.subs = append(ph.subs, p.ROSpecStartTrigger.getHeader())
+	ph.subs = append(ph.subs, p.StartTrigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
-	ph.subs = append(ph.subs, p.ROSpecStopTrigger.getHeader())
+	ph.subs = append(ph.subs, p.StopTrigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
 	return ph
 }
@@ -1028,10 +1022,10 @@ func (p *ROBoundarySpec) EncodeFields(w io.Writer) error {
 // EncodeFields for Parameter 179, ROSpecStartTrigger.
 func (p *ROSpecStartTrigger) getHeader() paramHeader {
 	nParams := 0
-	if p.PeriodicTriggerValue != nil {
+	if p.PeriodicTrigger != nil {
 		nParams++
 	}
-	if p.GPITriggerValue != nil {
+	if p.GPITrigger != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -1040,20 +1034,20 @@ func (p *ROSpecStartTrigger) getHeader() paramHeader {
 		sz:        5,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	if p.PeriodicTriggerValue != nil {
-		sh := p.PeriodicTriggerValue.getHeader()
+	if p.PeriodicTrigger != nil {
+		sh := p.PeriodicTrigger.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	if p.GPITriggerValue != nil {
-		sh := p.GPITriggerValue.getHeader()
+	if p.GPITrigger != nil {
+		sh := p.GPITrigger.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
 	return ph
 }
 func (p *ROSpecStartTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.ROSpecStartTriggerType)}); err != nil {
+	if _, err := w.Write([]byte{byte(p.Trigger)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamROSpecStartTrigger")
 	}
 	return nil
@@ -1097,7 +1091,7 @@ func (p *GPITriggerValue) getHeader() paramHeader {
 }
 func (p *GPITriggerValue) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.GPIPortNum >> 8), byte(p.GPIPortNum), b2b(p.GPIEvent) << 7,
+		byte(p.Port >> 8), byte(p.Port), b2b(p.Event) << 7,
 		byte(p.Timeout >> 24), byte(p.Timeout >> 16), byte(p.Timeout >> 8), byte(p.Timeout)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGPITriggerValue")
 	}
@@ -1124,7 +1118,7 @@ func (p *ROSpecStopTrigger) getHeader() paramHeader {
 	return ph
 }
 func (p *ROSpecStopTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.ROSpecStopTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.DurationTriggerValue >> 24), byte(p.DurationTriggerValue >> 16), byte(p.DurationTriggerValue >> 8), byte(p.DurationTriggerValue)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamROSpecStopTrigger")
 	}
@@ -1140,7 +1134,7 @@ func (p *AISpec) getHeader() paramHeader {
 		sz:        6 + uint16(len(p.AntennaIDs)*2),
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	ph.subs = append(ph.subs, p.AISpecStopTrigger.getHeader())
+	ph.subs = append(ph.subs, p.StopTrigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
 	for i := range p.InventoryParameterSpecs {
 		sh := p.InventoryParameterSpecs[i].getHeader()
@@ -1167,7 +1161,7 @@ func (p *AISpec) EncodeFields(w io.Writer) error {
 // EncodeFields for Parameter 184, AISpecStopTrigger.
 func (p *AISpecStopTrigger) getHeader() paramHeader {
 	nParams := 0
-	if p.GPITriggerValue != nil {
+	if p.GPITrigger != nil {
 		nParams++
 	}
 	if p.TagObservationTrigger != nil {
@@ -1179,8 +1173,8 @@ func (p *AISpecStopTrigger) getHeader() paramHeader {
 		sz:        9,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	if p.GPITriggerValue != nil {
-		sh := p.GPITriggerValue.getHeader()
+	if p.GPITrigger != nil {
+		sh := p.GPITrigger.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1192,7 +1186,7 @@ func (p *AISpecStopTrigger) getHeader() paramHeader {
 	return ph
 }
 func (p *AISpecStopTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.AISpecStopTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.DurationTriggerValue >> 24), byte(p.DurationTriggerValue >> 16), byte(p.DurationTriggerValue >> 8), byte(p.DurationTriggerValue)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamAISpecStopTrigger")
 	}
@@ -1208,7 +1202,7 @@ func (p *TagObservationTrigger) getHeader() paramHeader {
 	}
 }
 func (p *TagObservationTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.TagObservationTriggerType), 0x00,
+	if _, err := w.Write([]byte{byte(p.Trigger), 0x00,
 		byte(p.NumberofTags >> 8), byte(p.NumberofTags),
 		byte(p.NumberofAttempts >> 8), byte(p.NumberofAttempts),
 		byte(p.T >> 8), byte(p.T),
@@ -1256,7 +1250,7 @@ func (p *RFSurveySpec) getHeader() paramHeader {
 		sz:        14,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	ph.subs = append(ph.subs, p.RFSurveySpecStopTrigger.getHeader())
+	ph.subs = append(ph.subs, p.Trigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
 	for i := range p.Custom {
 		sh := p.Custom[i].getHeader()
@@ -1283,7 +1277,7 @@ func (p *RFSurveySpecStopTrigger) getHeader() paramHeader {
 	}
 }
 func (p *RFSurveySpecStopTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.RFSurveySpecStopTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.Duration >> 24), byte(p.Duration >> 16), byte(p.Duration >> 8), byte(p.Duration),
 		byte(p.N >> 24), byte(p.N >> 16), byte(p.N >> 8), byte(p.N)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamRFSurveySpecStopTrigger")
@@ -1303,7 +1297,7 @@ func (p *AccessSpec) getHeader() paramHeader {
 		sz:        16,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	ph.subs = append(ph.subs, p.AccessSpecStopTrigger.getHeader())
+	ph.subs = append(ph.subs, p.Trigger.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
 	ph.subs = append(ph.subs, p.AccessCommand.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
@@ -1338,7 +1332,7 @@ func (p *AccessSpecStopTrigger) getHeader() paramHeader {
 	}
 }
 func (p *AccessSpecStopTrigger) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.AccessSpecStopTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.OperationCountValue >> 8), byte(p.OperationCountValue)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamAccessSpecStopTrigger")
 	}
@@ -1618,7 +1612,7 @@ func (p *GPOWriteData) getHeader() paramHeader {
 }
 func (p *GPOWriteData) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.GPOPort >> 8), byte(p.GPOPort), b2b(p.GPOData) << 7}); err != nil {
+		byte(p.Port >> 8), byte(p.Port), b2b(p.Data) << 7}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGPOWriteData")
 	}
 	return nil
@@ -1633,7 +1627,7 @@ func (p *KeepAliveSpec) getHeader() paramHeader {
 	}
 }
 func (p *KeepAliveSpec) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.KeepAliveTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.Interval >> 24), byte(p.Interval >> 16), byte(p.Interval >> 8), byte(p.Interval)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamKeepAliveSpec")
 	}
@@ -1659,11 +1653,14 @@ func (p *AntennaProperties) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 222, AntennaConfiguration.
 func (p *AntennaConfiguration) getHeader() paramHeader {
-	nParams := len(p.C1G2InventoryCommands) + len(p.Custom)
+	nParams := len(p.Custom)
 	if p.RFReceiver != nil {
 		nParams++
 	}
 	if p.RFTransmitter != nil {
+		nParams++
+	}
+	if p.C1G2InventoryCommand != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -1682,8 +1679,8 @@ func (p *AntennaConfiguration) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2InventoryCommands {
-		sh := p.C1G2InventoryCommands[i].getHeader()
+	if p.C1G2InventoryCommand != nil {
+		sh := p.C1G2InventoryCommand.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1727,8 +1724,8 @@ func (p *RFTransmitter) getHeader() paramHeader {
 }
 func (p *RFTransmitter) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.HopTableID >> 8), byte(p.HopTableID),
-		byte(p.ChannelIndexInFixedFrequencyTable >> 8), byte(p.ChannelIndexInFixedFrequencyTable),
-		byte(p.TransmitPowerTableIndex >> 8), byte(p.TransmitPowerTableIndex)}); err != nil {
+		byte(p.ChannelIndex >> 8), byte(p.ChannelIndex),
+		byte(p.TransmitPowerIndex >> 8), byte(p.TransmitPowerIndex)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamRFTransmitter")
 	}
 	return nil
@@ -1744,7 +1741,7 @@ func (p *GPIPortCurrentState) getHeader() paramHeader {
 }
 func (p *GPIPortCurrentState) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.GPIPort >> 8), byte(p.GPIPort), b2b(p.GPIPortEnabled) << 7, byte(p.GPIState)}); err != nil {
+		byte(p.Port >> 8), byte(p.Port), b2b(p.Enabled) << 7, byte(p.State)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGPIPortCurrentState")
 	}
 	return nil
@@ -1784,7 +1781,7 @@ func (p *ROReportSpec) getHeader() paramHeader {
 	return ph
 }
 func (p *ROReportSpec) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.ROReportTriggerType),
+	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.N >> 8), byte(p.N)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamROReportSpec")
 	}
@@ -1793,15 +1790,18 @@ func (p *ROReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 238, TagReportContentSelector.
 func (p *TagReportContentSelector) getHeader() paramHeader {
-	nParams := len(p.C1G2EPCMemorySelectors) + len(p.Custom)
+	nParams := len(p.Custom)
+	if p.C1G2EPCMemorySelector != nil {
+		nParams++
+	}
 	ph := paramHeader{
 		ParamType: ParamTagReportContentSelector,
 		data:      p,
 		sz:        6,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2EPCMemorySelectors {
-		sh := p.C1G2EPCMemorySelectors[i].getHeader()
+	if p.C1G2EPCMemorySelector != nil {
+		sh := p.C1G2EPCMemorySelector.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1837,15 +1837,7 @@ func (p *AccessReportSpec) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 240, TagReportData.
 func (p *TagReportData) getHeader() paramHeader {
-	nParams := len(p.C1G2PCs) + len(p.C1G2XPCW1s) + len(p.C1G2XPCW2s) +
-		len(p.C1G2CRCs) + len(p.C1G2ReadOpSpecResults) +
-		len(p.C1G2WriteOpSpecResults) + len(p.C1G2KillOpSpecResults) +
-		len(p.C1G2LockOpSpecResults) + len(p.C1G2BlockEraseOpSpecResults) +
-		len(p.C1G2BlockWriteOpSpecResults) +
-		len(p.C1G2RecommissionOpSpecResults) +
-		len(p.C1G2BlockPermalockOpSpecResults) +
-		len(p.C1G2GetBlockPermalockStatusOpSpecResults) +
-		len(p.ClientRequestOpSpecResults) + len(p.Custom)
+	nParams := len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -1879,7 +1871,49 @@ func (p *TagReportData) getHeader() paramHeader {
 	if p.TagSeenCount != nil {
 		nParams++
 	}
+	if p.C1G2PC != nil {
+		nParams++
+	}
+	if p.C1G2XPCW1 != nil {
+		nParams++
+	}
+	if p.C1G2XPCW2 != nil {
+		nParams++
+	}
+	if p.C1G2CRC != nil {
+		nParams++
+	}
 	if p.AccessSpecID != nil {
+		nParams++
+	}
+	if p.C1G2ReadOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2WriteOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2KillOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2LockOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockEraseOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockWriteOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2RecommissionOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2BlockPermalockOpSpecResult != nil {
+		nParams++
+	}
+	if p.C1G2GetBlockPermalockStatusOpSpecResult != nil {
+		nParams++
+	}
+	if p.ClientRequestOpSpecResult != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -1951,23 +1985,23 @@ func (p *TagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2PCs {
-		sh := p.C1G2PCs[i].getHeader()
+	if p.C1G2PC != nil {
+		sh := p.C1G2PC.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW1s {
-		sh := p.C1G2XPCW1s[i].getHeader()
+	if p.C1G2XPCW1 != nil {
+		sh := p.C1G2XPCW1.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2XPCW2s {
-		sh := p.C1G2XPCW2s[i].getHeader()
+	if p.C1G2XPCW2 != nil {
+		sh := p.C1G2XPCW2.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2CRCs {
-		sh := p.C1G2CRCs[i].getHeader()
+	if p.C1G2CRC != nil {
+		sh := p.C1G2CRC.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -1976,53 +2010,53 @@ func (p *TagReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2ReadOpSpecResults {
-		sh := p.C1G2ReadOpSpecResults[i].getHeader()
+	if p.C1G2ReadOpSpecResult != nil {
+		sh := p.C1G2ReadOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2WriteOpSpecResults {
-		sh := p.C1G2WriteOpSpecResults[i].getHeader()
+	if p.C1G2WriteOpSpecResult != nil {
+		sh := p.C1G2WriteOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2KillOpSpecResults {
-		sh := p.C1G2KillOpSpecResults[i].getHeader()
+	if p.C1G2KillOpSpecResult != nil {
+		sh := p.C1G2KillOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2LockOpSpecResults {
-		sh := p.C1G2LockOpSpecResults[i].getHeader()
+	if p.C1G2LockOpSpecResult != nil {
+		sh := p.C1G2LockOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockEraseOpSpecResults {
-		sh := p.C1G2BlockEraseOpSpecResults[i].getHeader()
+	if p.C1G2BlockEraseOpSpecResult != nil {
+		sh := p.C1G2BlockEraseOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockWriteOpSpecResults {
-		sh := p.C1G2BlockWriteOpSpecResults[i].getHeader()
+	if p.C1G2BlockWriteOpSpecResult != nil {
+		sh := p.C1G2BlockWriteOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2RecommissionOpSpecResults {
-		sh := p.C1G2RecommissionOpSpecResults[i].getHeader()
+	if p.C1G2RecommissionOpSpecResult != nil {
+		sh := p.C1G2RecommissionOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2BlockPermalockOpSpecResults {
-		sh := p.C1G2BlockPermalockOpSpecResults[i].getHeader()
+	if p.C1G2BlockPermalockOpSpecResult != nil {
+		sh := p.C1G2BlockPermalockOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.C1G2GetBlockPermalockStatusOpSpecResults {
-		sh := p.C1G2GetBlockPermalockStatusOpSpecResults[i].getHeader()
+	if p.C1G2GetBlockPermalockStatusOpSpecResult != nil {
+		sh := p.C1G2GetBlockPermalockStatusOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.ClientRequestOpSpecResults {
-		sh := p.ClientRequestOpSpecResults[i].getHeader()
+	if p.ClientRequestOpSpecResult != nil {
+		sh := p.ClientRequestOpSpecResult.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2057,7 +2091,7 @@ func (p *EPCData) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 242, RFSurveyReportData.
 func (p *RFSurveyReportData) getHeader() paramHeader {
-	nParams := len(p.FrequencyRSSILevelEntrys) + len(p.Custom)
+	nParams := len(p.FrequencyRSSILevelEntries) + len(p.Custom)
 	if p.ROSpecID != nil {
 		nParams++
 	}
@@ -2080,8 +2114,8 @@ func (p *RFSurveyReportData) getHeader() paramHeader {
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	for i := range p.FrequencyRSSILevelEntrys {
-		sh := p.FrequencyRSSILevelEntrys[i].getHeader()
+	for i := range p.FrequencyRSSILevelEntries {
+		sh := p.FrequencyRSSILevelEntries[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2307,7 +2341,7 @@ func (p *GPIEvent) getHeader() paramHeader {
 }
 func (p *GPIEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.GPIPort >> 8), byte(p.GPIPort), b2b(p.GPIEvent) << 7}); err != nil {
+		byte(p.Port >> 8), byte(p.Port), b2b(p.Event) << 7}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamGPIEvent")
 	}
 	return nil
@@ -2322,7 +2356,7 @@ func (p *ROSpecEvent) getHeader() paramHeader {
 	}
 }
 func (p *ROSpecEvent) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.ROSpecEventType),
+	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID),
 		byte(p.PreemptingROSpecID >> 24), byte(p.PreemptingROSpecID >> 16), byte(p.PreemptingROSpecID >> 8), byte(p.PreemptingROSpecID)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamROSpecEvent")
@@ -2440,7 +2474,7 @@ func (p *RFSurveyEvent) getHeader() paramHeader {
 	}
 }
 func (p *RFSurveyEvent) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.RFSurveyEventType),
+	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamRFSurveyEvent")
 	}
@@ -2450,7 +2484,7 @@ func (p *RFSurveyEvent) EncodeFields(w io.Writer) error {
 // EncodeFields for Parameter 254, AISpecEvent.
 func (p *AISpecEvent) getHeader() paramHeader {
 	nParams := 0
-	if p.C1G2SingulationDetails != nil {
+	if p.SingulationDetails != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -2459,15 +2493,15 @@ func (p *AISpecEvent) getHeader() paramHeader {
 		sz:        11,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	if p.C1G2SingulationDetails != nil {
-		sh := p.C1G2SingulationDetails.getHeader()
+	if p.SingulationDetails != nil {
+		sh := p.SingulationDetails.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
 	return ph
 }
 func (p *AISpecEvent) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.AISpecEventType),
+	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID),
 		byte(p.SpecIndex >> 8), byte(p.SpecIndex)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamAISpecEvent")
@@ -2484,7 +2518,7 @@ func (p *AntennaEvent) getHeader() paramHeader {
 	}
 }
 func (p *AntennaEvent) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.AntennaEventType),
+	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.AntennaID >> 8), byte(p.AntennaID)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamAntennaEvent")
 	}
@@ -2622,7 +2656,7 @@ func (p *C1G2LLRPCapabilities) getHeader() paramHeader {
 func (p *C1G2LLRPCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.SupportsBlockErase)<<7 | b2b(p.SupportsBlockWrite)<<6 | b2b(p.SupportsBlockPermalock)<<5 | b2b(p.SupportsTagRecommissioning)<<4 | b2b(p.SupportsUMIMethod2)<<3 | b2b(p.SupportsXPC)<<2,
-		byte(p.MaxNumSelectFiltersPerQuery >> 8), byte(p.MaxNumSelectFiltersPerQuery)}); err != nil {
+		byte(p.MaxSelectFiltersPerQuery >> 8), byte(p.MaxSelectFiltersPerQuery)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2LLRPCapabilities")
 	}
 	return nil
@@ -2630,15 +2664,15 @@ func (p *C1G2LLRPCapabilities) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 328, UHFC1G2RFModeTable.
 func (p *UHFC1G2RFModeTable) getHeader() paramHeader {
-	nParams := len(p.UHFC1G2RFModeTableEntrys)
+	nParams := len(p.UHFC1G2RFModeTableEntries)
 	ph := paramHeader{
 		ParamType: ParamUHFC1G2RFModeTable,
 		data:      p,
 		sz:        4,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.UHFC1G2RFModeTableEntrys {
-		sh := p.UHFC1G2RFModeTableEntrys[i].getHeader()
+	for i := range p.UHFC1G2RFModeTableEntries {
+		sh := p.UHFC1G2RFModeTableEntries[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2671,11 +2705,11 @@ func (p *UHFC1G2RFModeTableEntry) EncodeFields(w io.Writer) error {
 
 // EncodeFields for Parameter 330, C1G2InventoryCommand.
 func (p *C1G2InventoryCommand) getHeader() paramHeader {
-	nParams := len(p.C1G2Filters) + len(p.Custom)
-	if p.C1G2RFControl != nil {
+	nParams := len(p.Filters) + len(p.Custom)
+	if p.RFControl != nil {
 		nParams++
 	}
-	if p.C1G2SingulationControl != nil {
+	if p.SingulationControl != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -2684,18 +2718,18 @@ func (p *C1G2InventoryCommand) getHeader() paramHeader {
 		sz:        5,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	for i := range p.C1G2Filters {
-		sh := p.C1G2Filters[i].getHeader()
+	for i := range p.Filters {
+		sh := p.Filters[i].getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	if p.C1G2RFControl != nil {
-		sh := p.C1G2RFControl.getHeader()
+	if p.RFControl != nil {
+		sh := p.RFControl.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	if p.C1G2SingulationControl != nil {
-		sh := p.C1G2SingulationControl.getHeader()
+	if p.SingulationControl != nil {
+		sh := p.SingulationControl.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2717,10 +2751,10 @@ func (p *C1G2InventoryCommand) EncodeFields(w io.Writer) error {
 // EncodeFields for Parameter 331, C1G2Filter.
 func (p *C1G2Filter) getHeader() paramHeader {
 	nParams := 1
-	if p.C1G2TagInventoryStateAwareFilterAction != nil {
+	if p.AwareFilterAction != nil {
 		nParams++
 	}
-	if p.C1G2TagInventoryStateUnawareFilterAction != nil {
+	if p.UnawareFilterAction != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -2729,15 +2763,15 @@ func (p *C1G2Filter) getHeader() paramHeader {
 		sz:        5,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	ph.subs = append(ph.subs, p.C1G2TagInventoryMask.getHeader())
+	ph.subs = append(ph.subs, p.TagInventoryMask.getHeader())
 	ph.sz += ph.subs[len(ph.subs)-1].sz
-	if p.C1G2TagInventoryStateAwareFilterAction != nil {
-		sh := p.C1G2TagInventoryStateAwareFilterAction.getHeader()
+	if p.AwareFilterAction != nil {
+		sh := p.AwareFilterAction.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
-	if p.C1G2TagInventoryStateUnawareFilterAction != nil {
-		sh := p.C1G2TagInventoryStateUnawareFilterAction.getHeader()
+	if p.UnawareFilterAction != nil {
+		sh := p.UnawareFilterAction.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
@@ -2759,7 +2793,7 @@ func (p *C1G2TagInventoryMask) getHeader() paramHeader {
 	}
 }
 func (p *C1G2TagInventoryMask) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.C1G2MemoryBank) << 6,
+	if _, err := w.Write([]byte{byte(p.MemoryBank) << 6,
 		byte(p.MostSignificantBit >> 8), byte(p.MostSignificantBit)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryMask")
 	}
@@ -2782,7 +2816,7 @@ func (p *C1G2TagInventoryStateAwareFilterAction) getHeader() paramHeader {
 }
 func (p *C1G2TagInventoryStateAwareFilterAction) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
-		byte(p.C1G2TagInventoryTarget), byte(p.C1G2TagInventoryStateAwareFilterAction)}); err != nil {
+		byte(p.Target), byte(p.FilterAction)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryStateAwareFilterAction")
 	}
 	return nil
@@ -2812,8 +2846,7 @@ func (p *C1G2RFControl) getHeader() paramHeader {
 	}
 }
 func (p *C1G2RFControl) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{
-		byte(p.IndexIntoUHFC1G2RFModeTable >> 8), byte(p.IndexIntoUHFC1G2RFModeTable),
+	if _, err := w.Write([]byte{byte(p.RFModeID >> 8), byte(p.RFModeID),
 		byte(p.Tari >> 8), byte(p.Tari)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2RFControl")
 	}
@@ -2823,7 +2856,7 @@ func (p *C1G2RFControl) EncodeFields(w io.Writer) error {
 // EncodeFields for Parameter 336, C1G2SingulationControl.
 func (p *C1G2SingulationControl) getHeader() paramHeader {
 	nParams := 0
-	if p.C1G2TagInventoryStateAwareSingulationAction != nil {
+	if p.InvAwareAction != nil {
 		nParams++
 	}
 	ph := paramHeader{
@@ -2832,15 +2865,15 @@ func (p *C1G2SingulationControl) getHeader() paramHeader {
 		sz:        11,
 		subs:      make([]paramHeader, 0, nParams),
 	}
-	if p.C1G2TagInventoryStateAwareSingulationAction != nil {
-		sh := p.C1G2TagInventoryStateAwareSingulationAction.getHeader()
+	if p.InvAwareAction != nil {
+		sh := p.InvAwareAction.getHeader()
 		ph.sz += sh.sz
 		ph.subs = append(ph.subs, sh)
 	}
 	return ph
 }
 func (p *C1G2SingulationControl) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(p.C1G2SingulationControlSession),
+	if _, err := w.Write([]byte{byte(p.Session) << 6,
 		byte(p.TagPopulation >> 8), byte(p.TagPopulation),
 		byte(p.TagTransitTime >> 24), byte(p.TagTransitTime >> 16), byte(p.TagTransitTime >> 8), byte(p.TagTransitTime)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2SingulationControl")
@@ -2857,7 +2890,8 @@ func (p *C1G2TagInventoryStateAwareSingulationAction) getHeader() paramHeader {
 	}
 }
 func (p *C1G2TagInventoryStateAwareSingulationAction) EncodeFields(w io.Writer) error {
-	if _, err := w.Write([]byte{byte(*p)}); err != nil {
+	if _, err := w.Write([]byte{
+		byte(p.InventoryState)<<7 | b2b(p.Selected)<<6}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryStateAwareSingulationAction")
 	}
 	return nil
@@ -3219,7 +3253,7 @@ func (p *C1G2Recommission) getHeader() paramHeader {
 }
 func (p *C1G2Recommission) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
-		byte(p.KillPassword >> 24), byte(p.KillPassword >> 16), byte(p.KillPassword >> 8), byte(p.KillPassword), byte(p.C1G2RecommissionFlags)}); err != nil {
+		byte(p.KillPassword >> 24), byte(p.KillPassword >> 16), byte(p.KillPassword >> 8), byte(p.KillPassword), b2b(p.SB3)<<2 | b2b(p.SB2)<<1 | b2b(p.LSB)<<0}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamC1G2Recommission")
 	}
 	return nil

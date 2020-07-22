@@ -9,7 +9,6 @@
 package llrp
 
 import (
-	"github.com/pkg/errors"
 	"strconv"
 )
 
@@ -320,6 +319,33 @@ func (pe *ParameterError) Error() string {
 	return msg
 }
 
+// StatusError wraps an LLRPStatus to implement the error interface.
+// This is used separately from a regular LLRPStatus
+// because the latter can also represent success.
+type StatusError LLRPStatus
+
+// Error implements the error interface for a statusError.
+func (se *StatusError) Error() string {
+	msg := se.Status.defaultText()
+	if se.ErrorDescription != "" {
+		msg += ": " + se.ErrorDescription
+	}
+
+	if se.FieldError != nil {
+		msg += ": " + se.FieldError.Error()
+	}
+
+	if se.ParameterError != nil {
+		msg += ": " + se.ParameterError.Error()
+	}
+
+	if msg == "" {
+		msg = "unknown error"
+	}
+
+	return msg
+}
+
 // Err returns an error represented by this LLRPStatus, if any.
 // If the Status is Success, this returns nil.
 func (ls *LLRPStatus) Err() error {
@@ -327,20 +353,8 @@ func (ls *LLRPStatus) Err() error {
 		return nil
 	}
 
-	msg := ls.Status.defaultText()
-	if ls.ErrorDescription != "" {
-		msg += ": " + ls.ErrorDescription
-	}
-
-	if ls.FieldError != nil {
-		msg += ": " + ls.FieldError.Error()
-	}
-
-	if ls.ParameterError != nil {
-		msg += ": " + ls.ParameterError.Error()
-	}
-
-	return errors.New(msg)
+	se := StatusError(*ls)
+	return &se
 }
 
 func (ren *ReaderEventNotification) isConnectSuccess() bool {

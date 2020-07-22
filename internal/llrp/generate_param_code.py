@@ -155,6 +155,7 @@ class GoWriter:
             return
 
         requote = pre != '// '
+
         def write_paragraph(p):
             self.code.width = 70 - len(indent) if requote else 90 - len(indent)
             open_quote = False
@@ -185,7 +186,7 @@ class GoWriter:
         paragraphs = text.split('\n')
         for p in paragraphs[:-1]:
             write_paragraph(p)
-            self.w.write(pre+'\n')
+            self.w.write(pre + '\n')
         if paragraphs[-1].strip() != '':
             write_paragraph(paragraphs[-1])
 
@@ -788,13 +789,15 @@ class ParamSpec:
     """ParamSpec specifies the parameters permitted in a certain context,
     and under what conditions."""
     name: str  # name used for a struct; may be omitted from yaml to use the parameter name
-    param_name: str  # name of an LLRP parameter type
+    param_name: str  # name of an LLRP parameter type; called 'type' in the YAML
     optional: bool = False  # parameter is "0-1" or "0-n"
     repeatable: bool = False  # parameter is "0-n" or "1-n"
     air_protocol: Optional[str] = None  # if this parameter is tied to a specific air protocol...
     p_def: 'Container' = None  # parameter definition; set after parameters are read
     group: Optional[str] = None  # groups are mutually exclusive
     version: Optional[int] = 1
+
+    description: Optional[str] = None
 
     def is_fixed_size(self) -> bool:
         """Returns true if this parameter is always a fixed size."""
@@ -806,12 +809,20 @@ class ParamSpec:
             raise MissingPropError(['type'], y)
         if 'name' not in y:
             y['name'] = y['type']
-            if y.get('repeatable') and not (
-                    y['name'] == 'Custom' or y['name'].endswith('Data')):
-                y['name'] += 's'
+            if y.get('repeatable') and not y['name'] == 'Custom':
+                n = y['name']
+                if n.endswith('Data') or n[-1] == 's':
+                    pass
+                elif n.endswith('y'):
+                    y['name'] = n[:-1] + 'ies'
+                else:
+                    y['name'] += 's'
         y['param_name'] = y['type']
         del y['type']
-        return ParamSpec(**y)
+        try:
+            return ParamSpec(**y)
+        except TypeError as e:
+            raise DefinitionError(y) from e
 
     def struct_field(self) -> str:
         if self.repeatable:
@@ -848,6 +859,7 @@ class Container:
     has_required: bool = False  # true if has required parameters
 
     description: Optional[str] = None
+    version: Optional[int] = 1
 
     @classmethod
     def from_yaml(cls, y, types: Dict[str, DataType]) -> 'Container':
@@ -865,7 +877,10 @@ class Container:
         except KeyError:
             y['parameters'] = []
 
-        return cls(**y)
+        try:
+            return cls(**y)
+        except TypeError as e:
+            raise DefinitionError(y) from e
 
     @property
     def type_name(self) -> str:
@@ -1535,6 +1550,20 @@ class Message(Container):
         w.comment(f'{self.name} is a header-only message')
         w.write('return nil')
 
+    def write_helpers(self, w: GoWriter):
+        """Write the Type() and Status() interface implementations."""
+        w.comment(f"Type returns this message's MessageType")
+        with w.block(f'func (*{self.type_name}) Type() MessageType'):
+            w.write(f'return Msg{self.name}')
+
+        if not any(p.param_name == 'LLRPStatus' for p in self.parameters):
+            return
+
+        w.write('')
+        w.comment(f"Status returns this message's LLRPStatus")
+        with w.block(f'func ({self.short} *{self.type_name}) Status() LLRPStatus'):
+            w.write(f'return {self.short}.LLRPStatus')
+
 
 def load_data(definitions: YML) -> (Dict[str, DataType], Dict[str, Container], Dict[str, Message]):
     """Read the YAML definitions to build the object graph."""
@@ -1692,6 +1721,7 @@ def write_unmarshal_code(w: GoWriter, types: Dict[str, DataType],
 
         w.comment(f'UnmarshalBinary Message {m.type_id}, {m.name}.')
         m.write_unmarshal(w)
+        m.write_helpers(w)
 
     for p in parameters.values():
         if p.type_id == 0:
@@ -1780,47 +1810,43 @@ def main():
     import subprocess
 
     parser = argparse.ArgumentParser(
-        description='A python script to read a YAML description '
+        description='This is a python script to read a YAML description '
                     'of binary LLRP messages to generate Go code '
-                    'to convert them into JSON'
+                    'that converts them to and from JSON.'
     )
-    parser.add_argument('-i', '--input', help='input file (default: STDIN)',
+    parser.add_argument('-i', '--input', help='input YAML file (default: STDIN)',
                         type=argparse.FileType('r'), default=sys.stdin)
 
-    parser.add_argument('-u', '--unmarshal-file', default='-',
-                        help='output file for unmarshaling code (by default, "-" for STDOUT)')
-    parser.add_argument('-m', '--marshal-file', default='-',
-                        help='output file for marshaling code (by default, "-" for STDOUT)')
-    parser.add_argument('-e', '--encode-file', default='-',
-                        help='output file for encoder code (by default, "-" for STDOUT)')
-    parser.add_argument('-t', '--test-file', default='-',
-                        help='output file for test code (by default, "-" for STDOUT)')
+    def add_out_file(kind: str):
+        parser.add_argument(
+            f'-{kind[0]}',
+            f'--{kind}-file',
+            default='-',
+            help=f'output file for {kind} code (default: STDOUT)')
 
-    parser.add_argument('--unmarshal', default=True, action='store_true',
-                        help='write unmarshaling code')
-    parser.add_argument('--marshal', default=True, action='store_true',
-                        help='write marshaling code')
-    parser.add_argument('--encode', default=True, action='store_true',
-                        help='write encoding code')
-    parser.add_argument('--test', default=True, action='store_true',
-                        help='write testing code')
+    add_out_file('unmarshal')
+    add_out_file('marshal')
+    add_out_file('encode')
+    add_out_file('test')
 
-    parser.add_argument('--no-unmarshal', dest='unmarshal', action='store_false',
-                        help='skip writing unmarshaling code')
-    parser.add_argument('--no-marshal', dest='marshal', action='store_false',
-                        help='skip writing encoder code')
-    parser.add_argument('--no-encode', dest='encode', action='store_false',
-                        help='skip writing testing code')
-    parser.add_argument('--no-test', dest='test', action='store_false',
-                        help='skip writing testing code')
+    def add_flag(name: str, help: str):
+        parser.add_argument(
+            f'--{name}', default=True, action='store_true',
+            help=f'{help} (default true)')
+        parser.add_argument(
+            f'--no-{name}', dest=name, action='store_false',
+            help=f"don't {help}")
 
-    parser.add_argument('--gofmt', default=True, action='store_true',
-                        help='pipe output through gofmt')
-    parser.add_argument('--no-gofmt', dest='gofmt', action='store_false',
-                        help='skip piping output through gofmt')
+    add_flag('unmarshal', 'write unmarshaling code')
+    add_flag('marshal', 'write marshaling code')
+    add_flag('encode', 'write encoder code')
+    add_flag('test', 'write test code')
+    add_flag('gofmt', 'pipe output through gofmt')
 
-    parser.add_argument('--parameter', help='output only specific parameters',
-                        action='append')
+    parser.add_argument(
+        '--parameter',
+        help='output only specific parameters (repeatable)',
+        action='append')
 
     args = parser.parse_args()
 

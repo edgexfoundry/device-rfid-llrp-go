@@ -136,12 +136,12 @@ func TestAddROSpec_roundTrip(t *testing.T) {
 			Priority:           128,
 			ROSpecCurrentState: ROSpecStateInactive,
 			ROBoundarySpec: ROBoundarySpec{
-				ROSpecStartTrigger: ROSpecStartTrigger{
-					ROSpecStartTriggerType: ROStartTriggerPeriodic,
+				StartTrigger: ROSpecStartTrigger{
+					Trigger: ROStartTriggerPeriodic,
 				},
-				ROSpecStopTrigger: ROSpecStopTrigger{
-					ROSpecStopTriggerType: ROStopTriggerDuration,
-					DurationTriggerValue:  uint32(2147483648),
+				StopTrigger: ROSpecStopTrigger{
+					Trigger:              ROStopTriggerDuration,
+					DurationTriggerValue: uint32(2147483648),
 				},
 			},
 		},
@@ -421,9 +421,9 @@ func TestAddAccessSpec_roundTrip(t *testing.T) {
 			AirProtocolID: AirProtoEPCGlobalClass1Gen2,
 			IsActive:      true,
 			ROSpecID:      2147483648,
-			AccessSpecStopTrigger: AccessSpecStopTrigger{
-				AccessSpecStopTriggerType: AccessSpecStopTriggerOperationCount,
-				OperationCountValue:       32768,
+			Trigger: AccessSpecStopTrigger{
+				Trigger:             AccessSpecStopTriggerOperationCount,
+				OperationCountValue: 32768,
 			},
 			AccessCommand: AccessCommand{
 				C1G2TagSpec: C1G2TagSpec{
@@ -799,10 +799,10 @@ func TestErrorMessage_roundTrip(t *testing.T) {
 // Test Message 2, GetReaderConfig.
 func TestGetReaderConfig_roundTrip(t *testing.T) {
 	m := GetReaderConfig{
-		AntennaID:                 32768,
-		ReaderConfigRequestedData: ReaderConfReqAccessReportSpec,
-		GPIPortNum:                32768,
-		GPOPortNum:                32768,
+		AntennaID:     32768,
+		RequestedData: ReaderConfReqAccessReportSpec,
+		GPIPortNum:    32768,
+		GPOPortNum:    32768,
 	}
 	b, err := m.MarshalBinary()
 	if err != nil {
@@ -1112,7 +1112,13 @@ func TestC1G2CRC_roundTrip(t *testing.T) {
 
 // Test Parameter 12, C1G2PC.
 func TestC1G2PC_roundTrip(t *testing.T) {
-	p := C1G2PC(32768)
+	p := C1G2PC{
+		EPCMemoryLength: uint8(16),
+		HasUserMemory:   true,
+		HasXPC:          true,
+		IsISO15961:      true,
+		AttributesOrAFI: 128,
+	}
 	b, err := p.MarshalBinary()
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -1296,13 +1302,13 @@ func TestGeneralDeviceCapabilities_roundTrip(t *testing.T) {
 	p := GeneralDeviceCapabilities{
 		MaxSupportedAntennas:    32768,
 		CanSetAntennaProperties: true,
-		HasUTCClockCapability:   true,
-		DeviceManufacturerName:  2147483648,
-		ModelName:               2147483648,
-		ReaderFirmwareVersion:   "some arbitrary string",
-		ReceiveSensitivityTableEntries: []ReceiveSensitivityTableEntry{
+		HasUTCClock:             true,
+		DeviceManufacturer:      2147483648,
+		Model:                   2147483648,
+		FirmwareVersion:         "some arbitrary string",
+		ReceiveSensitivities: []ReceiveSensitivityTableEntry{
 			{
-				TableIndex:         32768,
+				Index:              32768,
 				ReceiveSensitivity: uint16(64),
 			},
 		},
@@ -1333,7 +1339,7 @@ func TestGeneralDeviceCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 139, ReceiveSensitivityTableEntry.
 func TestReceiveSensitivityTableEntry_roundTrip(t *testing.T) {
 	p := ReceiveSensitivityTableEntry{
-		TableIndex:         32768,
+		Index:              32768,
 		ReceiveSensitivity: uint16(64),
 	}
 	b, err := p.MarshalBinary()
@@ -1397,11 +1403,11 @@ func TestLLRPCapabilities_roundTrip(t *testing.T) {
 		SupportsEventsAndReportHolding:         true,
 		MaxPriorityLevelSupported:              128,
 		ClientRequestedOpSpecTimeout:           32768,
-		MaxNumROSpecs:                          2147483648,
-		MaxNumSpecsPerROSpec:                   2147483648,
-		MaxNumInventoryParameterSpecsPerAISpec: 2147483648,
-		MaxNumAccessSpecs:                      2147483648,
-		MaxNumOpSpecsPerAccessSpec:             2147483648,
+		MaxROSpecs:                             2147483648,
+		MaxSpecsPerROSpec:                      2147483648,
+		MaxInventoryParameterSpecsPerAISpec:    2147483648,
+		MaxAccessSpecs:                         2147483648,
+		MaxOpSpecsPerAccessSpec:                2147483648,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1419,7 +1425,7 @@ func TestLLRPCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 143, RegulatoryCapabilities.
 func TestRegulatoryCapabilities_roundTrip(t *testing.T) {
 	p := RegulatoryCapabilities{
-		CountryCode:            0,
+		CountryCode:            Unspecified,
 		CommunicationsStandard: 32768,
 	}
 	b, err := p.MarshalBinary()
@@ -1438,33 +1444,29 @@ func TestRegulatoryCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 144, UHFBandCapabilities.
 func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 	p := UHFBandCapabilities{
-		TransmitPowerLevelTableEntrys: []TransmitPowerLevelTableEntry{
+		TransmitPowerLevels: []TransmitPowerLevelTableEntry{
 			{
 				Index:              32768,
 				TransmitPowerValue: uint16(32768),
 			},
 		},
-		FrequencyInformations: []FrequencyInformation{
-			{
-				Hopping: true,
-			},
+		FrequencyInformation: FrequencyInformation{
+			Hopping: true,
 		},
-		UHFC1G2RFModeTables: []UHFC1G2RFModeTable{
-			{
-				UHFC1G2RFModeTableEntrys: []UHFC1G2RFModeTableEntry{
-					{
-						ModeID:                2147483648,
-						DivideRatio:           DRSixtyFourToThree,
-						IsEPCHagConformant:    true,
-						Modulation:            Miller4,
-						ForwardLinkModulation: SingleSidebandASK,
-						SpectralMask:          SpectralMaskMultiInterrogator,
-						BackscatterDataRate:   uint32(300000),
-						PIERatio:              1500,
-						MinTariTime:           uint32(9375),
-						MaxTariTime:           uint32(9375),
-						StepTariTime:          uint32(9375),
-					},
+		C1G2RFModes: UHFC1G2RFModeTable{
+			UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
+				{
+					ModeID:                2147483648,
+					DivideRatio:           DRSixtyFourToThree,
+					IsEPCHagConformant:    true,
+					Modulation:            Miller4,
+					ForwardLinkModulation: SingleSidebandASK,
+					SpectralMask:          SpectralMaskMultiInterrogator,
+					BackscatterDataRate:   uint32(300000),
+					PIERatio:              1500,
+					MinTariTime:           uint32(9375),
+					MaxTariTime:           uint32(9375),
+					StepTariTime:          uint32(9375),
 				},
 			},
 		},
@@ -1523,7 +1525,7 @@ func TestFrequencyInformation_roundTrip(t *testing.T) {
 func TestFrequencyHopTable_roundTrip(t *testing.T) {
 	p := FrequencyHopTable{
 		HopTableID:  128,
-		Frequencies: []kHz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
+		Frequencies: []Kilohertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1541,7 +1543,7 @@ func TestFrequencyHopTable_roundTrip(t *testing.T) {
 // Test Parameter 148, FixedFrequencyTable.
 func TestFixedFrequencyTable_roundTrip(t *testing.T) {
 	p := FixedFrequencyTable{
-		Frequencies: []kHz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
+		Frequencies: []Kilohertz{uint32(2147483648), uint32(1), uint32(2), uint32(3)},
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1583,12 +1585,12 @@ func TestROSpec_roundTrip(t *testing.T) {
 		Priority:           128,
 		ROSpecCurrentState: ROSpecStateInactive,
 		ROBoundarySpec: ROBoundarySpec{
-			ROSpecStartTrigger: ROSpecStartTrigger{
-				ROSpecStartTriggerType: ROStartTriggerPeriodic,
+			StartTrigger: ROSpecStartTrigger{
+				Trigger: ROStartTriggerPeriodic,
 			},
-			ROSpecStopTrigger: ROSpecStopTrigger{
-				ROSpecStopTriggerType: ROStopTriggerDuration,
-				DurationTriggerValue:  uint32(2147483648),
+			StopTrigger: ROSpecStopTrigger{
+				Trigger:              ROStopTriggerDuration,
+				DurationTriggerValue: uint32(2147483648),
 			},
 		},
 	}
@@ -1608,12 +1610,12 @@ func TestROSpec_roundTrip(t *testing.T) {
 // Test Parameter 178, ROBoundarySpec.
 func TestROBoundarySpec_roundTrip(t *testing.T) {
 	p := ROBoundarySpec{
-		ROSpecStartTrigger: ROSpecStartTrigger{
-			ROSpecStartTriggerType: ROStartTriggerPeriodic,
+		StartTrigger: ROSpecStartTrigger{
+			Trigger: ROStartTriggerPeriodic,
 		},
-		ROSpecStopTrigger: ROSpecStopTrigger{
-			ROSpecStopTriggerType: ROStopTriggerDuration,
-			DurationTriggerValue:  uint32(2147483648),
+		StopTrigger: ROSpecStopTrigger{
+			Trigger:              ROStopTriggerDuration,
+			DurationTriggerValue: uint32(2147483648),
 		},
 	}
 	b, err := p.MarshalBinary()
@@ -1632,7 +1634,7 @@ func TestROBoundarySpec_roundTrip(t *testing.T) {
 // Test Parameter 179, ROSpecStartTrigger.
 func TestROSpecStartTrigger_roundTrip(t *testing.T) {
 	p := ROSpecStartTrigger{
-		ROSpecStartTriggerType: ROStartTriggerPeriodic,
+		Trigger: ROStartTriggerPeriodic,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1669,9 +1671,9 @@ func TestPeriodicTriggerValue_roundTrip(t *testing.T) {
 // Test Parameter 181, GPITriggerValue.
 func TestGPITriggerValue_roundTrip(t *testing.T) {
 	p := GPITriggerValue{
-		GPIPortNum: 32768,
-		GPIEvent:   true,
-		Timeout:    uint32(2147483648),
+		Port:    32768,
+		Event:   true,
+		Timeout: uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1689,8 +1691,8 @@ func TestGPITriggerValue_roundTrip(t *testing.T) {
 // Test Parameter 182, ROSpecStopTrigger.
 func TestROSpecStopTrigger_roundTrip(t *testing.T) {
 	p := ROSpecStopTrigger{
-		ROSpecStopTriggerType: ROStopTriggerDuration,
-		DurationTriggerValue:  uint32(2147483648),
+		Trigger:              ROStopTriggerDuration,
+		DurationTriggerValue: uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1709,9 +1711,9 @@ func TestROSpecStopTrigger_roundTrip(t *testing.T) {
 func TestAISpec_roundTrip(t *testing.T) {
 	p := AISpec{
 		AntennaIDs: []AntennaID{32768, 1, 2, 3},
-		AISpecStopTrigger: AISpecStopTrigger{
-			AISpecStopTriggerType: AIStopTriggerGPI,
-			DurationTriggerValue:  uint32(2147483648),
+		StopTrigger: AISpecStopTrigger{
+			Trigger:              AIStopTriggerGPI,
+			DurationTriggerValue: uint32(2147483648),
 		},
 		InventoryParameterSpecs: []InventoryParameterSpec{
 			{
@@ -1736,8 +1738,8 @@ func TestAISpec_roundTrip(t *testing.T) {
 // Test Parameter 184, AISpecStopTrigger.
 func TestAISpecStopTrigger_roundTrip(t *testing.T) {
 	p := AISpecStopTrigger{
-		AISpecStopTriggerType: AIStopTriggerGPI,
-		DurationTriggerValue:  uint32(2147483648),
+		Trigger:              AIStopTriggerGPI,
+		DurationTriggerValue: uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1755,11 +1757,11 @@ func TestAISpecStopTrigger_roundTrip(t *testing.T) {
 // Test Parameter 185, TagObservationTrigger.
 func TestTagObservationTrigger_roundTrip(t *testing.T) {
 	p := TagObservationTrigger{
-		TagObservationTriggerType: TagObsTriggerNAttempts,
-		NumberofTags:              32768,
-		NumberofAttempts:          32768,
-		T:                         uint16(32768),
-		Timeout:                   uint32(2147483648),
+		Trigger:          TagObsTriggerNAttempts,
+		NumberofTags:     32768,
+		NumberofAttempts: 32768,
+		T:                uint16(32768),
+		Timeout:          uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1799,10 +1801,10 @@ func TestRFSurveySpec_roundTrip(t *testing.T) {
 		AntennaID:      32768,
 		StartFrequency: uint32(2147483648),
 		EndFrequency:   uint32(2147483648),
-		RFSurveySpecStopTrigger: RFSurveySpecStopTrigger{
-			RFSurveySpecStopTriggerType: RFSurveyStopTriggerDuration,
-			Duration:                    uint32(2147483648),
-			N:                           uint32(2147483648),
+		Trigger: RFSurveySpecStopTrigger{
+			Trigger:  RFSurveyStopTriggerDuration,
+			Duration: uint32(2147483648),
+			N:        uint32(2147483648),
 		},
 	}
 	b, err := p.MarshalBinary()
@@ -1821,9 +1823,9 @@ func TestRFSurveySpec_roundTrip(t *testing.T) {
 // Test Parameter 188, RFSurveySpecStopTrigger.
 func TestRFSurveySpecStopTrigger_roundTrip(t *testing.T) {
 	p := RFSurveySpecStopTrigger{
-		RFSurveySpecStopTriggerType: RFSurveyStopTriggerDuration,
-		Duration:                    uint32(2147483648),
-		N:                           uint32(2147483648),
+		Trigger:  RFSurveyStopTriggerDuration,
+		Duration: uint32(2147483648),
+		N:        uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -1846,9 +1848,9 @@ func TestAccessSpec_roundTrip(t *testing.T) {
 		AirProtocolID: AirProtoEPCGlobalClass1Gen2,
 		IsActive:      true,
 		ROSpecID:      2147483648,
-		AccessSpecStopTrigger: AccessSpecStopTrigger{
-			AccessSpecStopTriggerType: AccessSpecStopTriggerOperationCount,
-			OperationCountValue:       32768,
+		Trigger: AccessSpecStopTrigger{
+			Trigger:             AccessSpecStopTriggerOperationCount,
+			OperationCountValue: 32768,
 		},
 		AccessCommand: AccessCommand{
 			C1G2TagSpec: C1G2TagSpec{
@@ -1880,8 +1882,8 @@ func TestAccessSpec_roundTrip(t *testing.T) {
 // Test Parameter 208, AccessSpecStopTrigger.
 func TestAccessSpecStopTrigger_roundTrip(t *testing.T) {
 	p := AccessSpecStopTrigger{
-		AccessSpecStopTriggerType: AccessSpecStopTriggerOperationCount,
-		OperationCountValue:       32768,
+		Trigger:             AccessSpecStopTriggerOperationCount,
+		OperationCountValue: 32768,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2000,8 +2002,8 @@ func TestIdentification_roundTrip(t *testing.T) {
 // Test Parameter 219, GPOWriteData.
 func TestGPOWriteData_roundTrip(t *testing.T) {
 	p := GPOWriteData{
-		GPOPort: 1,
-		GPOData: true,
+		Port: 1,
+		Data: true,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2019,8 +2021,8 @@ func TestGPOWriteData_roundTrip(t *testing.T) {
 // Test Parameter 220, KeepAliveSpec.
 func TestKeepAliveSpec_roundTrip(t *testing.T) {
 	p := KeepAliveSpec{
-		KeepAliveTriggerType: KATriggerPeriodic,
-		Interval:             uint32(2147483648),
+		Trigger:  KATriggerPeriodic,
+		Interval: uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2092,9 +2094,9 @@ func TestRFReceiver_roundTrip(t *testing.T) {
 // Test Parameter 224, RFTransmitter.
 func TestRFTransmitter_roundTrip(t *testing.T) {
 	p := RFTransmitter{
-		HopTableID:                        32768,
-		ChannelIndexInFixedFrequencyTable: 32768,
-		TransmitPowerTableIndex:           32768,
+		HopTableID:         32768,
+		ChannelIndex:       32768,
+		TransmitPowerIndex: 32768,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2112,9 +2114,9 @@ func TestRFTransmitter_roundTrip(t *testing.T) {
 // Test Parameter 225, GPIPortCurrentState.
 func TestGPIPortCurrentState_roundTrip(t *testing.T) {
 	p := GPIPortCurrentState{
-		GPIPort:        1,
-		GPIPortEnabled: true,
-		GPIState:       GPIStateHigh,
+		Port:    1,
+		Enabled: true,
+		State:   GPIStateHigh,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2148,8 +2150,8 @@ func TestEventsAndReports_roundTrip(t *testing.T) {
 // Test Parameter 237, ROReportSpec.
 func TestROReportSpec_roundTrip(t *testing.T) {
 	p := ROReportSpec{
-		ROReportTriggerType: 0,
-		N:                   32768,
+		Trigger: NSecondsOrAIEnd,
+		N:       32768,
 		TagReportContentSelector: TagReportContentSelector{
 			EnableROSpecID:             true,
 			EnableSpecIndex:            true,
@@ -2262,7 +2264,7 @@ func TestEPCData_roundTrip(t *testing.T) {
 // Test Parameter 242, RFSurveyReportData.
 func TestRFSurveyReportData_roundTrip(t *testing.T) {
 	p := RFSurveyReportData{
-		FrequencyRSSILevelEntrys: []FrequencyRSSILevelEntry{
+		FrequencyRSSILevelEntries: []FrequencyRSSILevelEntry{
 			{
 				Frequency:    uint32(2147483648),
 				Bandwidth:    uint32(2147483648),
@@ -2386,8 +2388,8 @@ func TestHoppingEvent_roundTrip(t *testing.T) {
 // Test Parameter 248, GPIEvent.
 func TestGPIEvent_roundTrip(t *testing.T) {
 	p := GPIEvent{
-		GPIPort:  32768,
-		GPIEvent: true,
+		Port:  32768,
+		Event: true,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2405,7 +2407,7 @@ func TestGPIEvent_roundTrip(t *testing.T) {
 // Test Parameter 249, ROSpecEvent.
 func TestROSpecEvent_roundTrip(t *testing.T) {
 	p := ROSpecEvent{
-		ROSpecEventType:    ROSpecEnded,
+		Event:              ROSpecEnded,
 		ROSpecID:           2147483648,
 		PreemptingROSpecID: 2147483648,
 	}
@@ -2475,8 +2477,8 @@ func TestReaderExceptionEvent_roundTrip(t *testing.T) {
 // Test Parameter 253, RFSurveyEvent.
 func TestRFSurveyEvent_roundTrip(t *testing.T) {
 	p := RFSurveyEvent{
-		RFSurveyEventType: RFSurveyEnded,
-		ROSpecID:          2147483648,
+		Event:    RFSurveyEnded,
+		ROSpecID: 2147483648,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2494,9 +2496,9 @@ func TestRFSurveyEvent_roundTrip(t *testing.T) {
 // Test Parameter 254, AISpecEvent.
 func TestAISpecEvent_roundTrip(t *testing.T) {
 	p := AISpecEvent{
-		AISpecEventType: AISpecEnded,
-		ROSpecID:        2147483648,
-		SpecIndex:       32768,
+		Event:     AISpecEnded,
+		ROSpecID:  2147483648,
+		SpecIndex: 32768,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2514,8 +2516,8 @@ func TestAISpecEvent_roundTrip(t *testing.T) {
 // Test Parameter 255, AntennaEvent.
 func TestAntennaEvent_roundTrip(t *testing.T) {
 	p := AntennaEvent{
-		AntennaEventType: AntennaConnected,
-		AntennaID:        32768,
+		Event:     AntennaConnected,
+		AntennaID: 32768,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2622,13 +2624,13 @@ func TestParameterError_roundTrip(t *testing.T) {
 // Test Parameter 327, C1G2LLRPCapabilities.
 func TestC1G2LLRPCapabilities_roundTrip(t *testing.T) {
 	p := C1G2LLRPCapabilities{
-		SupportsBlockErase:          true,
-		SupportsBlockWrite:          true,
-		SupportsBlockPermalock:      true,
-		SupportsTagRecommissioning:  true,
-		SupportsUMIMethod2:          true,
-		SupportsXPC:                 true,
-		MaxNumSelectFiltersPerQuery: 32768,
+		SupportsBlockErase:         true,
+		SupportsBlockWrite:         true,
+		SupportsBlockPermalock:     true,
+		SupportsTagRecommissioning: true,
+		SupportsUMIMethod2:         true,
+		SupportsXPC:                true,
+		MaxSelectFiltersPerQuery:   32768,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2646,7 +2648,7 @@ func TestC1G2LLRPCapabilities_roundTrip(t *testing.T) {
 // Test Parameter 328, UHFC1G2RFModeTable.
 func TestUHFC1G2RFModeTable_roundTrip(t *testing.T) {
 	p := UHFC1G2RFModeTable{
-		UHFC1G2RFModeTableEntrys: []UHFC1G2RFModeTableEntry{
+		UHFC1G2RFModeTableEntries: []UHFC1G2RFModeTableEntry{
 			{
 				ModeID:                2147483648,
 				DivideRatio:           DRSixtyFourToThree,
@@ -2725,8 +2727,8 @@ func TestC1G2InventoryCommand_roundTrip(t *testing.T) {
 func TestC1G2Filter_roundTrip(t *testing.T) {
 	p := C1G2Filter{
 		TruncateAction: FilterActionDoNotTruncate,
-		C1G2TagInventoryMask: C1G2TagInventoryMask{
-			C1G2MemoryBank:     uint8(1),
+		TagInventoryMask: C1G2TagInventoryMask{
+			MemoryBank:         uint8(1),
 			MostSignificantBit: 32768,
 			TagMaskNumBits:     32,
 			TagMask:            []byte{0x0, 0x1, 0x2, 0x3},
@@ -2748,7 +2750,7 @@ func TestC1G2Filter_roundTrip(t *testing.T) {
 // Test Parameter 332, C1G2TagInventoryMask.
 func TestC1G2TagInventoryMask_roundTrip(t *testing.T) {
 	p := C1G2TagInventoryMask{
-		C1G2MemoryBank:     uint8(1),
+		MemoryBank:         uint8(1),
 		MostSignificantBit: 32768,
 		TagMaskNumBits:     32,
 		TagMask:            []byte{0x0, 0x1, 0x2, 0x3},
@@ -2769,8 +2771,8 @@ func TestC1G2TagInventoryMask_roundTrip(t *testing.T) {
 // Test Parameter 333, C1G2TagInventoryStateAwareFilterAction.
 func TestC1G2TagInventoryStateAwareFilterAction_roundTrip(t *testing.T) {
 	p := C1G2TagInventoryStateAwareFilterAction{
-		C1G2TagInventoryTarget:                 InvTargetInventoriedS1,
-		C1G2TagInventoryStateAwareFilterAction: 0,
+		Target:       InvTargetInventoriedS1,
+		FilterAction: 0,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2804,8 +2806,8 @@ func TestC1G2TagInventoryStateUnawareFilterAction_roundTrip(t *testing.T) {
 // Test Parameter 335, C1G2RFControl.
 func TestC1G2RFControl_roundTrip(t *testing.T) {
 	p := C1G2RFControl{
-		IndexIntoUHFC1G2RFModeTable: 32768,
-		Tari:                        uint16(32768),
+		RFModeID: 32768,
+		Tari:     uint16(32768),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2823,9 +2825,9 @@ func TestC1G2RFControl_roundTrip(t *testing.T) {
 // Test Parameter 336, C1G2SingulationControl.
 func TestC1G2SingulationControl_roundTrip(t *testing.T) {
 	p := C1G2SingulationControl{
-		C1G2SingulationControlSession: 0,
-		TagPopulation:                 32768,
-		TagTransitTime:                uint32(2147483648),
+		Session:        uint8(1),
+		TagPopulation:  32768,
+		TagTransitTime: uint32(2147483648),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -2842,7 +2844,10 @@ func TestC1G2SingulationControl_roundTrip(t *testing.T) {
 
 // Test Parameter 337, C1G2TagInventoryStateAwareSingulationAction.
 func TestC1G2TagInventoryStateAwareSingulationAction_roundTrip(t *testing.T) {
-	p := C1G2TagInventoryStateAwareSingulationAction(128)
+	p := C1G2TagInventoryStateAwareSingulationAction{
+		InventoryState: SingActAwareStateB,
+		Selected:       true,
+	}
 	b, err := p.MarshalBinary()
 	if err != nil {
 		t.Fatalf("%+v", err)
@@ -3232,9 +3237,11 @@ func TestSpecLoopEvent_roundTrip(t *testing.T) {
 // Test Parameter 357, C1G2Recommission.
 func TestC1G2Recommission_roundTrip(t *testing.T) {
 	p := C1G2Recommission{
-		OpSpecID:              32768,
-		KillPassword:          2147483648,
-		C1G2RecommissionFlags: 128,
+		OpSpecID:     32768,
+		KillPassword: 2147483648,
+		SB3:          true,
+		SB2:          true,
+		LSB:          true,
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
