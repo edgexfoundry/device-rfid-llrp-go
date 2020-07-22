@@ -111,9 +111,8 @@ The full options it will respond to:
     and should not be used unless you understand the consequences.
     
 Note that if you're using the Goland IDE, 
-you can put the `reader`, `ro-access-dir`, and `update` options 
-in a test config's `program arguments`,
-whereas the `short` and `verbose` options should go in the `tool arguments`.
+you can put these options in a test config's `program arguments`,
+though the `short` and `verbose` options need the `test.` prefix. 
 
 ### Recorded Data Tests
 The `internal/llrp/testdata` folder contains a series of `.json` and `.bytes` files.

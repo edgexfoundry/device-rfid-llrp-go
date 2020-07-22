@@ -290,6 +290,8 @@ func TestClient_Connection(t *testing.T) {
 	go func() {
 		defer close(rfidErrs)
 		defer rfid.Close()
+		var err error
+
 		h := Header{version: Version1_0_1}
 		for _, op := range []func(*Header, net.Conn) error{
 			connectSuccess,
