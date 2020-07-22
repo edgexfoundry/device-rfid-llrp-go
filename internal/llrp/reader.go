@@ -338,9 +338,13 @@ var (
 //
 // This takes ownership of the connection,
 // which it assumes is already dialed.
-// It blocks, serving the connection's incoming and outgoing messages
-// until it encounters an error or the Client is closed.
+// It blocks, serving the connection's incoming and outgoing messages queues
+// until either it encounters an error or the Client is closed
+// via a call to either Shutdown or Close.
 // Before returning, it closes the connection.
+//
+// It is NOT safe to call Connect before another call to Connect returns.
+// Doing so has undefined results.
 //
 // If the Client is closed, this returns ErrClientClosed;
 // otherwise, it returns the first error it encounters.

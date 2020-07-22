@@ -460,31 +460,20 @@ func (d *Driver) createClient(name string, addr net.Addr) (*llrp.Client, error) 
 	// at most only one would succeed in connecting,
 	// so we want to only create one Client, add it to the map,
 	// and return that Client to all callers requesting it.
-	// However,
+	//
 	// After adding the Client, it unlocks, then attempts to connect
 	// (really the connect can happen before unlock, since it happens in a goroutine).
 	// Once it unlocks, the other request gains the lock and must recheck the map.
 	// It will retrieve the freshly created Client, and thus return it.
 	// Both requests will attempt their Send,
-	// which will block until the Client connects (or fails to do so),
-	// or until they cancel their Send attempt (e.g., timing out).
+	// which blocks until the Client connects (or fails to do so),
+	// or until they cancel their Send attempt (e.g., by timing out).
 	d.clientsMapMu.Lock()
 	defer d.clientsMapMu.Unlock()
 	c, ok := d.clients[name]
 	if ok {
 		return c, nil
 	}
-
-	// At this point, a single request is creating the Client,
-	// though others may be blocked waiting to check the clients map.
-	// The goal is to create a Client quickly put it in the map, and return it.
-	// After returning (read: in a new goroutine), we manage its connection.
-	// In the meantime, multiple callers needing a connection to the same reader
-	// will get back a valid Client on which they can Send methods,
-	// though those Send methods will block until either the Client is connected
-	// or the connection fails (in which case they'll correctly see the failure).
-	// Requests for other Client connections will be blocked for a short time
-	// while the
 
 	tryDial := func() (*llrp.Client, error) {
 		conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
@@ -528,8 +517,8 @@ func (d *Driver) createClient(name string, addr net.Addr) (*llrp.Client, error) 
 
 		d.lc.Error(err.Error())
 
-		// client closed without call to Close or Shutdown;
-		// try to reconnect
+		// client closed without a call to Close or Shutdown,
+		// so we'll try to reconnect.
 		retry.Slow.RetrySome(retry.Forever, func() (recoverable bool, err error) {
 			if
 		})
