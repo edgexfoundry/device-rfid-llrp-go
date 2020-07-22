@@ -519,15 +519,10 @@ func (c *Client) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 		return 0, nil, ctx.Err()
 	}
 
-	// We know we're ready, (otherwise we would have returned),
-	// but we can't be certain one of these isn't also true.
-	select {
-	case <-c.done:
-		return 0, nil, errors.Wrap(ErrClientClosed, "message not sent")
-	case <-ctx.Done():
-		return 0, nil, ctx.Err()
-	default: // now we're certain
-	}
+	// It's possible one of the other two select channels is also ready,
+	// but it'll they'll get checked again within send,
+	// so adding another check here is just unnecessary expense
+	// that would only avoid a rather cheap allocation.
 
 	var mOut Message
 	if len(data) == 0 {
