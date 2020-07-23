@@ -69,14 +69,13 @@ const (
 // does not set deadlines on the connection,
 // uses the package's max LLRP version to negotiate connections,
 // and sends ACKs to KeepAlive messages from the reader.
-func NewClient(conn net.Conn, opts ...ClientOpt) (*Client, error) {
+func NewClient(opts ...ClientOpt) *Client {
 	// ackQueueSz is arbitrary, but if it fills,
 	// warnings are logged, as it likely indicates a Write problem.
 	// At some point, we might consider resetting the connection.
 	const ackQueueSz = 5
 
 	c := &Client{
-		conn:      conn,
 		version:   versionMax,
 		done:      make(chan struct{}),
 		ready:     make(chan struct{}),
@@ -89,44 +88,27 @@ func NewClient(conn net.Conn, opts ...ClientOpt) (*Client, error) {
 	}
 
 	for _, opt := range opts {
-		if err := opt.do(c); err != nil {
-			return nil, err
-		}
+		opt.do(c)
 	}
 
-	if c.conn == nil {
-		return nil, errors.New("Client has no connection")
-	}
-
-	if c.version < versionMin || c.version > versionMax {
-		return nil, errors.Errorf("unsupported version: %v", c.version)
-	}
-
-	// If the user doesn't set a logger, create a default one.
-	// If they set it to nil, use devNullLog so we have a valid pointer, but no output.
-	if c.logger == nil {
-		_ = c.useStdLogger()
-	}
-
-	return c, nil
+	return c
 }
 
 // ClientOpt modifies a Client during construction.
 type ClientOpt interface {
-	do(*Client) error // don't allow arbitrary implementations for now
+	do(*Client) // don't allow arbitrary implementations for now
 }
 
-type clientOpt func(c *Client) error
+type clientOpt func(c *Client)
 
-func (ro clientOpt) do(c *Client) error {
-	return ro(c)
+func (ro clientOpt) do(c *Client) {
+	ro(c)
 }
 
 // WithName sets the Client's name.
 func WithName(name string) ClientOpt {
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.Name = name
-		return nil
 	})
 }
 
@@ -136,13 +118,14 @@ func WithName(name string) ClientOpt {
 // is selected upon connection using LLRP's version negotiation messages.
 // It is the higher of the value given here and that supported by the Reader.
 // Note that if the version is to 1.0.1, version negotiation is skipped.
+//
+// This panics if given an unsupported version.
 func WithVersion(v VersionNum) ClientOpt {
 	if v < versionMin || v > versionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.version = v
-		return nil
 	})
 }
 
@@ -165,12 +148,11 @@ func WithVersion(v VersionNum) ClientOpt {
 // Therefore, if you wish to enable KeepAlive messages,
 // you should send a SetReaderConfiguration message.
 func WithTimeout(d time.Duration) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		if d < 0 {
-			return errors.Errorf("timeout should be at least 0, but is %v", d)
-		}
+	if d < 0 {
+		panic(errors.Errorf("timeout should be at least 0, but is %v", d))
+	}
+	return clientOpt(func(c *Client) {
 		c.timeout = d
-		return nil
 	})
 }
 
@@ -204,9 +186,8 @@ func WithLogger(l ClientLogger) ClientOpt {
 		l = devNullLog // this way we'll always have a valid pointer
 	}
 
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.logger = l
-		return nil
 	})
 }
 
@@ -247,17 +228,16 @@ func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 // Clients are created with a handler for KeepAlive (to send KeepAliveAck).
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		if !mt.isValid() {
-			return errors.Errorf("invalid message type for handler: %v", mt)
-		}
+	if !mt.isValid() {
+		panic(errors.Errorf("invalid message type for handler: %v", mt))
+	}
 
+	return clientOpt(func(c *Client) {
 		if handler == nil {
 			delete(c.handlers, mt)
 		} else {
 			c.handlers[mt] = handler
 		}
-		return nil
 	})
 }
 
@@ -267,9 +247,8 @@ func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 // Only a single default handler is supported.
 // It may be set to nil, in which case unhandled non-reply messages are simply dropped.
 func WithDefaultHandler(handler MessageHandler) ClientOpt {
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.defaultHandler = handler
-		return nil
 	})
 }
 
@@ -293,7 +272,11 @@ type StdLogger struct {
 	c *Client
 }
 
-func (c *Client) useStdLogger() error {
+// useStdLogger sets the logger to Go's stdlib logger prefixed with a useful name.
+// c.conn must be non-nil, or this will panic;
+// it's meant to be called during Connect,
+// which correctly synchronizes access to the connection.
+func (c *Client) useStdLogger() {
 	l := &StdLogger{}
 	if c.Name == "" {
 		l.Logger = log.New(os.Stderr, "LLRP-"+c.conn.RemoteAddr().String()+"-", log.LstdFlags)
@@ -301,7 +284,6 @@ func (c *Client) useStdLogger() error {
 		l.Logger = log.New(os.Stderr, "LLRP-"+c.Name+"-", log.LstdFlags)
 	}
 	c.logger = l
-	return nil
 }
 
 func (l *StdLogger) SendingMsg(hdr Header) {
@@ -336,20 +318,44 @@ var (
 
 // Connect to an LLRP-capable device and start processing messages.
 //
-// This takes ownership of the connection,
-// which it assumes is already dialed.
-// It blocks, serving the connection's incoming and outgoing messages queues
+// This takes ownership of the connection and blocks,
+// serving the connection's incoming and outgoing messages
 // until either it encounters an error or the Client is closed
 // via a call to either Shutdown or Close.
-// Before returning, it closes the connection.
+// It does not close the net.Conn parameter.
 //
 // It is NOT safe to call Connect before another call to Connect returns.
 // Doing so has undefined results.
 //
-// If the Client is closed, this returns ErrClientClosed;
+// If the Client is closed via Shutdown or Close,
+// this returns ErrClientClosed or an error wrapping it;
 // otherwise, it returns the first error it encounters.
-func (c *Client) Connect() error {
-	defer c.conn.Close()
+// You can use this as a signal to identify whether
+// the communication on a particular connection was successful.
+// If this returns ErrClientClosed, it indicates some other portion of your code
+// actively requested the connection to close.
+// Any other error indicates a failed communication attempt,
+// either due to an issue reading/writing on the connection,
+// or the connected device severing the connection unexpectedly.
+func (c *Client) Connect(conn net.Conn) error {
+	select {
+	case <-c.done:
+		return ErrClientClosed
+	default:
+	}
+
+	if c.conn == nil {
+		return errors.New("nil connection")
+	}
+
+	// If the user doesn't set a logger, create a default one.
+	// If they called WithLogger(nil), the logger is our devNullLogger,
+	// so we always have a non-nil pointer.
+	if c.logger == nil {
+		c.useStdLogger()
+	}
+
+	c.conn = conn
 	defer c.Close()
 
 	if err := c.checkInitialMessage(); err != nil {
@@ -367,7 +373,7 @@ func (c *Client) Connect() error {
 		}
 	}
 
-	// The `ready` channel gates (external) Send requests until after
+	// The `ready` channel gates external Send requests until after
 	// the first few LLRP messages are taken care of by the Client.
 	close(c.ready)
 
