@@ -32,7 +32,7 @@ sudo make run
 sudo make stop
 ```
 
-### Device Discovery
+## Device Discovery
 Upon startup this service will probe the local network 
 in an effort to discover devices that support LLRP.
 
@@ -44,6 +44,31 @@ and [configuration.toml](cmd/res/configuration.toml) for default values.
 The local network is probed for every IP on the default LLRP port (`5084`). 
 If a device returns LLRP response messages, 
 a new EdgeX device is generated under the name format `IP_Port`, like so: `192.0.2.1_1234`.  
+
+## Connection Management
+After an LLRP device is added, either via discovery or directly through EdgeX,
+the driver works to maintain a connection to it.
+On start-up, it attempts to connect to it.
+If it fails to connect or detects that it's lost the connection,
+it'll attempt to reconnect repeatedly using exponential backoff with jitter,
+capped to a max of 5 mins between attempts.
+
+Because detecting that the connection has dropped requires packet failure,
+if more than 2 minutes pass without a successful transfer,
+it will reset the connection.
+As such, it's useful to configure a Reader 
+with a `KeepAliveSpec` with a period less than `120s`. 
+This ensures that a healthy connection will not timeout.
+You can confirm things are working by unplugging a connected reader.
+You should see reconnection attempts logged at the `DEBUG` level
+coming from the device service.
+Note that it can take up to two minutes before the dropped connection is detected.
+
+These values are not currently configurable,
+but they are easy to change before building
+within [this code](internal/driver/lurp.go).
+Future work may make these configurable
+and/or automatically set up a KeepAlive spec on connection.
 
 ## Example Scripts
 There are a couple of example scripts here
