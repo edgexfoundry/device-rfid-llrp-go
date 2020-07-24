@@ -106,12 +106,10 @@ func main() {
 	check(err)
 	defer rconn.Close()
 
-	c, err := getClient(rconn)
-	check(err)
-
 	sig := newSignaler()
 
-	go func() { logErr(c.Connect()) }()
+	c := getClient()
+	go func() { logErr(c.Connect(rconn)) }()
 
 	ctx := sig.watch(context.Background())
 	check(start(ctx, c, spec))
@@ -220,13 +218,13 @@ func stop(ctx context.Context, c *llrp.Client, spec *llrp.ROSpec) error {
 	return fe.err
 }
 
-func getClient(rconn net.Conn) (*llrp.Client, error) {
+func getClient() *llrp.Client {
 	opts := []llrp.ClientOpt{
 		llrp.WithTimeout(3600 * time.Second),
 		llrp.WithMessageHandler(llrp.MsgROAccessReport, llrp.MessageHandlerFunc(handleROAR)),
 	}
 
-	return llrp.NewClient(rconn, opts...)
+	return llrp.NewClient(opts...)
 }
 
 func getSpec() (*llrp.ROSpec, error) {

@@ -7,12 +7,10 @@ package driver
 
 import (
 	"context"
-	"encoding"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/retry"
 	"io/ioutil"
 	"net"
 	"sync"
@@ -25,6 +23,9 @@ import (
 
 const (
 	ServiceName string = "edgex-device-llrp"
+
+	shutdownGrace       = time.Second // time permitted to Shutdown; if exceeded, Close is called
+	closedSenderRetries = 3           // number of times to retry sending a message if it fails due to a closed reader
 )
 
 var once sync.Once
@@ -35,8 +36,8 @@ type Driver struct {
 	asyncCh  chan<- *dsModels.AsyncValues
 	deviceCh chan<- []dsModels.DiscoveredDevice
 
-	clients      map[string]*llrp.Client
-	clientsMapMu sync.RWMutex
+	activeDevices map[string]*Lurpper
+	devicesMu     sync.RWMutex
 
 	svc ServiceWrapper
 }
@@ -44,7 +45,7 @@ type Driver struct {
 func NewProtocolDriver() dsModels.ProtocolDriver {
 	once.Do(func() {
 		driver = &Driver{
-			clients: make(map[string]*llrp.Client),
+			activeDevices: make(map[string]*Lurpper),
 		}
 	})
 	return driver
@@ -111,7 +112,7 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	c, err := d.getClient(devName, p)
+	dev, err := d.getDevice(devName, p)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 			llrpResp = &llrp.GetAccessSpecsResponse{}
 		}
 
-		if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+		if err := dev.TrySend(ctx, llrpReq, llrpResp); err != nil {
 			return nil, err
 		}
 
@@ -167,7 +168,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		return errors.New("missing requests")
 	}
 
-	c, err := d.getClient(devName, p)
+	dev, err := d.getDevice(devName, p)
 	if err != nil {
 		return err
 	}
@@ -312,7 +313,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	}
 
 	// SendFor will handle turning ErrorMessages and failing LLRPStatuses into errors.
-	if err := c.SendFor(ctx, llrpReq, llrpResp); err != nil {
+	if err := dev.TrySend(ctx, llrpReq, llrpResp); err != nil {
 		return err
 	}
 
@@ -328,7 +329,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 			DeviceName:    devName,
 			CommandValues: []*dsModels.CommandValue{cv},
 		}
-	}(reqs[0].DeviceResourceName, c.Name, llrpResp)
+	}(reqs[0].DeviceResourceName, dev.name, llrpResp)
 
 	return nil
 }
@@ -345,26 +346,32 @@ func (d *Driver) Stop(force bool) error {
 	}
 	d.lc.Debug("LLRP-Driver.Stop called", "force", force)
 
-	d.clientsMapMu.Lock()
-	defer d.clientsMapMu.Unlock()
+	d.devicesMu.Lock()
+	defer d.devicesMu.Unlock()
+
+	ctx := context.Background()
 
 	var wg *sync.WaitGroup
 	if !force {
 		wg = new(sync.WaitGroup)
-		wg.Add(len(d.clients))
+		wg.Add(len(d.activeDevices))
 		defer wg.Wait()
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, shutdownGrace)
+		defer cancel()
 	}
 
-	for _, c := range d.clients {
-		go func(c *llrp.Client) {
-			d.stopClient(c, force)
+	for _, dev := range d.activeDevices {
+		go func(dev *Lurpper) {
+			d.stopDevice(ctx, dev)
 			if !force {
 				wg.Done()
 			}
-		}(c)
+		}(dev)
 	}
 
-	d.clients = make(map[string]*llrp.Client)
+	d.activeDevices = make(map[string]*Lurpper)
 	return nil
 }
 
@@ -373,7 +380,7 @@ func (d *Driver) Stop(force bool) error {
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
-	_, err := d.getClient(deviceName, protocols)
+	_, err := d.getDevice(deviceName, protocols)
 	return err
 }
 
@@ -382,54 +389,32 @@ func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState 
 func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Updating device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
-	return nil
+
+	dev, err := d.getDevice(deviceName, protocols)
+	if err != nil {
+		return err
+	}
+
+	addr, err := getAddr(protocols)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancel()
+	return dev.UpdateAddr(ctx, addr)
 }
 
 // RemoveDevice is a callback function that is invoked
 // when a Device associated with this Device Service is removed
 func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
-	d.removeClient(deviceName, false)
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancel()
+
+	d.removeDevice(ctx, deviceName)
 	return nil
-}
-
-// handleAsyncMessages forwards JSON-marshaled messages to EdgeX.
-//
-// Note that the message types that end up here depend on the subscriptions
-// when the Client is created, so if you want to add another,
-// you'll need to wire up the handler in the getClient code.
-func (d *Driver) handleAsyncMessages(c *llrp.Client, msg llrp.Message) {
-	var resourceName string
-	var event encoding.BinaryUnmarshaler
-
-	switch msg.Type() {
-	default:
-		return
-	case llrp.MsgReaderEventNotification:
-		resourceName = ResourceReaderNotification
-		event = &llrp.ReaderEventNotification{}
-	case llrp.MsgROAccessReport:
-		resourceName = ResourceROAccessReport
-		event = &llrp.ROAccessReport{}
-	}
-
-	if err := msg.UnmarshalTo(event); err != nil {
-		d.lc.Error("failed to unmarshal async event from LLRP", "error", err.Error())
-		return
-	}
-
-	data, err := json.Marshal(event)
-	if err != nil {
-		d.lc.Error("failed to marshal async event to JSON", "error", err.Error())
-		return
-	}
-
-	cv := dsModels.NewStringValue(resourceName, time.Now().UnixNano(), string(data))
-
-	d.asyncCh <- &dsModels.AsyncValues{
-		DeviceName:    c.Name,
-		CommandValues: []*dsModels.CommandValue{cv},
-	}
 }
 
 // getOrCreate returns a Client, creating one if needed.
@@ -437,11 +422,11 @@ func (d *Driver) handleAsyncMessages(c *llrp.Client, msg llrp.Message) {
 // If a Client with this name already exists, it returns it.
 // Otherwise, calls the createNew function to get a new Client,
 // which it adds to the map and then returns.
-func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
+func (d *Driver) getDevice(name string, p protocolMap) (*Lurpper, error) {
 	// Try with just a read lock.
-	d.clientsMapMu.RLock()
-	c, ok := d.clients[name]
-	d.clientsMapMu.RUnlock()
+	d.devicesMu.RLock()
+	c, ok := d.activeDevices[name]
+	d.devicesMu.RUnlock()
 	if ok {
 		return c, nil
 	}
@@ -450,108 +435,45 @@ func (d *Driver) getClient(name string, p protocolMap) (*llrp.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-}
 
-func (d *Driver) createClient(name string, addr net.Addr) (*llrp.Client, error) {
-	// It's important it holds the lock while creating a new Client.
+	// It's important it holds the lock while creating a device.
 	// If two requests arrive at about the same time and target the same device,
-	// one will block waiting for the lock and the other will create and add a Client.
-	// If both requests created a new Client,
-	// at most only one would succeed in connecting,
-	// so we want to only create one Client, add it to the map,
-	// and return that Client to all callers requesting it.
-	//
-	// After adding the Client, it unlocks, then attempts to connect
-	// (really the connect can happen before unlock, since it happens in a goroutine).
-	// Once it unlocks, the other request gains the lock and must recheck the map.
-	// It will retrieve the freshly created Client, and thus return it.
-	// Both requests will attempt their Send,
-	// which blocks until the Client connects (or fails to do so),
-	// or until they cancel their Send attempt (e.g., by timing out).
-	d.clientsMapMu.Lock()
-	defer d.clientsMapMu.Unlock()
-	c, ok := d.clients[name]
+	// one will block waiting for the lock and the other will create/add it.
+	// When gaining the lock, we recheck the map
+	// This way, only one device exists for any name,
+	// and all requests that target it use the same one.
+	d.devicesMu.Lock()
+	defer d.devicesMu.Unlock()
+
+	dev, ok := d.activeDevices[name]
 	if ok {
-		return c, nil
+		return dev, nil
 	}
 
-	tryDial := func() (*llrp.Client, error) {
-		conn, err := net.DialTimeout(addr.Network(), addr.String(), time.Second*30)
-		if err != nil {
-			return nil, err
-		}
-
-		toEdgex := llrp.MessageHandlerFunc(d.handleAsyncMessages)
-
-		return llrp.NewClient(conn,
-			llrp.WithName(name),
-			llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
-			llrp.WithMessageHandler(llrp.MsgROAccessReport, toEdgex),
-			llrp.WithMessageHandler(llrp.MsgReaderEventNotification, toEdgex),
-		)
-	}
-
-	c, err = tryDial()
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		var c *llrp.Client
-		err := retry.Slow.RetrySome(retry.Forever, func() (recoverable bool, err error) {
-			c, err = tryDial()
-			neterr, ok := err.(net.Error)
-			recoverable = ok && neterr.Temporary()
-			return
-		})
-
-		if err != nil {
-		}
-
-		// blocks until the Client is closed
-		err = c.Connect()
-		d.removeClient(c.Name, false)
-		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
-			return
-		}
-
-		d.lc.Error(err.Error())
-
-		// client closed without a call to Close or Shutdown,
-		// so we'll try to reconnect.
-		retry.Slow.RetrySome(retry.Forever, func() (recoverable bool, err error) {
-			if
-		})
-	}()
-
-	d.clients[name] = c
-	return c, nil
+	dev = d.NewLurpper(name, addr)
+	d.activeDevices[name] = dev
+	return dev, nil
 }
 
-// removeClient deletes a Client from the clients map.
-func (d *Driver) removeClient(deviceName string, force bool) {
-	d.clientsMapMu.Lock()
-	defer d.clientsMapMu.Unlock()
+// removeDevice deletes a device from the active devices map
+// and shuts down its client connection to an LLRP device.
+func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
+	d.devicesMu.Lock()
+	defer d.devicesMu.Unlock()
 
-	if c, ok := d.clients[deviceName]; ok {
-		delete(d.clients, deviceName)
-		go d.stopClient(c, force)
+	if dev, ok := d.activeDevices[deviceName]; ok {
+		go d.stopDevice(ctx, dev)
+		delete(d.activeDevices, deviceName)
 	}
 }
 
-func (d *Driver) stopClient(c *llrp.Client, force bool) {
-	if !force {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		err := c.Shutdown(ctx)
-		if err == nil || errors.Is(err, llrp.ErrClientClosed) {
-			return
-		}
-		d.lc.Error("error attempting graceful client shutdown", "error", err.Error())
-	}
-
-	if err := c.Close(); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
-		d.lc.Error("error attempting forceful client shutdown", "error", err.Error())
+// stopDevice stops a device's reconnect loop,
+// closing any active connection it may currently have.
+// Any pending requests targeting that device may fail.
+// This doesn't remove it from the devices map.
+func (d *Driver) stopDevice(ctx context.Context, dev *Lurpper) {
+	if err := dev.Stop(ctx); err != nil {
+		d.lc.Error("error attempting client shutdown", "error", err.Error())
 	}
 }
 

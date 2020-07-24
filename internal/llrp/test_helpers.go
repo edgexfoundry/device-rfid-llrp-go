@@ -31,17 +31,15 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 		opts[0] = WithTimeout(10 * time.Second)
 	}
 	if testing.Verbose() {
-		opts = append(opts, WithStdLogger())
+		opts = append(opts, WithStdLogger("test"))
 	}
 
-	if r, err = NewClient(conn, WithTimeout(300*time.Second)); err != nil {
-		t.Fatal(err)
-	}
+	r = NewClient(WithTimeout(300 * time.Second))
 
 	errs := make(chan error)
 	go func() {
 		defer close(errs)
-		errs <- r.Connect()
+		errs <- r.Connect(conn)
 	}()
 
 	t.Cleanup(func() {
@@ -75,6 +73,7 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 // then start it with ImpersonateReader,
 type TestDevice struct {
 	Client, reader *Client
+	cConn, rConn   net.Conn
 
 	ReaderLogs ClientLogger
 	w          *msgWriter
@@ -87,21 +86,22 @@ type TestDevice struct {
 }
 
 // NewTestDevice returns a TestDevice with a client ready to connect.
-func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration) (*TestDevice, error) {
+func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration, silent bool) (*TestDevice, error) {
 	cConn, rConn := net.Pipe()
 
-	c, err := NewClient(cConn, WithVersion(maxClientVer), WithTimeout(timeout))
-	if err != nil {
-		return nil, err
+	logOpt := WithStdLogger("test")
+	if silent {
+		logOpt = WithLogger(nil)
 	}
 
-	reader, err := NewClient(rConn, WithVersion(Version1_0_1), WithName("Test"))
-	if err != nil {
-		return nil, err
-	}
+	client := NewClient(WithVersion(maxClientVer), WithTimeout(timeout), logOpt)
+	reader := NewClient(WithVersion(Version1_0_1), logOpt)
+	reader.conn = rConn
 
 	td := TestDevice{
-		Client: c,
+		Client: client,
+		cConn:  cConn,
+		rConn:  rConn,
 		reader: reader,
 		maxVer: maxReaderVer,
 		w:      newMsgWriter(rConn, Version1_0_1),
@@ -279,7 +279,7 @@ func (td *TestDevice) ConnectClient(t *testing.T) (c *Client) {
 	connErrs := make(chan error)
 	go func() {
 		defer close(connErrs)
-		connErrs <- c.Connect()
+		connErrs <- c.Connect(td.cConn)
 	}()
 
 	t.Cleanup(func() {

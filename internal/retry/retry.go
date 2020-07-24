@@ -27,7 +27,7 @@ var (
 		KeepErrs: 10,
 	}
 
-	// Slow expects that failure conditions make take awhile to resolve.
+	// Slow expects that failure conditions may take awhile to resolve.
 	Slow = ExpBackOff{
 		BackOff:  5 * time.Second,
 		Max:      60 * time.Minute,
@@ -186,17 +186,26 @@ func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err err
 	return ebo.RetryWithCtx(ctx, retries, run)
 }
 
-// RetryWithCtx works like f, but allows a custom context.
-// The context is passed to f unmodified;
-// it is up to that function to handle cancellation.
+// RetryWithCtx works like f, but allows a custom context,
+// which is passed to f unmodified.
 //
-// If the context is canceled between attempts,
-// Retry returns immediately with an error.
-// Setting a Deadline on the context
-// prevents the sum of delays and execution attempts
-// from exceeding some maximum.
+// Regardless of the return values of f, if the context is canceled,
+// Retry will not continue calling f;
+// however, Retry can only check the context between calls to f.
+// It is up to f to determine how/if to use the context.
+// For short lived functions the don't await any signals,
+// it's fine to ignore the context.
+// For functions that block waiting on, e.g., a network resource,
+// they should add ctx.Done to their select statements.
+//
+// In most cases, it's not really necessary for f to check ctx immediately.
+// Before calls to f, Retry checks if ctx is canceled, past its Deadline,
+// or if its Deadline would occur before the next call to f.
+// In these cases, it adds ctx.Err to its accumulated errors and returns.
+// As a result, at the beginning of f's execution,
+// it's unlikely (though possible) that ctx is canceled or past its deadline.
 func (ebo ExpBackOff) RetryWithCtx(ctx context.Context, retries int, f func(ctx context.Context) (bool, error)) error {
-	return retry(ctx, retries, ebo.KeepErrs, ebo.BackOff, ebo.Max, ebo.Jitter, f)
+	return Try(ctx, retries, ebo.KeepErrs, ebo.BackOff, ebo.Max, ebo.Jitter, f)
 }
 
 func addErr(attempt, maxErrs int, fErr *FError, newErr error) {
@@ -212,12 +221,14 @@ func addErr(attempt, maxErrs int, fErr *FError, newErr error) {
 	fErr.Latest = newErr
 }
 
-// retry attempts f up to retries times until it returns false or nil,
-// delaying by a multiple of backOff between attempts,
-// up to the max delay.
+// Try attempts f up to retries times until it returns false or nil,
+// delaying by a multiple of backOff between attempts, up to the max delay.
 //
 // If the return is non-nil, it is of type *retry.Error.
-func retry(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, jitter bool, f func(ctx context.Context) (bool, error)) error {
+//
+// See ExpBackOff and the package instances of ExpBackOff for more information
+// and an easier-to-use API.
+func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, jitter bool, f func(ctx context.Context) (bool, error)) error {
 	// if f is successful, avoid all the other work
 	cont, err := f(ctx)
 	if err == nil {
@@ -230,12 +241,27 @@ func retry(ctx context.Context, retries, maxErrs int, backOff, max time.Duration
 		return re
 	}
 
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		addErr(0, maxErrs, re, ctx.Err())
+		return re
+	}
+
 	wait := backOff
 	delay := time.NewTimer(wait)
-	defer delay.Stop()
+	defer func() {
+		if !delay.Stop() {
+			<-delay.C
+		}
+	}()
+
+	deadline, hasDeadline := ctx.Deadline()
 
 	// start at 1 since we've already tried once
 	for attempt := 1; attempt < retries; attempt++ {
+		if hasDeadline && time.Now().Add(wait).After(deadline) {
+			addErr(attempt, maxErrs, re, errors.New("waiting would exceed Deadline"))
+		}
+
 		// wait for next attempt
 		select {
 		case <-ctx.Done():
@@ -256,8 +282,8 @@ func retry(ctx context.Context, retries, maxErrs int, backOff, max time.Duration
 		}
 
 		if jitter {
-			n := 1 << attempt
-			if n <= 2 {
+			n := int64(1 << attempt)
+			if n <= 2 { // handles overflow as a side benefit
 				n = 2
 			}
 			wait = backOff * time.Duration(rand.Int63n(n))

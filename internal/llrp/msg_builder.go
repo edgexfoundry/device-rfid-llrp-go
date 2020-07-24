@@ -8,6 +8,7 @@ package llrp
 import (
 	"github.com/pkg/errors"
 	"io"
+	"sync"
 )
 
 type fieldEncoder interface {
@@ -52,9 +53,12 @@ func encodeParams(w io.Writer, headers ...paramHeader) error {
 	return nil
 }
 
+// msgWriter isn't for general use at the moment,
+// but is handy for certain basic tests.
 type msgWriter struct {
 	w      io.Writer // target output
 	header Header
+	mu     sync.Mutex
 }
 
 func newMsgWriter(w io.Writer, version VersionNum) *msgWriter {
@@ -67,6 +71,9 @@ func newMsgWriter(w io.Writer, version VersionNum) *msgWriter {
 }
 
 func (mw *msgWriter) Write(mid messageID, out Outgoing) error {
+	mw.mu.Lock()
+	defer mw.mu.Unlock()
+
 	data, err := out.MarshalBinary()
 	if err != nil {
 		return err

@@ -42,16 +42,15 @@ import (
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
 type Client struct {
-	Name           string         // arbitrary
 	conn           net.Conn       // underlying network connection
 	sendQueue      chan request   // controls write-side of connection
 	ackQueue       chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
 	awaitMu        sync.Mutex     // synchronize awaiting map access
 	awaiting       awaitMap       // message IDs -> awaiting reply
-	logger         ClientLogger   // reports pressure on the ACK queue
+	logger         ClientLogger   // reports important Client events
 	handlers       map[MessageType]MessageHandler
 	defaultHandler MessageHandler // used if no MessageHandlers for type and nothing awaiting reply
-	timeout        time.Duration  // if non-zero, sets conn's deadline for reads/writes
+	timeout        time.Duration  // if non-zero, causes updates to conn's deadline on each read/write
 	done           chan struct{}  // closed when the Client is closed
 	ready          chan struct{}  // closed when the connection is negotiated
 	isClosed       uint32         // used atomically to prevent duplicate closure of done
@@ -103,13 +102,6 @@ type clientOpt func(c *Client)
 
 func (ro clientOpt) do(c *Client) {
 	ro(c)
-}
-
-// WithName sets the Client's name.
-func WithName(name string) ClientOpt {
-	return clientOpt(func(c *Client) {
-		c.Name = name
-	})
 }
 
 // WithVersion sets the max permitted LLRP version for this connection.
@@ -172,8 +164,10 @@ type ClientLogger interface {
 // This logger is used by default if the WithLogger option is not given,
 // but if needed, this can be used to override an earlier WithLogger option
 // (e.g., using a standard list of ClientOpts and overriding some elsewhere).
-func WithStdLogger() ClientOpt {
-	return clientOpt((*Client).useStdLogger)
+func WithStdLogger(prefix string) ClientOpt {
+	return clientOpt(func(c *Client) {
+		c.setStdLogger(prefix)
+	})
 }
 
 // WithLogger sets a logger for the Client.
@@ -272,20 +266,13 @@ type StdLogger struct {
 	c *Client
 }
 
-// useStdLogger sets the logger to Go's stdlib logger prefixed with a useful name.
-// c.conn must be non-nil, or this will panic;
-// it's meant to be called during Connect,
-// which correctly synchronizes access to the connection.
-func (c *Client) useStdLogger() {
+// setStdLogger sets the logger to an instance of a Go stdlib logger,
+// prefixed with a useful name.
+func (c *Client) setStdLogger(prefix string) {
 	l := &StdLogger{}
-	if c.Name == "" {
-		l.Logger = log.New(os.Stderr, "LLRP-"+c.conn.RemoteAddr().String()+"-", log.LstdFlags)
-	} else {
-		l.Logger = log.New(os.Stderr, "LLRP-"+c.Name+"-", log.LstdFlags)
-	}
+	l.Logger = log.New(os.Stderr, "LLRP-"+prefix+"-", log.LstdFlags)
 	c.logger = l
 }
-
 func (l *StdLogger) SendingMsg(hdr Header) {
 	l.Printf("<<< message{%v}", hdr)
 }
@@ -324,8 +311,10 @@ var (
 // via a call to either Shutdown or Close.
 // It does not close the net.Conn parameter.
 //
-// It is NOT safe to call Connect before another call to Connect returns.
+// It is NOT safe to call Connect more than once.
 // Doing so has undefined results.
+// Do not reuse a Client; create a new one.
+// This will (likely) change in the future, but not yet.
 //
 // If the Client is closed via Shutdown or Close,
 // this returns ErrClientClosed or an error wrapping it;
@@ -338,34 +327,36 @@ var (
 // either due to an issue reading/writing on the connection,
 // or the connected device severing the connection unexpectedly.
 func (c *Client) Connect(conn net.Conn) error {
-	select {
-	case <-c.done:
-		return ErrClientClosed
-	default:
-	}
-
-	if c.conn == nil {
+	defer c.Close()
+	if conn == nil {
 		return errors.New("nil connection")
 	}
+	c.conn = conn
 
 	// If the user doesn't set a logger, create a default one.
 	// If they called WithLogger(nil), the logger is our devNullLogger,
 	// so we always have a non-nil pointer.
 	if c.logger == nil {
-		c.useStdLogger()
+		c.setStdLogger(conn.RemoteAddr().String())
+		defer func() { c.logger = nil }()
 	}
-
-	c.conn = conn
-	defer c.Close()
 
 	if err := c.checkInitialMessage(); err != nil {
 		close(c.ready)
 		return err
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 	errs := make(chan error, 2)
-	go func() { errs <- c.handleOutgoing() }()
-	go func() { errs <- c.handleIncoming() }()
+	go func() {
+		defer wg.Done()
+		errs <- c.handleOutgoing()
+	}()
+	go func() {
+		defer wg.Done()
+		errs <- c.handleIncoming()
+	}()
 
 	if c.version > Version1_0_1 {
 		if err := c.negotiate(); err != nil {
@@ -380,9 +371,12 @@ func (c *Client) Connect(conn net.Conn) error {
 	var err error
 	select {
 	case err = <-errs:
+		_ = c.Close()
 	case <-c.done:
 		err = ErrClientClosed
 	}
+
+	wg.Wait()
 
 	return err
 }
@@ -401,6 +395,12 @@ func (c *Client) Connect(conn net.Conn) error {
 //		       panic(err)
 //         }
 //     }
+//
+// It's safe to call Shutdown multiple times,
+// but at most only one will return a nil error;
+// others will return ErrClientClosed or an error wrapping it.
+// if only a single code path can call Shutdown, if it returns an error,
+// then Connect will also return an error that does NOT wrap ErrClientClosed.
 func (c *Client) Shutdown(ctx context.Context) error {
 	rTyp, resp, err := c.SendMessage(ctx, MsgCloseConnection, nil)
 	if err != nil {
@@ -439,7 +439,7 @@ func (c *Client) Close() error {
 		close(c.done)
 		return nil
 	} else {
-		return errors.Wrap(ErrClientClosed, "close")
+		return errors.Wrap(ErrClientClosed, "attempt to close already closed connection")
 	}
 }
 
@@ -459,14 +459,26 @@ const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendFor sends an Outgoing message and expects the Incoming reply.
 //
-// If the Incoming message is an ErrorMessage it unmarshals it and returns that StatusError.
+// This method round-trips a typical LLRP message exchange
+// by marshaling the Outgoing message to LLRP binary,
+// sending the message and awaiting the reply,
+// and unmarshaling the result from LLRP binary to the Incoming struct.
 //
-// Otherwise, it unmarshals the incoming message to Incoming.
+// It is safe to call this method even if the Client isn't connected;
+// it blocks until the message is sent and a reply received,
+// unless the context is canceled.
+//
+// This method converts LLRP errors into *StatusErrors:
+// if the Incoming message is an ErrorMessage,
+// it unmarshals it and returns it as a *StatusError.
 // If the Incoming message is Statusable (i.e., has an LLRPStatus),
-// and the LLRPStatus is not Success, this returns a StatusError.
+// and that LLRPStatus is not Success, this converts it to a *StatusError.
 //
-// Even if this returns an error, Incoming may be fully or partially unmarshaled,
-// which may give context to the particular error.
+// Even if this returns a *StatusError,
+// Incoming may be fully or partially unmarshalled,
+// which may give useful context to the particular LLRP error details.
+// However, if the reply message type doesn't match Incoming's type,
+// it won't be unmarshalled, and this will return an error.
 func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	outData, err := out.MarshalBinary()
 	if err != nil {
@@ -627,7 +639,7 @@ func (c *Client) handleIncoming() error {
 				return errors.Wrap(err, "failed to get next message")
 			}
 
-			if !(errors.Is(err, io.EOF) || os.IsTimeout(err)) {
+			if !(errors.Is(err, io.EOF) || os.IsTimeout(err) || errors.Is(err, io.ErrClosedPipe)) {
 				return errors.Wrap(err, "timeout")
 			}
 
@@ -660,7 +672,8 @@ func (c *Client) handleIncoming() error {
 // If it encounters an error, it stops and returns it.
 // Otherwise, it serves messages until the Client is closed,
 // at which point it and all future calls return ErrClientClosed.
-// If this see CloseConnection, it stops processing messages.
+// If this sends MsgCloseConnection, it stops processing messages
+// and waits for the Client to close.
 //
 // While the connection is open,
 // KeepAliveAck messages are prioritized.
@@ -673,13 +686,13 @@ func (c *Client) handleOutgoing() error {
 
 		select {
 		case <-c.done:
-			return errors.Wrap(ErrClientClosed, "stopping outgoing")
+			return ErrClientClosed
 		case mid := <-c.ackQueue:
 			msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 		default:
 			select {
 			case <-c.done:
-				return errors.Wrap(ErrClientClosed, "stopping outgoing")
+				return ErrClientClosed
 			case mid := <-c.ackQueue:
 				msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 			case req := <-c.sendQueue:
@@ -747,7 +760,7 @@ func (c *Client) handleOutgoing() error {
 		if msg.typ == MsgCloseConnection {
 			// after CloseConnection, wait for reader to close
 			<-c.done
-			return errors.Wrap(ErrClientClosed, "client closed connection")
+			return ErrClientClosed
 		}
 
 		if msg.payloadLen == 0 {
@@ -758,6 +771,8 @@ func (c *Client) handleOutgoing() error {
 			return errors.Errorf("message data is nil, but has length >0 (%v)", msg)
 		}
 
+		// It assumes that msg.payload is cooperating and will return EOF
+		// or another error and blocks until then.
 		if n, err := io.Copy(c.conn, msg.payload); err != nil {
 			return errors.Wrapf(err, "write failed after %d bytes for %v", n, msg)
 		}
@@ -780,6 +795,24 @@ func (ackHandler) HandleMessage(c *Client, msg Message) {
 	}
 }
 
+// passToHandler passes control of the connection's read side
+// to the handler appropriate for the message indicated by the Header.
+//
+// Specifically, this means if something is awaiting a Reply,
+// it will send a Message on the replyChan and close it.
+// Usually, that Message includes the buffered payload,
+// but if the Header indicates a gigantic message, it's empty instead.
+//
+// If there's a MessageHandler for the type indicated by the Header,
+// or a default handler for otherwise unregistered types,
+// it'll then get called with a new Message instance.
+// If the payload is buffered already, we give it an io.Reader wrapping that;
+// otherwise it's an io.LimitedReader with the connection and payload length.
+// After the handler returns, that LimitedReader is drained to ioutil.Discard
+// to ensure the full payload has been read from the net.Conn.
+//
+// Handlers are called via handleGuarded to protect against panics.
+// A handler blocks reads from making progress.
 func (c *Client) passToHandler(hdr Header) (err error) {
 	handler := c.handlers[hdr.typ]
 
@@ -810,6 +843,9 @@ func (c *Client) passToHandler(hdr Header) (err error) {
 				return err
 			}
 
+			// This doesn't have to be a bytes.Buffer necessarily,
+			// but it must implement Bytes() ([]byte, error)
+			// so Message.data can distinguish buffered and unbuffered payloads.
 			payload = bytes.NewBuffer(buffResponse)
 			replyChan <- Message{Header: hdr, payload: bytes.NewBuffer(buffResponse)}
 		}
@@ -917,9 +953,10 @@ func (c *Client) send(ctx context.Context, m Message) (Message, error) {
 }
 
 // checkInitialMessage reads the first message off the connection,
-//
 // which should be a ReaderEventNotification with a successful ConnectEvent.
 // If it isn't, this returns an error.
+//
+// This skips the Client's send and
 func (c *Client) checkInitialMessage() error {
 	hdr, err := c.readHeader()
 	if err != nil {
@@ -1087,5 +1124,10 @@ func (c *Client) negotiate() error {
 		return err
 	}
 
-	return resp.Close()
+	spvResp := &SetProtocolVersionResponse{}
+	if err := resp.UnmarshalTo(spvResp); err != nil {
+		return err
+	}
+
+	return spvResp.LLRPStatus.Err()
 }
