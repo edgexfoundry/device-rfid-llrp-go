@@ -30,7 +30,7 @@ var (
 	// Slow expects that failure conditions may take awhile to resolve.
 	Slow = ExpBackOff{
 		BackOff:  5 * time.Second,
-		Max:      60 * time.Minute,
+		Max:      5 * time.Minute,
 		Jitter:   true,
 		KeepErrs: 10,
 	}
@@ -257,9 +257,10 @@ func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, 
 	deadline, hasDeadline := ctx.Deadline()
 
 	// start at 1 since we've already tried once
-	for attempt := 1; attempt < retries; attempt++ {
+	for attempt := 1; retries == Forever || attempt < retries; attempt++ {
 		if hasDeadline && time.Now().Add(wait).After(deadline) {
 			addErr(attempt, maxErrs, re, errors.New("waiting would exceed Deadline"))
+			return re
 		}
 
 		// wait for next attempt
@@ -292,7 +293,7 @@ func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, 
 		}
 
 		// handle overflow and max
-		if wait < 0 || (max > 0 && wait > max) {
+		if wait <= 0 || (max > 0 && wait > max) {
 			wait = max
 		}
 

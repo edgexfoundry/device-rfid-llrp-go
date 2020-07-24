@@ -23,9 +23,6 @@ import (
 
 const (
 	ServiceName string = "edgex-device-llrp"
-
-	shutdownGrace       = time.Second // time permitted to Shutdown; if exceeded, Close is called
-	closedSenderRetries = 3           // number of times to retry sending a message if it fails due to a closed reader
 )
 
 var once sync.Once
@@ -105,9 +102,20 @@ const (
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
-	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
+	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleReadCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
 
+	results, err := d.handleReadCommands(devName, p, reqs)
+	if err != nil {
+		d.lc.Error("ReadCommands failed.",
+			"device", devName,
+			"error", err,
+			"requests", fmt.Sprintf("%+v", reqs))
+	}
+	return results, err
+}
+
+func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	if len(reqs) == 0 {
 		return nil, errors.New("missing requests")
 	}
@@ -117,7 +125,7 @@ func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
 	var responses = make([]*dsModels.CommandValue, len(reqs))
@@ -164,6 +172,17 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
 		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
 
+	// kinda surprised EdgeX doesn't do this automatically.
+	err := d.handleWriteCommands(devName, p, reqs, params)
+	if err != nil {
+		d.lc.Error("Write Command failed",
+			"device", devName,
+			"error", err.Error())
+	}
+	return err
+}
+
+func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest, params []*dsModels.CommandValue) error {
 	if len(reqs) == 0 {
 		return errors.New("missing requests")
 	}
@@ -208,7 +227,7 @@ func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
 	var llrpReq llrp.Outgoing  // the message to send
@@ -450,6 +469,7 @@ func (d *Driver) getDevice(name string, p protocolMap) (*Lurpper, error) {
 		return dev, nil
 	}
 
+	d.lc.Info("Creating new connection for device.", "device", name)
 	dev = d.NewLurpper(name, addr)
 	d.activeDevices[name] = dev
 	return dev, nil
@@ -462,6 +482,7 @@ func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
 	defer d.devicesMu.Unlock()
 
 	if dev, ok := d.activeDevices[deviceName]; ok {
+		d.lc.Info("Stopping connection for device.", "device", deviceName)
 		go d.stopDevice(ctx, dev)
 		delete(d.activeDevices, deviceName)
 	}
@@ -473,7 +494,7 @@ func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
 // This doesn't remove it from the devices map.
 func (d *Driver) stopDevice(ctx context.Context, dev *Lurpper) {
 	if err := dev.Stop(ctx); err != nil {
-		d.lc.Error("error attempting client shutdown", "error", err.Error())
+		d.lc.Error("Error attempting client shutdown.", "error", err.Error())
 	}
 }
 

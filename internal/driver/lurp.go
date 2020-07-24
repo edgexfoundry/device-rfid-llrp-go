@@ -9,12 +9,23 @@ import (
 	"context"
 	"encoding/json"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/retry"
 	"net"
 	"sync"
 	"time"
+)
+
+const (
+	shutdownGrace = time.Second // time permitted to Shutdown; if exceeded, Close is called
+	maxRetries    = 3           // number of times to retry sending a message if it fails due to a closed reader
+
+	dialTimeout  = time.Second * 10
+	connTimeout  = time.Second * 30
+	sendTimeout  = time.Second * 30
+	noMsgTimeout = time.Second * 120 // resets the connection if more than 120s pass without a message.
 )
 
 // Lurpper represents a managed connection to an RFID Reader that speaks LLRP.
@@ -31,6 +42,7 @@ type Lurpper struct {
 	// to ensure it can properly handle connect/reconnect behavior.
 
 	name string // comes from EdgeX
+	lc   logger.LoggingClient
 
 	addrMu  sync.RWMutex
 	address net.Addr
@@ -51,6 +63,7 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 		name:    name,
 		cancel:  cancel,
 		address: address,
+		lc:      d.lc,
 	}
 
 	// These options will be used each time we reconnect.
@@ -58,6 +71,7 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 		llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
 		llrp.WithMessageHandler(llrp.MsgROAccessReport, newROHandler(l, d)),
 		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, newReaderEventHandler(l, d)),
+		llrp.WithTimeout(noMsgTimeout),
 	}
 
 	// Create the initial client, which we can immediately make Send requests to,
@@ -78,38 +92,51 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 		// If the Client closes in a "normal" way while the context is still alive,
 		// reset both retry/backoff policies and restart the dial/connect loop.
 		for ctx.Err() == nil {
+			d.lc.Debug("Establishing a new connection.", "device", name)
+
 			// The error that would be returned can only be the result of canceling the context
 			_ = retry.Quick.RetryWithCtx(ctx, retry.Forever, func(ctx context.Context) (bool, error) {
+				// generate a new context
+				connCtx, connCtxCancel := context.WithTimeout(ctx, connTimeout)
+				defer connCtxCancel()
+
 				var conn net.Conn
-				if err := retry.Slow.RetryWithCtx(ctx, retry.Forever, func(ctx context.Context) (again bool, err error) {
+				if err := retry.Slow.RetryWithCtx(connCtx, retry.Forever, func(connCtx context.Context) (again bool, err error) {
+					dialCtx, dialCtxCancel := context.WithTimeout(connCtx, dialTimeout)
+					defer dialCtxCancel()
+
 					l.addrMu.RLock()
 					addr := l.address
 					l.addrMu.RUnlock()
 
-					conn, err = dialer.DialContext(ctx, addr.Network(), addr.String())
+					d.lc.Debug("Attempting to dial Reader.", "address", addr.String(), "device", name)
+
+					conn, err = dialer.DialContext(dialCtx, addr.Network(), addr.String())
 					if err != nil {
-						d.lc.Error("failed to dial Reader; will retry",
+						d.lc.Error("Failed to dial Reader.",
 							"error", err.Error(),
 							"address", addr.String(),
 							"device", name)
 					}
 					return true, err
 				}); err != nil {
-					// This can only happen if the context is canceled.
-					return false, err
+					return true, err
 				}
 
 				defer conn.Close()
 
+				d.lc.Debug("Attempting LLRP Client connection.", "device", name)
+
 				// Block until the Client closes.
 				clientErr := c.Connect(conn)
+				conn.Close()
+
 				if errors.Is(clientErr, llrp.ErrClientClosed) {
+					d.lc.Debug("LLRP Client connection closed normally.", "device", name)
 					clientErr = nil // allow the backoff/retry policy to reset
 				} else {
-					d.lc.Error("client connection closed unexpectedly",
-						"error", clientErr.Error(),
-						"address", address.String(),
-						"device", name)
+					d.lc.Error("Client connection closed unexpectedly.",
+						"error", clientErr.Error(), "device", name)
 				}
 
 				// Replace the client, but don't start it until the next time we're connected.
@@ -122,6 +149,8 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 				return true, clientErr
 			})
 		}
+
+		d.lc.Debug("No longer attempting to maintain active connection to device.", "device", name)
 	}()
 
 	return l
@@ -130,7 +159,9 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 // TrySend works like llrp.SendFor,
 // but will reattempt the send a few times if it fails due to a closed reader.
 func (l *Lurpper) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp.Incoming) error {
-	return retry.Quick.RetryWithCtx(ctx, closedSenderRetries, func(ctx context.Context) (bool, error) {
+	return retry.Quick.RetryWithCtx(ctx, maxRetries, func(ctx context.Context) (bool, error) {
+		l.lc.Debug("Attempting send.", "device", l.name, "message", request.Type().String())
+
 		l.lurpMu.RLock()
 		c := l.client
 		l.lurpMu.RUnlock()
