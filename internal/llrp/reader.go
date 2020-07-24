@@ -58,8 +58,26 @@ type Client struct {
 }
 
 const (
-	versionMin = Version1_0_1 // min version we support
-	versionMax = Version1_1   // max version we support
+	// VersionMin is the minimum LLRP version supported by this package.
+	VersionMin = Version1_0_1
+
+	// VersionMax is the maximum LLRP version supported by this package.
+	// See WithVersion for more information.
+	VersionMax = Version1_1
+
+	// MaxBufferedPayloadSz is the maximum payload size permitted in responses.
+	//
+	// Although LLRP theoretically can handle message up to 4GiB,
+	// in practice most messages are nowhere near this size.
+	// One large manufacturer even states explicitly that
+	// they'll simply close the connection if a message exceeds ~500KiB,
+	// including outgoing tag reports.
+	//
+	// MessageHandlers aren't restricted to this limitation,
+	// but as a result, require processing the message synchronously,
+	// as the incoming message must be read in full (even if discarded)
+	// before any other message can be read.
+	MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 )
 
 // NewClient returns a Client configured by the given options.
@@ -75,7 +93,7 @@ func NewClient(opts ...ClientOpt) *Client {
 	const ackQueueSz = 5
 
 	c := &Client{
-		version:   versionMax,
+		version:   VersionMax,
 		done:      make(chan struct{}),
 		ready:     make(chan struct{}),
 		sendQueue: make(chan request),
@@ -113,7 +131,7 @@ func (ro clientOpt) do(c *Client) {
 //
 // This panics if given an unsupported version.
 func WithVersion(v VersionNum) ClientOpt {
-	if v < versionMin || v > versionMax {
+	if v < VersionMin || v > VersionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
 	return clientOpt(func(c *Client) {
@@ -263,7 +281,6 @@ func (devNullLogger) HandlerPanic(Header, error)     {}
 // StdLogger wraps the Go stdlib Logger.
 type StdLogger struct {
 	*log.Logger
-	c *Client
 }
 
 // setStdLogger sets the logger to an instance of a Go stdlib logger,
@@ -442,20 +459,6 @@ func (c *Client) Close() error {
 		return errors.Wrap(ErrClientClosed, "attempt to close already closed connection")
 	}
 }
-
-// MaxBufferedPayloadSz is the maximum payload size permitted in responses.
-//
-// Although LLRP theoretically can handle message up to 4GiB,
-// in practice most messages are nowhere near this size.
-// One large manufacturer even states explicitly that
-// they'll simply close the connection if a message exceeds ~500KiB,
-// including outgoing tag reports.
-//
-// MessageHandlers aren't restricted to this limitation,
-// but as a result, require processing the message synchronously,
-// as the incoming message must be read in full (even if discarded)
-// before any other message can be read.
-const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 
 // SendFor sends an Outgoing message and expects the Incoming reply.
 //
@@ -1087,19 +1090,14 @@ func (c *Client) negotiate() error {
 		return err
 	}
 
-	if sv.CurrentVersion == c.version {
-		return nil
+	// Use the max of our desired version & the Reader's max supported version.
+	if c.version > sv.MaxSupportedVersion {
+		c.version = sv.MaxSupportedVersion
 	}
 
-	ver := c.version
-	if c.version > sv.MaxSupportedVersion {
-		ver = sv.MaxSupportedVersion
-		c.version = ver
-
-		// if the device is already using this, no need to set it
-		if sv.CurrentVersion == c.version {
-			return nil
-		}
+	// If the device is already using this, no need to set it.
+	if sv.CurrentVersion == c.version {
+		return nil
 	}
 
 	m, err := NewByteMessage(MsgSetProtocolVersion, []byte{uint8(c.version)})

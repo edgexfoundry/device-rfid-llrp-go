@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -34,7 +35,7 @@ func GetFunctionalClient(t *testing.T, readerAddr string) (r *Client) {
 		opts = append(opts, WithStdLogger("test"))
 	}
 
-	r = NewClient(WithTimeout(300 * time.Second))
+	r = NewClient(opts...)
 
 	errs := make(chan error)
 	go func() {
@@ -79,7 +80,6 @@ type TestDevice struct {
 	w          *msgWriter
 	maxVer     VersionNum
 	mid        messageID
-	responses  map[MessageType]Outgoing
 
 	errsMu sync.Mutex
 	errors []error
@@ -201,10 +201,10 @@ func (td *TestDevice) setVersion(_ *Client, msg Message) {
 		return
 	}
 
-	if spv.TargetVersion < versionMin {
+	if spv.TargetVersion < VersionMin {
 		_ = td.errCheck(td.w.Write(msg.id, &ErrorMessage{LLRPStatus: LLRPStatus{
 			Status:           StatusMsgVerUnsupported,
-			ErrorDescription: fmt.Sprintf("min supported is %d", versionMin),
+			ErrorDescription: fmt.Sprintf("min supported is %d", VersionMin),
 		}}))
 		return
 	}
@@ -236,8 +236,9 @@ func (td *TestDevice) handleUnknownMessage(_ *Client, msg Message) {
 // ImpersonateReader prepares the TestDevice to impersonate an LLRP reader,
 // as if a Client had correctly dialed it, but before version negotiation begins.
 func (td *TestDevice) ImpersonateReader() {
-	td.write(td.mid, NewConnectMessage(ConnSuccess))
-	td.mid++
+	td.write(
+		messageID(atomic.AddUint32((*uint32)(&td.mid), 1)),
+		NewConnectMessage(ConnSuccess))
 	close(td.reader.ready)
 	// This is notably simpler than actually correctly managing the message queues.
 	// All outgoing messages must be sent via the TestDevice's writer,
@@ -256,8 +257,9 @@ func (td *TestDevice) Close() (err error) {
 		}
 	}()
 
-	err = td.w.Write(td.mid, NewCloseMessage())
-	td.mid++
+	err = td.w.Write(
+		messageID(atomic.AddUint32((*uint32)(&td.mid), 1)),
+		NewConnectMessage(ConnSuccess))
 	return
 }
 

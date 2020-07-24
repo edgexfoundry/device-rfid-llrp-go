@@ -129,7 +129,7 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 
 				// Block until the Client closes.
 				clientErr := c.Connect(conn)
-				conn.Close()
+				_ = conn.Close()
 
 				if errors.Is(clientErr, llrp.ErrClientClosed) {
 					d.lc.Debug("LLRP Client connection closed normally.", "device", name)

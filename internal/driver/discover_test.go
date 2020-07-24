@@ -155,6 +155,7 @@ func TestIpGenerator(t *testing.T) {
 		},
 	}
 	for _, input := range tests {
+		input := input
 		t.Run(input.inet, func(t *testing.T) {
 			result := ipGeneratorTest(input)
 			if result.err && !input.err {
@@ -178,6 +179,7 @@ func TestIpGenerator(t *testing.T) {
 
 func TestIpGeneratorSubnetSizes(t *testing.T) {
 	for i := 32; i >= 10; i-- {
+		i := i
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			result := ipGeneratorTest(inetTest{size: uint32(i), inet: fmt.Sprintf("192.168.1.1/%d", i)})
 			if result.size != computeNetSz(i) {
@@ -191,6 +193,7 @@ func TestVirtualRegex_virtual(t *testing.T) {
 	ifaces := []string{"docker0", "docker_gwbridge", "br-123456", "veth12", "virbr0-nic"}
 
 	for _, iface := range ifaces {
+		iface := iface
 		t.Run(iface, func(t *testing.T) {
 			if !virtualRegex.MatchString(iface) {
 				t.Errorf("expected interface %s to be detected as virtual, but was detected as real", iface)
@@ -203,6 +206,7 @@ func TestVirtualRegex_notVirtual(t *testing.T) {
 	ifaces := []string{"eth0", "eno1", "enp13s0"}
 
 	for _, iface := range ifaces {
+		iface := iface
 		t.Run(iface, func(t *testing.T) {
 			if virtualRegex.MatchString(iface) {
 				t.Errorf("expected interface %s to be detected as real, but was detected as virtual", iface)

@@ -95,8 +95,9 @@ func TestHandleRead(t *testing.T) {
 	go rfid.ImpersonateReader()
 	c := rfid.ConnectClient(t)
 
+	elog := edgexCompatTestLogger{t}
 	d := &Driver{
-		lc:            edgexCompatTestLogger{t},
+		lc:            elog,
 		activeDevices: make(map[string]*Lurpper),
 	}
 
@@ -105,6 +106,7 @@ func TestHandleRead(t *testing.T) {
 	d.activeDevices["localReader"] = &Lurpper{
 		name:   "localReader",
 		client: c,
+		lc:     elog,
 	}
 
 	for _, testCase := range []struct {

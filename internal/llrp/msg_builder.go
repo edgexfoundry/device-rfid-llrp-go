@@ -24,7 +24,7 @@ type paramHeader struct {
 
 func encodeParams(w io.Writer, headers ...paramHeader) error {
 	for _, h := range headers {
-		if h.ParamType.isTV() {
+		if h.ParamType.IsTV() {
 			if n, err := w.Write([]byte{byte(h.ParamType | 0x80)}); err != nil {
 				return errors.Wrapf(err, "failed to write TV header for %v", h.ParamType)
 			} else if n < 1 {

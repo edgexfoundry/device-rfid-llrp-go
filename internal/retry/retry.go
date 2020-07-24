@@ -40,6 +40,12 @@ var (
 // If you retry forever, the number of errors can grow without bound.
 const Forever = -1
 
+// Func represents a function which can be retried.
+// When it returns a non-nil error, it also returns a boolean
+// which is true if the error is temporary (and the Func should be retried)
+// or false if the error will never recover on its own.
+type Func func(ctx context.Context) (bool, error)
+
 // FError records errors accumulated during each execution of f.
 // FError is only returned if every f() attempt fails or retries are canceled.
 //
@@ -204,7 +210,7 @@ func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err err
 // In these cases, it adds ctx.Err to its accumulated errors and returns.
 // As a result, at the beginning of f's execution,
 // it's unlikely (though possible) that ctx is canceled or past its deadline.
-func (ebo ExpBackOff) RetryWithCtx(ctx context.Context, retries int, f func(ctx context.Context) (bool, error)) error {
+func (ebo ExpBackOff) RetryWithCtx(ctx context.Context, retries int, f Func) error {
 	return Try(ctx, retries, ebo.KeepErrs, ebo.BackOff, ebo.Max, ebo.Jitter, f)
 }
 
@@ -228,7 +234,7 @@ func addErr(attempt, maxErrs int, fErr *FError, newErr error) {
 //
 // See ExpBackOff and the package instances of ExpBackOff for more information
 // and an easier-to-use API.
-func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, jitter bool, f func(ctx context.Context) (bool, error)) error {
+func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, jitter bool, f Func) error {
 	// if f is successful, avoid all the other work
 	cont, err := f(ctx)
 	if err == nil {

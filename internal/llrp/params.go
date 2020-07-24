@@ -193,21 +193,21 @@ const (
 	paramResvEnd   = ParamType(999)
 )
 
-// isTV returns true if the ParamType is TV-encoded.
+// IsTV returns true if the ParamType is TV-encoded.
 // TV-encoded parameters have specific lengths which must be looked up.
-func (pt ParamType) isTV() bool {
+func (pt ParamType) IsTV() bool {
 	return pt != 0 && pt <= 127
 }
 
-// isTLV returns true if the ParamType is TLV-encoded.
+// IsTLV returns true if the ParamType is TLV-encoded.
 // TLV-encoded parameters include their length in their headers.
-func (pt ParamType) isTLV() bool {
+func (pt ParamType) IsTLV() bool {
 	return pt >= 128 && pt <= 2047
 }
 
-// isValid returns true if the ParamType is within the valid LLRP Parameter range
+// IsValid returns true if the ParamType is within the valid LLRP Parameter range
 // and not one of the reserved parameter types (900-999)
-func (pt ParamType) isValid() bool {
+func (pt ParamType) IsValid() bool {
 	return 0 < pt && pt <= 2047 && !(paramResvStart <= pt && pt <= paramResvEnd)
 }
 
@@ -304,7 +304,7 @@ func (fe FieldError) Error() string {
 // Error constructs a string from the parameter's error.
 func (pe *ParameterError) Error() string {
 	msg := pe.ErrorCode.defaultText() + " " + pe.ParameterType.String()
-	if pe.ParameterType.isValid() {
+	if pe.ParameterType.IsValid() {
 		msg += " (type " + strconv.Itoa(int(pe.ParameterType)) + ")"
 	}
 
@@ -355,12 +355,4 @@ func (ls *LLRPStatus) Err() error {
 
 	se := StatusError(*ls)
 	return &se
-}
-
-func (ren *ReaderEventNotification) isConnectSuccess() bool {
-	if ren == nil || ren.ReaderEventNotificationData.ConnectionAttemptEvent == nil {
-		return false
-	}
-
-	return ConnSuccess == ConnectionAttemptEventType(*ren.ReaderEventNotificationData.ConnectionAttemptEvent)
 }

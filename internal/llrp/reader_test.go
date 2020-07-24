@@ -107,7 +107,7 @@ func TestClient_readHeader(t *testing.T) {
 
 func TestClient_newMessage(t *testing.T) {
 	ack := NewHdrOnlyMsg(MsgKeepAliveAck)
-	expMsg := Message{Header: Header{version: versionMin, typ: MsgKeepAliveAck}}
+	expMsg := Message{Header: Header{version: VersionMin, typ: MsgKeepAliveAck}}
 	if expMsg != ack {
 		t.Errorf("expected %+v; got %+v", expMsg, ack)
 	}
@@ -310,7 +310,7 @@ func TestClient_Connection(t *testing.T) {
 		t.Errorf("%+v", err)
 		_ = c.Close()
 	}
-	client.Close()
+	_ = client.Close()
 
 	for err := range connErrs {
 		if !errors.Is(err, ErrClientClosed) {
@@ -326,7 +326,10 @@ func TestClient_Connection(t *testing.T) {
 		t.Errorf("expected %q; got %+v", ErrClientClosed, err)
 	}
 
-	_, _, err = c.SendMessage(context.Background(), MsgCustomMessage, data)
+	if _, _, err := c.SendMessage(context.Background(), MsgCustomMessage, data); !errors.Is(err, ErrClientClosed) {
+		t.Errorf("expected %q; got %+v", ErrClientClosed, err)
+	}
+
 	if err := c.Close(); !errors.Is(err, ErrClientClosed) {
 		t.Errorf("expected %q; got %+v", ErrClientClosed, err)
 	}
