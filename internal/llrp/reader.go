@@ -42,16 +42,15 @@ import (
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
 type Client struct {
-	Name           string         // arbitrary
 	conn           net.Conn       // underlying network connection
 	sendQueue      chan request   // controls write-side of connection
 	ackQueue       chan messageID // gesundheit -- allows ACK'ing fast, unless sendQueue is unhealthy
 	awaitMu        sync.Mutex     // synchronize awaiting map access
 	awaiting       awaitMap       // message IDs -> awaiting reply
-	logger         ClientLogger   // reports pressure on the ACK queue
+	logger         ClientLogger   // reports important Client events
 	handlers       map[MessageType]MessageHandler
 	defaultHandler MessageHandler // used if no MessageHandlers for type and nothing awaiting reply
-	timeout        time.Duration  // if non-zero, sets conn's deadline for reads/writes
+	timeout        time.Duration  // if non-zero, causes updates to conn's deadline on each read/write
 	done           chan struct{}  // closed when the Client is closed
 	ready          chan struct{}  // closed when the connection is negotiated
 	isClosed       uint32         // used atomically to prevent duplicate closure of done
@@ -59,8 +58,26 @@ type Client struct {
 }
 
 const (
-	versionMin = Version1_0_1 // min version we support
-	versionMax = Version1_1   // max version we support
+	// VersionMin is the minimum LLRP version supported by this package.
+	VersionMin = Version1_0_1
+
+	// VersionMax is the maximum LLRP version supported by this package.
+	// See WithVersion for more information.
+	VersionMax = Version1_1
+
+	// MaxBufferedPayloadSz is the maximum payload size permitted in responses.
+	//
+	// Although LLRP theoretically can handle message up to 4GiB,
+	// in practice most messages are nowhere near this size.
+	// One large manufacturer even states explicitly that
+	// they'll simply close the connection if a message exceeds ~500KiB,
+	// including outgoing tag reports.
+	//
+	// MessageHandlers aren't restricted to this limitation,
+	// but as a result, require processing the message synchronously,
+	// as the incoming message must be read in full (even if discarded)
+	// before any other message can be read.
+	MaxBufferedPayloadSz = uint32((1 << 10) * 640)
 )
 
 // NewClient returns a Client configured by the given options.
@@ -69,15 +86,14 @@ const (
 // does not set deadlines on the connection,
 // uses the package's max LLRP version to negotiate connections,
 // and sends ACKs to KeepAlive messages from the reader.
-func NewClient(conn net.Conn, opts ...ClientOpt) (*Client, error) {
+func NewClient(opts ...ClientOpt) *Client {
 	// ackQueueSz is arbitrary, but if it fills,
 	// warnings are logged, as it likely indicates a Write problem.
 	// At some point, we might consider resetting the connection.
 	const ackQueueSz = 5
 
 	c := &Client{
-		conn:      conn,
-		version:   versionMax,
+		version:   VersionMax,
 		done:      make(chan struct{}),
 		ready:     make(chan struct{}),
 		sendQueue: make(chan request),
@@ -89,45 +105,21 @@ func NewClient(conn net.Conn, opts ...ClientOpt) (*Client, error) {
 	}
 
 	for _, opt := range opts {
-		if err := opt.do(c); err != nil {
-			return nil, err
-		}
+		opt.do(c)
 	}
 
-	if c.conn == nil {
-		return nil, errors.New("Client has no connection")
-	}
-
-	if c.version < versionMin || c.version > versionMax {
-		return nil, errors.Errorf("unsupported version: %v", c.version)
-	}
-
-	// If the user doesn't set a logger, create a default one.
-	// If they set it to nil, use devNullLog so we have a valid pointer, but no output.
-	if c.logger == nil {
-		_ = c.useStdLogger()
-	}
-
-	return c, nil
+	return c
 }
 
 // ClientOpt modifies a Client during construction.
 type ClientOpt interface {
-	do(*Client) error // don't allow arbitrary implementations for now
+	do(*Client) // don't allow arbitrary implementations for now
 }
 
-type clientOpt func(c *Client) error
+type clientOpt func(c *Client)
 
-func (ro clientOpt) do(c *Client) error {
-	return ro(c)
-}
-
-// WithName sets the Client's name.
-func WithName(name string) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		c.Name = name
-		return nil
-	})
+func (ro clientOpt) do(c *Client) {
+	ro(c)
 }
 
 // WithVersion sets the max permitted LLRP version for this connection.
@@ -136,13 +128,14 @@ func WithName(name string) ClientOpt {
 // is selected upon connection using LLRP's version negotiation messages.
 // It is the higher of the value given here and that supported by the Reader.
 // Note that if the version is to 1.0.1, version negotiation is skipped.
+//
+// This panics if given an unsupported version.
 func WithVersion(v VersionNum) ClientOpt {
-	if v < versionMin || v > versionMax {
+	if v < VersionMin || v > VersionMax {
 		panic(errors.Errorf("unsupported version %v", v))
 	}
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.version = v
-		return nil
 	})
 }
 
@@ -165,12 +158,11 @@ func WithVersion(v VersionNum) ClientOpt {
 // Therefore, if you wish to enable KeepAlive messages,
 // you should send a SetReaderConfiguration message.
 func WithTimeout(d time.Duration) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		if d < 0 {
-			return errors.Errorf("timeout should be at least 0, but is %v", d)
-		}
+	if d < 0 {
+		panic(errors.Errorf("timeout should be at least 0, but is %v", d))
+	}
+	return clientOpt(func(c *Client) {
 		c.timeout = d
-		return nil
 	})
 }
 
@@ -190,8 +182,10 @@ type ClientLogger interface {
 // This logger is used by default if the WithLogger option is not given,
 // but if needed, this can be used to override an earlier WithLogger option
 // (e.g., using a standard list of ClientOpts and overriding some elsewhere).
-func WithStdLogger() ClientOpt {
-	return clientOpt((*Client).useStdLogger)
+func WithStdLogger(prefix string) ClientOpt {
+	return clientOpt(func(c *Client) {
+		c.setStdLogger(prefix)
+	})
 }
 
 // WithLogger sets a logger for the Client.
@@ -204,9 +198,8 @@ func WithLogger(l ClientLogger) ClientOpt {
 		l = devNullLog // this way we'll always have a valid pointer
 	}
 
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.logger = l
-		return nil
 	})
 }
 
@@ -247,17 +240,16 @@ func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 // Clients are created with a handler for KeepAlive (to send KeepAliveAck).
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
-	return clientOpt(func(c *Client) error {
-		if !mt.isValid() {
-			return errors.Errorf("invalid message type for handler: %v", mt)
-		}
+	if !mt.isValid() {
+		panic(errors.Errorf("invalid message type for handler: %v", mt))
+	}
 
+	return clientOpt(func(c *Client) {
 		if handler == nil {
 			delete(c.handlers, mt)
 		} else {
 			c.handlers[mt] = handler
 		}
-		return nil
 	})
 }
 
@@ -267,9 +259,8 @@ func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 // Only a single default handler is supported.
 // It may be set to nil, in which case unhandled non-reply messages are simply dropped.
 func WithDefaultHandler(handler MessageHandler) ClientOpt {
-	return clientOpt(func(c *Client) error {
+	return clientOpt(func(c *Client) {
 		c.defaultHandler = handler
-		return nil
 	})
 }
 
@@ -290,20 +281,15 @@ func (devNullLogger) HandlerPanic(Header, error)     {}
 // StdLogger wraps the Go stdlib Logger.
 type StdLogger struct {
 	*log.Logger
-	c *Client
 }
 
-func (c *Client) useStdLogger() error {
+// setStdLogger sets the logger to an instance of a Go stdlib logger,
+// prefixed with a useful name.
+func (c *Client) setStdLogger(prefix string) {
 	l := &StdLogger{}
-	if c.Name == "" {
-		l.Logger = log.New(os.Stderr, "LLRP-"+c.conn.RemoteAddr().String()+"-", log.LstdFlags)
-	} else {
-		l.Logger = log.New(os.Stderr, "LLRP-"+c.Name+"-", log.LstdFlags)
-	}
+	l.Logger = log.New(os.Stderr, "LLRP-"+prefix+"-", log.LstdFlags)
 	c.logger = l
-	return nil
 }
-
 func (l *StdLogger) SendingMsg(hdr Header) {
 	l.Printf("<<< message{%v}", hdr)
 }
@@ -328,33 +314,66 @@ func (l *StdLogger) HandlerPanic(hdr Header, err error) {
 }
 
 var (
-	// ErrClientClosed is returned if an operation is attempted on a closed Client.
+	// ErrClientClosed is returned if an operation is attempted on a closed Client,
+	// indicating that Shutdown or Close was called.
 	// It may be wrapped, so to check for it, use errors.Is.
 	ErrClientClosed = goErrs.New("client closed")
 )
 
 // Connect to an LLRP-capable device and start processing messages.
 //
-// This takes ownership of the connection,
-// which it assumes is already dialed.
-// It blocks, serving the connection's incoming and outgoing messages
-// until it encounters an error or the Client is closed.
-// Before returning, it closes the connection.
+// This takes ownership of the connection and blocks,
+// serving the connection's incoming and outgoing messages
+// until either it encounters an error or the Client is closed
+// via a call to either Shutdown or Close.
+// It does not close the net.Conn parameter.
 //
-// If the Client is closed, this returns ErrClientClosed;
+// It is NOT safe to call Connect more than once.
+// Doing so has undefined results.
+// Do not reuse a Client; create a new one.
+// This will (likely) change in the future, but not yet.
+//
+// If the Client is closed via Shutdown or Close,
+// this returns ErrClientClosed or an error wrapping it;
 // otherwise, it returns the first error it encounters.
-func (c *Client) Connect() error {
-	defer c.conn.Close()
+// You can use this as a signal to identify whether
+// the communication on a particular connection was successful.
+// If this returns ErrClientClosed, it indicates some other portion of your code
+// actively requested the connection to close.
+// Any other error indicates a failed communication attempt,
+// either due to an issue reading/writing on the connection,
+// or the connected device severing the connection unexpectedly.
+func (c *Client) Connect(conn net.Conn) error {
 	defer c.Close()
+	if conn == nil {
+		return errors.New("nil connection")
+	}
+	c.conn = conn
+
+	// If the user doesn't set a logger, create a default one.
+	// If they called WithLogger(nil), the logger is our devNullLogger,
+	// so we always have a non-nil pointer.
+	if c.logger == nil {
+		c.setStdLogger(conn.RemoteAddr().String())
+		defer func() { c.logger = nil }()
+	}
 
 	if err := c.checkInitialMessage(); err != nil {
 		close(c.ready)
 		return err
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 	errs := make(chan error, 2)
-	go func() { errs <- c.handleOutgoing() }()
-	go func() { errs <- c.handleIncoming() }()
+	go func() {
+		defer wg.Done()
+		errs <- c.handleOutgoing()
+	}()
+	go func() {
+		defer wg.Done()
+		errs <- c.handleIncoming()
+	}()
 
 	if c.version > Version1_0_1 {
 		if err := c.negotiate(); err != nil {
@@ -362,16 +381,19 @@ func (c *Client) Connect() error {
 		}
 	}
 
-	// The `ready` channel gates (external) Send requests until after
+	// The `ready` channel gates external Send requests until after
 	// the first few LLRP messages are taken care of by the Client.
 	close(c.ready)
 
 	var err error
 	select {
 	case err = <-errs:
+		_ = c.Close()
 	case <-c.done:
 		err = ErrClientClosed
 	}
+
+	wg.Wait()
 
 	return err
 }
@@ -390,6 +412,12 @@ func (c *Client) Connect() error {
 //		       panic(err)
 //         }
 //     }
+//
+// It's safe to call Shutdown multiple times,
+// but at most only one will return a nil error;
+// others will return ErrClientClosed or an error wrapping it.
+// if only a single code path can call Shutdown, if it returns an error,
+// then Connect will also return an error that does NOT wrap ErrClientClosed.
 func (c *Client) Shutdown(ctx context.Context) error {
 	rTyp, resp, err := c.SendMessage(ctx, MsgCloseConnection, nil)
 	if err != nil {
@@ -428,34 +456,32 @@ func (c *Client) Close() error {
 		close(c.done)
 		return nil
 	} else {
-		return errors.Wrap(ErrClientClosed, "close")
+		return errors.Wrap(ErrClientClosed, "attempt to close already closed connection")
 	}
 }
 
-// MaxBufferedPayloadSz is the maximum payload size permitted in responses.
-//
-// Although LLRP theoretically can handle message up to 4GiB,
-// in practice most messages are nowhere near this size.
-// One large manufacturer even states explicitly that
-// they'll simply close the connection if a message exceeds ~500KiB,
-// including outgoing tag reports.
-//
-// MessageHandlers aren't restricted to this limitation,
-// but as a result, require processing the message synchronously,
-// as the incoming message must be read in full (even if discarded)
-// before any other message can be read.
-const MaxBufferedPayloadSz = uint32((1 << 10) * 640)
-
 // SendFor sends an Outgoing message and expects the Incoming reply.
 //
-// If the Incoming message is an ErrorMessage it unmarshals it and returns that StatusError.
+// This method round-trips a typical LLRP message exchange
+// by marshaling the Outgoing message to LLRP binary,
+// sending the message and awaiting the reply,
+// and unmarshaling the result from LLRP binary to the Incoming struct.
 //
-// Otherwise, it unmarshals the incoming message to Incoming.
+// It is safe to call this method even if the Client isn't connected;
+// it blocks until the message is sent and a reply received,
+// unless the context is canceled.
+//
+// This method converts LLRP errors into *StatusErrors:
+// if the Incoming message is an ErrorMessage,
+// it unmarshals it and returns it as a *StatusError.
 // If the Incoming message is Statusable (i.e., has an LLRPStatus),
-// and the LLRPStatus is not Success, this returns a StatusError.
+// and that LLRPStatus is not Success, this converts it to a *StatusError.
 //
-// Even if this returns an error, Incoming may be fully or partially unmarshaled,
-// which may give context to the particular error.
+// Even if this returns a *StatusError,
+// Incoming may be fully or partially unmarshalled,
+// which may give useful context to the particular LLRP error details.
+// However, if the reply message type doesn't match Incoming's type,
+// it won't be unmarshalled, and this will return an error.
 func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	outData, err := out.MarshalBinary()
 	if err != nil {
@@ -616,7 +642,7 @@ func (c *Client) handleIncoming() error {
 				return errors.Wrap(err, "failed to get next message")
 			}
 
-			if !(errors.Is(err, io.EOF) || os.IsTimeout(err)) {
+			if !(errors.Is(err, io.EOF) || os.IsTimeout(err) || errors.Is(err, io.ErrClosedPipe)) {
 				return errors.Wrap(err, "timeout")
 			}
 
@@ -649,7 +675,8 @@ func (c *Client) handleIncoming() error {
 // If it encounters an error, it stops and returns it.
 // Otherwise, it serves messages until the Client is closed,
 // at which point it and all future calls return ErrClientClosed.
-// If this see CloseConnection, it stops processing messages.
+// If this sends MsgCloseConnection, it stops processing messages
+// and waits for the Client to close.
 //
 // While the connection is open,
 // KeepAliveAck messages are prioritized.
@@ -662,13 +689,13 @@ func (c *Client) handleOutgoing() error {
 
 		select {
 		case <-c.done:
-			return errors.Wrap(ErrClientClosed, "stopping outgoing")
+			return ErrClientClosed
 		case mid := <-c.ackQueue:
 			msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 		default:
 			select {
 			case <-c.done:
-				return errors.Wrap(ErrClientClosed, "stopping outgoing")
+				return ErrClientClosed
 			case mid := <-c.ackQueue:
 				msg = Message{Header: Header{id: mid, typ: MsgKeepAliveAck}}
 			case req := <-c.sendQueue:
@@ -736,7 +763,7 @@ func (c *Client) handleOutgoing() error {
 		if msg.typ == MsgCloseConnection {
 			// after CloseConnection, wait for reader to close
 			<-c.done
-			return errors.Wrap(ErrClientClosed, "client closed connection")
+			return ErrClientClosed
 		}
 
 		if msg.payloadLen == 0 {
@@ -747,6 +774,8 @@ func (c *Client) handleOutgoing() error {
 			return errors.Errorf("message data is nil, but has length >0 (%v)", msg)
 		}
 
+		// It assumes that msg.payload is cooperating and will return EOF
+		// or another error and blocks until then.
 		if n, err := io.Copy(c.conn, msg.payload); err != nil {
 			return errors.Wrapf(err, "write failed after %d bytes for %v", n, msg)
 		}
@@ -769,6 +798,24 @@ func (ackHandler) HandleMessage(c *Client, msg Message) {
 	}
 }
 
+// passToHandler passes control of the connection's read side
+// to the handler appropriate for the message indicated by the Header.
+//
+// Specifically, this means if something is awaiting a Reply,
+// it will send a Message on the replyChan and close it.
+// Usually, that Message includes the buffered payload,
+// but if the Header indicates a gigantic message, it's empty instead.
+//
+// If there's a MessageHandler for the type indicated by the Header,
+// or a default handler for otherwise unregistered types,
+// it'll then get called with a new Message instance.
+// If the payload is buffered already, we give it an io.Reader wrapping that;
+// otherwise it's an io.LimitedReader with the connection and payload length.
+// After the handler returns, that LimitedReader is drained to ioutil.Discard
+// to ensure the full payload has been read from the net.Conn.
+//
+// Handlers are called via handleGuarded to protect against panics.
+// A handler blocks reads from making progress.
 func (c *Client) passToHandler(hdr Header) (err error) {
 	handler := c.handlers[hdr.typ]
 
@@ -799,6 +846,9 @@ func (c *Client) passToHandler(hdr Header) (err error) {
 				return err
 			}
 
+			// This doesn't have to be a bytes.Buffer necessarily,
+			// but it must implement Bytes() ([]byte, error)
+			// so Message.data can distinguish buffered and unbuffered payloads.
 			payload = bytes.NewBuffer(buffResponse)
 			replyChan <- Message{Header: hdr, payload: bytes.NewBuffer(buffResponse)}
 		}
@@ -906,9 +956,10 @@ func (c *Client) send(ctx context.Context, m Message) (Message, error) {
 }
 
 // checkInitialMessage reads the first message off the connection,
-//
 // which should be a ReaderEventNotification with a successful ConnectEvent.
 // If it isn't, this returns an error.
+//
+// This skips the Client's send and
 func (c *Client) checkInitialMessage() error {
 	hdr, err := c.readHeader()
 	if err != nil {
@@ -942,11 +993,24 @@ func (c *Client) checkInitialMessage() error {
 		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
 	}
 
-	if ren.isConnectSuccess() {
-		return errors.Wrapf(err, "connection not successful: %+v", ren)
+	connAttempt := ren.ReaderEventNotificationData.ConnectionAttemptEvent
+	if connAttempt == nil {
+		return errors.Errorf("initial reader event did not include connection attempt: %v", ren)
 	}
 
-	return nil
+	switch ConnectionAttemptEventType(*connAttempt) {
+	case ConnSuccess:
+		return nil
+	case ConnExistsClientInitiated, ConnExistsReaderInitiated:
+		return errors.New("reader is already connected to another client")
+	case ConnAttemptedAgain:
+		// This status should never occur as the first message.
+		// If another Client is connected already,
+		// that Client should see this event, not us.
+		return errors.New("reader indicates we're already connected")
+	}
+
+	return errors.New("connection failed for unknown reasons")
 }
 
 // getSupportedVersion returns device's current and supported LLRP versions.
@@ -1026,19 +1090,14 @@ func (c *Client) negotiate() error {
 		return err
 	}
 
-	if sv.CurrentVersion == c.version {
-		return nil
+	// Use the max of our desired version & the Reader's max supported version.
+	if c.version > sv.MaxSupportedVersion {
+		c.version = sv.MaxSupportedVersion
 	}
 
-	ver := c.version
-	if c.version > sv.MaxSupportedVersion {
-		ver = sv.MaxSupportedVersion
-		c.version = ver
-
-		// if the device is already using this, no need to set it
-		if sv.CurrentVersion == c.version {
-			return nil
-		}
+	// If the device is already using this, no need to set it.
+	if sv.CurrentVersion == c.version {
+		return nil
 	}
 
 	m, err := NewByteMessage(MsgSetProtocolVersion, []byte{uint8(c.version)})
@@ -1063,5 +1122,10 @@ func (c *Client) negotiate() error {
 		return err
 	}
 
-	return resp.Close()
+	spvResp := &SetProtocolVersionResponse{}
+	if err := resp.UnmarshalTo(spvResp); err != nil {
+		return err
+	}
+
+	return spvResp.LLRPStatus.Err()
 }

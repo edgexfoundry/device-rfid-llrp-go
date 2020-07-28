@@ -263,7 +263,7 @@ func newMessage(data io.Reader, payloadLen uint32, typ MessageType) Message {
 		Header: Header{
 			payloadLen: payloadLen,
 			typ:        typ,
-			version:    versionMin,
+			version:    VersionMin,
 		},
 	}
 }

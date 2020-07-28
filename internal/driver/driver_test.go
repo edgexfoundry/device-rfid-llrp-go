@@ -47,34 +47,42 @@ type edgexCompatTestLogger struct {
 	*testing.T
 }
 
-func (e edgexCompatTestLogger) SetLogLevel(logLevel string) error {
+func (e edgexCompatTestLogger) SetLogLevel(_ string) error {
 	return nil
 }
 
+func (e edgexCompatTestLogger) Trace(msg string, args ...interface{}) {
+	if testing.Verbose() {
+		e.Logf("TRACE: "+msg, args...)
+	}
+}
+
 func (e edgexCompatTestLogger) Debug(msg string, args ...interface{}) {
-	e.Logf("DEBUG: "+msg, args...)
+	if testing.Verbose() {
+		e.Logf("DEBUG: "+msg, args...)
+	}
+}
+
+func (e edgexCompatTestLogger) Info(msg string, args ...interface{}) {
+	if testing.Verbose() {
+		e.Logf(" INFO: "+msg, args...)
+	}
+}
+
+func (e edgexCompatTestLogger) Warn(msg string, args ...interface{}) {
+	if testing.Verbose() {
+		e.Logf(" WARN: "+msg, args...)
+	}
 }
 
 func (e edgexCompatTestLogger) Error(msg string, args ...interface{}) {
 	e.Logf("ERROR: "+msg, args...)
 }
 
-func (e edgexCompatTestLogger) Info(msg string, args ...interface{}) {
-	e.Logf(" INFO: "+msg, args...)
-}
-
-func (e edgexCompatTestLogger) Trace(msg string, args ...interface{}) {
-	e.Logf("TRACE: "+msg, args...)
-}
-
-func (e edgexCompatTestLogger) Warn(msg string, args ...interface{}) {
-	e.Logf(" WARN: "+msg, args...)
-}
-
 func TestHandleRead(t *testing.T) {
 	// c := llrp.GetFunctionalClient(t, "192.168.86.88:5084")
 
-	rfid, err := llrp.NewTestDevice(llrp.Version1_0_1, llrp.Version1_1, time.Second*1)
+	rfid, err := llrp.NewTestDevice(llrp.Version1_0_1, llrp.Version1_1, time.Second*1, !testing.Verbose())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,9 +95,18 @@ func TestHandleRead(t *testing.T) {
 	go rfid.ImpersonateReader()
 	c := rfid.ConnectClient(t)
 
+	elog := edgexCompatTestLogger{t}
 	d := &Driver{
-		lc:      edgexCompatTestLogger{t},
-		clients: map[string]*llrp.Client{"localReader": c},
+		lc:            elog,
+		activeDevices: make(map[string]*LLRPDevice),
+	}
+
+	// This is a bit dirty. The point of the LLRPDevice is largely for retry logic,
+	// but that's a real pain without abstracting around something like a net.Listener.
+	d.activeDevices["localReader"] = &LLRPDevice{
+		name:   "localReader",
+		client: c,
+		lc:     elog,
 	}
 
 	for _, testCase := range []struct {

@@ -79,16 +79,13 @@ func collectData() error {
 		return err
 	}
 
-	r, err := NewClient(conn)
-	if err != nil {
-		return err
-	}
+	r := NewClient()
 	defer r.Close()
 
 	connErrs := make(chan error, 1)
 	go func() {
 		defer close(connErrs)
-		connErrs <- r.Connect()
+		connErrs <- r.Connect(conn)
 	}()
 
 	if r.version > Version1_0_1 {
