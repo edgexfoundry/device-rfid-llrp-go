@@ -33,7 +33,7 @@ type Driver struct {
 	asyncCh  chan<- *dsModels.AsyncValues
 	deviceCh chan<- []dsModels.DiscoveredDevice
 
-	activeDevices map[string]*Lurpper
+	activeDevices map[string]*LLRPDevice
 	devicesMu     sync.RWMutex
 
 	svc ServiceWrapper
@@ -42,7 +42,7 @@ type Driver struct {
 func NewProtocolDriver() dsModels.ProtocolDriver {
 	once.Do(func() {
 		driver = &Driver{
-			activeDevices: make(map[string]*Lurpper),
+			activeDevices: make(map[string]*LLRPDevice),
 		}
 	})
 	return driver
@@ -382,7 +382,7 @@ func (d *Driver) Stop(force bool) error {
 	}
 
 	for _, dev := range d.activeDevices {
-		go func(dev *Lurpper) {
+		go func(dev *LLRPDevice) {
 			d.stopDevice(ctx, dev)
 			if !force {
 				wg.Done()
@@ -390,7 +390,7 @@ func (d *Driver) Stop(force bool) error {
 		}(dev)
 	}
 
-	d.activeDevices = make(map[string]*Lurpper)
+	d.activeDevices = make(map[string]*LLRPDevice)
 	return nil
 }
 
@@ -441,7 +441,7 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 // If a Client with this name already exists, it returns it.
 // Otherwise, calls the createNew function to get a new Client,
 // which it adds to the map and then returns.
-func (d *Driver) getDevice(name string, p protocolMap) (*Lurpper, error) {
+func (d *Driver) getDevice(name string, p protocolMap) (*LLRPDevice, error) {
 	// Try with just a read lock.
 	d.devicesMu.RLock()
 	c, ok := d.activeDevices[name]
@@ -470,7 +470,7 @@ func (d *Driver) getDevice(name string, p protocolMap) (*Lurpper, error) {
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
-	dev = d.NewLurpper(name, addr)
+	dev = d.NewLLRPDevice(name, addr)
 	d.activeDevices[name] = dev
 	return dev, nil
 }
@@ -492,7 +492,7 @@ func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
 // closing any active connection it may currently have.
 // Any pending requests targeting that device may fail.
 // This doesn't remove it from the devices map.
-func (d *Driver) stopDevice(ctx context.Context, dev *Lurpper) {
+func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
 	if err := dev.Stop(ctx); err != nil {
 		d.lc.Error("Error attempting client shutdown.", "error", err.Error())
 	}

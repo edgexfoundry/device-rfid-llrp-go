@@ -98,12 +98,12 @@ func TestHandleRead(t *testing.T) {
 	elog := edgexCompatTestLogger{t}
 	d := &Driver{
 		lc:            elog,
-		activeDevices: make(map[string]*Lurpper),
+		activeDevices: make(map[string]*LLRPDevice),
 	}
 
-	// This is a bit dirty. The point of the Lurpper is largely for retry logic,
+	// This is a bit dirty. The point of the LLRPDevice is largely for retry logic,
 	// but that's a real pain without abstracting around something like a net.Listener.
-	d.activeDevices["localReader"] = &Lurpper{
+	d.activeDevices["localReader"] = &LLRPDevice{
 		name:   "localReader",
 		client: c,
 		lc:     elog,

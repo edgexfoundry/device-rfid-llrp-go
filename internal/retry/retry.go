@@ -179,6 +179,7 @@ func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err err
 	defer func() {
 		cancel()
 		signal.Stop(osSig)
+		close(osSig)
 	}()
 
 	go func() {

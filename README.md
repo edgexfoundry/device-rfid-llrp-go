@@ -66,7 +66,7 @@ Note that it can take up to two minutes before the dropped connection is detecte
 
 These values are not currently configurable,
 but they are easy to change before building
-within [this code](internal/driver/lurp.go).
+within [this code](internal/driver/device.go).
 Future work may make these configurable
 and/or automatically set up a KeepAlive spec on connection.
 

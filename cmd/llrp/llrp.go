@@ -228,6 +228,12 @@ func getClient() *llrp.Client {
 }
 
 func getSpec() (*llrp.ROSpec, error) {
+	if doAdd && roSpecPath == "" {
+		return nil, errors.New("missing ROSpec file path; required when add is true")
+	} else if roSpecPath == "" {
+		return &llrp.ROSpec{}, nil
+	}
+
 	data, err := ioutil.ReadFile(roSpecPath)
 	if err != nil {
 		return nil, err

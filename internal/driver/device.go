@@ -28,15 +28,19 @@ const (
 	noMsgTimeout = time.Second * 120 // resets the connection if more than 120s pass without a message.
 )
 
-// Lurpper represents a managed connection to an RFID Reader that speaks LLRP.
+// LLRPDevice represents a managed connection to a device that speaks LLRP.
+// It is safe to use an LLRPDevice's methods concurrently.
 //
-// It self-manages its connection,
-// redialing and reconnecting when it drops.
-// It'll continue to do so until we tell it to Stop.
+// It self-manages its connection, redialing and reconnecting if it drops.
+// It'll continue to do so until you tell it to Stop,
+// after which it no longer receives reports/event notifications,
+// and all TrySend attempts will fail.
 //
-// We create it with some handlers to notify the driver about
-// incoming ROAccessReports & ReaderEventNotifications.
-type Lurpper struct {
+// The device notifies the driver
+// of incoming ROAccessReports & ReaderEventNotifications.
+// It does some processing on incoming reports and events
+// to make them more useful to down-the-line consumers.
+type LLRPDevice struct {
 	// Although the driver package can access these directly,
 	// it's important to use the methods instead
 	// to ensure it can properly handle connect/reconnect behavior.
@@ -47,19 +51,24 @@ type Lurpper struct {
 	addrMu  sync.RWMutex
 	address net.Addr
 
-	lurpMu sync.RWMutex // we'll recreate client if it closes
-	client *llrp.Client
-	cancel context.CancelFunc
+	clientLock sync.RWMutex // we'll recreate client if it closes
+	client     *llrp.Client
+	cancel     context.CancelFunc // stops the reconnect process
 }
 
-func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
+// NewLLRPDevice returns an LLRPDevice which attempts to connect to the given address.
+//
+// It will continue to maintain this connection until Stop is called
+// and will forward (semi)-processed ROAccessReports and ReaderEventNotifications
+// to the driver.
+func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 	// We need a context to manage cancellation in some of the methods below,
 	// and as a bonus, we can use it to simplify Stopping reattempts
 	// when the driver shuts down.
 	ctx, cancel := context.WithCancel(context.Background())
 	// don't defer cancel() here; we only cancel() when Stop() is called.
 
-	l := &Lurpper{
+	l := &LLRPDevice{
 		name:    name,
 		cancel:  cancel,
 		address: address,
@@ -142,9 +151,9 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 				// Replace the client, but don't start it until the next time we're connected.
 				// Doing so allows new Send requests to wait until the connection opens.
 				c = llrp.NewClient(opts...)
-				l.lurpMu.Lock()
+				l.clientLock.Lock()
 				l.client = c
-				l.lurpMu.Unlock()
+				l.clientLock.Unlock()
 
 				return true, clientErr
 			})
@@ -158,13 +167,13 @@ func (d *Driver) NewLurpper(name string, address net.Addr) *Lurpper {
 
 // TrySend works like llrp.SendFor,
 // but will reattempt the send a few times if it fails due to a closed reader.
-func (l *Lurpper) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp.Incoming) error {
+func (l *LLRPDevice) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp.Incoming) error {
 	return retry.Quick.RetryWithCtx(ctx, maxRetries, func(ctx context.Context) (bool, error) {
 		l.lc.Debug("Attempting send.", "device", l.name, "message", request.Type().String())
 
-		l.lurpMu.RLock()
+		l.clientLock.RLock()
 		c := l.client
-		l.lurpMu.RUnlock()
+		l.clientLock.RUnlock()
 		if c == nil {
 			return true, errors.New("no client available")
 		}
@@ -180,9 +189,9 @@ func (l *Lurpper) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp
 // it'll attempt a graceful shutdown.
 // Otherwise/if the context is canceled/times out before completion,
 // it forcefully closes the connection.
-func (l *Lurpper) Stop(ctx context.Context) error {
-	l.lurpMu.Lock()
-	defer l.lurpMu.Unlock()
+func (l *LLRPDevice) Stop(ctx context.Context) error {
+	l.clientLock.Lock()
+	defer l.clientLock.Unlock()
 
 	if l.cancel != nil {
 		l.cancel()
@@ -192,25 +201,25 @@ func (l *Lurpper) Stop(ctx context.Context) error {
 	return l.closeLocked(ctx)
 }
 
-// UpdateAddr updates the Lurpper to connect to a device at a different address.
+// UpdateAddr updates the device address.
 //
-// If the Lurpper was Stopped, this won't start it, and this has no practical effect.
+// If the device were Stopped, this won't start it, and this has no practical effect.
 // It may return an error if closing the current connection fails for some reason.
 // Nevertheless, it updates the address and will attempt to use it the next time it connects.
-func (l *Lurpper) UpdateAddr(ctx context.Context, addr net.Addr) error {
+func (l *LLRPDevice) UpdateAddr(ctx context.Context, addr net.Addr) error {
 	l.addrMu.Lock()
 	l.address = addr
 	l.addrMu.Unlock()
 
-	l.lurpMu.Lock()
-	defer l.lurpMu.Unlock()
+	l.clientLock.Lock()
+	defer l.clientLock.Unlock()
 	return l.closeLocked(ctx)
 }
 
 // closeLocked closes the current Client connection,
 // but doesn't cancel it's context, so it'll restart on the next round.
 // You must be holding the lock when you call this.
-func (l *Lurpper) closeLocked(ctx context.Context) error {
+func (l *LLRPDevice) closeLocked(ctx context.Context) error {
 	if l.client == nil {
 		return nil
 	}
@@ -236,7 +245,7 @@ func (l *Lurpper) closeLocked(ctx context.Context) error {
 
 // newReaderEventHandler returns an llrp.MessageHandler bound to the l and d instances
 // that converts the notification to an EdgeX event and sends it on d's asyncCh.
-func newReaderEventHandler(l *Lurpper, d *Driver) llrp.MessageHandler {
+func newReaderEventHandler(l *LLRPDevice, d *Driver) llrp.MessageHandler {
 	return llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
 		event := &llrp.ReaderEventNotification{}
 
@@ -263,7 +272,7 @@ func newReaderEventHandler(l *Lurpper, d *Driver) llrp.MessageHandler {
 
 // newROHandler returns an llrp.MessageHandler bound to the l and d instances
 // that processes the report to one or more EdgeX events and sends them on d's asyncCh.
-func newROHandler(l *Lurpper, d *Driver) llrp.MessageHandler {
+func newROHandler(l *LLRPDevice, d *Driver) llrp.MessageHandler {
 	return llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
 		report := &llrp.ROAccessReport{}
 
@@ -273,7 +282,7 @@ func newROHandler(l *Lurpper, d *Driver) llrp.MessageHandler {
 		}
 
 		// todo: here we can add custom logic when processing tag report data.
-		//  We should populate some fields on the Lurpper when we initially connect.
+		//  We should populate some fields on the LLRPDevice when we initially connect.
 		//  Namely, it should grab device capabilities, config, & ro specs,
 		//  since they are needed to disambiguate nils and timestamps within a report.
 		//  If the reader doesn't have a UTC clock,
