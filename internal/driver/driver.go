@@ -9,80 +9,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
+	"github.com/edgexfoundry/device-sdk-go/pkg/service"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
 	"net"
 	"sync"
 	"time"
-
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 )
 
 const (
-	ServiceName string = "edgex-device-llrp"
-)
+	ServiceName = "edgex-device-llrp"
 
-var once sync.Once
-var driver *Driver
-
-type Driver struct {
-	lc       logger.LoggingClient
-	asyncCh  chan<- *dsModels.AsyncValues
-	deviceCh chan<- []dsModels.DiscoveredDevice
-
-	activeDevices map[string]*LLRPDevice
-	devicesMu     sync.RWMutex
-
-	svc ServiceWrapper
-}
-
-func NewProtocolDriver() dsModels.ProtocolDriver {
-	once.Do(func() {
-		driver = &Driver{
-			activeDevices: make(map[string]*LLRPDevice),
-		}
-	})
-	return driver
-}
-
-func (d *Driver) service() ServiceWrapper {
-	if d.svc == nil {
-		d.svc = RunningService()
-	}
-	return d.svc
-}
-
-// Initialize performs protocol-specific initialization for the device
-// service.
-func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
-	if lc == nil {
-		// prevent panics from this annoyance
-		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
-		d.lc.Error("EdgeX initialized us with a nil logger >:(")
-	} else {
-		d.lc = lc
-	}
-
-	d.asyncCh = asyncCh
-	d.deviceCh = deviceCh
-
-	go func() {
-		// hack: sleep to allow edgex time to finish loading cache and clients
-		time.Sleep(5 * time.Second)
-
-		d.addProvisionWatcher()
-		// todo: check configuration to make sure discovery is enabled
-		d.Discover()
-	}()
-	return nil
-}
-
-type protocolMap = map[string]contract.ProtocolProperties
-
-const (
 	ResourceReaderCap          = "ReaderCapabilities"
 	ResourceReaderConfig       = "ReaderConfig"
 	ResourceReaderNotification = "ReaderEventNotification"
@@ -98,7 +39,87 @@ const (
 	ActionDisable  = "Disable"
 	ActionStart    = "Start"
 	ActionStop     = "Stop"
+
+	provisionWatcherFilename = "res/provisionwatcher.json"
+
+	LLRPDeviceProfile = "Device.LLRP.Profile"
 )
+
+var (
+	createOnce    sync.Once
+	provisionOnce sync.Once
+	driver        *Driver
+)
+
+type protocolMap = map[string]contract.ProtocolProperties
+
+type Driver struct {
+	lc       logger.LoggingClient
+	asyncCh  chan<- *dsModels.AsyncValues
+	deviceCh chan<- []dsModels.DiscoveredDevice
+
+	activeDevices map[string]*LLRPDevice
+	devicesMu     sync.RWMutex
+
+	config *driverConfiguration
+
+	svc ServiceWrapper
+
+	debounceTimer *time.Timer
+	debounceMu    sync.Mutex
+}
+
+func NewProtocolDriver() dsModels.ProtocolDriver {
+	createOnce.Do(func() {
+		driver = &Driver{
+			activeDevices: make(map[string]*LLRPDevice),
+		}
+	})
+	return driver
+}
+
+// Initialize performs protocol-specific initialization for the device
+// service.
+func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
+	if lc == nil {
+		// prevent panics from this annoyance
+		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc.Error("EdgeX initialized us with a nil logger >:(")
+	} else {
+		d.lc = lc
+	}
+
+	d.asyncCh = asyncCh
+	d.deviceCh = deviceCh
+	d.svc = &DeviceSDKService{service.RunningService()}
+
+	config, err := CreateDriverConfig(d.svc.DriverConfigs())
+	if err != nil {
+		return errors.Wrap(err, "read driver configuration failed")
+	}
+
+	d.config = config
+	d.lc.Debug(fmt.Sprintf("%+v", config))
+
+	go func() {
+		// todo: how to know when this is ready
+		time.Sleep(5 * time.Second)
+
+		// startup all devices
+		for _, dev := range d.svc.Devices() {
+			if dev.Profile.Name != LLRPDeviceProfile {
+				// skip devices that are not llrp readers
+				// todo: does this only return devices added by this service?
+				continue
+			}
+			if _, err := d.getDevice(dev.Name, dev.Protocols); err != nil {
+				d.lc.Error(err.Error())
+			}
+		}
+	}()
+
+	return nil
+}
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
@@ -399,6 +420,7 @@ func (d *Driver) Stop(force bool) error {
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
+
 	_, err := d.getDevice(deviceName, protocols)
 	return err
 }
@@ -502,46 +524,54 @@ func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 func getAddr(protocols protocolMap) (net.Addr, error) {
-	tcpInfo := protocols["tcp"]
-	if tcpInfo == nil {
+	tcp := protocols["tcp"]
+	if tcp == nil {
 		return nil, errors.New("missing tcp protocol")
 	}
 
-	host := tcpInfo["host"]
-	port := tcpInfo["port"]
-	if host == "" || port == "" {
-		return nil, errors.Errorf("tcp missing host or port (%q, %q)", host, port)
+	if tcp["host"] == "" || tcp["port"] == "" {
+		return nil, errors.Errorf("tcp missing required information - host: %s, port: %s", tcp["host"], tcp["port"])
 	}
 
-	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
+	address := tcp["host"] + ":" + tcp["port"]
+	addr, err := net.ResolveTCPAddr("tcp", address)
 	return addr, errors.Wrapf(err,
-		"unable to create addr for tcp protocol (%q, %q)", host, port)
+		"unable to create addr for tcp protocol (%q)", address)
 }
 
 func (d *Driver) addProvisionWatcher() error {
 	var provisionWatcher contract.ProvisionWatcher
-	data, err := ioutil.ReadFile("res/provisionwatcher.json")
+	data, err := ioutil.ReadFile(provisionWatcherFilename)
 	if err != nil {
-		d.lc.Error(err.Error())
 		return err
 	}
 
 	err = provisionWatcher.UnmarshalJSON(data)
 	if err != nil {
-		d.lc.Error(err.Error())
 		return err
 	}
 
-	if err := d.service().AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
-		d.lc.Info(err.Error())
+	if err := d.svc.AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// Discover performs a discovery of LLRP readers on the network and passes them to EdgeX to get provisioned
 func (d *Driver) Discover() {
-	d.lc.Info("*** Discover was called ***")
-	d.deviceCh <- autoDiscover()
-	d.lc.Info("scanning complete")
+	d.lc.Info("discover was called")
+
+	provisionOnce.Do(func() {
+		err := d.addProvisionWatcher()
+		if err != nil {
+			d.lc.Error(err.Error())
+			return
+		}
+	})
+
+	t1 := time.Now()
+	result := autoDiscover()
+	d.deviceCh <- result
+	d.lc.Info(fmt.Sprintf("discovered %d new devices in %v", len(result), time.Now().Sub(t1)))
 }

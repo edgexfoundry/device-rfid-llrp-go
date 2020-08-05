@@ -107,12 +107,39 @@ func NewTestDevice(maxReaderVer, maxClientVer VersionNum, timeout time.Duration,
 		w:      newMsgWriter(rConn, Version1_0_1),
 	}
 
-	reader.handlers[MsgGetSupportedVersion] = MessageHandlerFunc(td.getSupportedVersion)
-	reader.handlers[MsgSetProtocolVersion] = MessageHandlerFunc(td.setVersion)
-	reader.handlers[MsgCloseConnection] = MessageHandlerFunc(td.closeConnection)
-	reader.defaultHandler = MessageHandlerFunc(td.handleUnknownMessage)
+	td.setupInitialHandlers()
 
 	return &td, nil
+}
+
+// NewReaderOnlyTestDevice returns a TestDevice which only manages the Reader (aka Server)
+// portion of the communication, attaching to an existing net.Conn
+func NewReaderOnlyTestDevice(conn net.Conn, silent bool) (*TestDevice, error) {
+	logOpt := WithStdLogger("test")
+	if silent {
+		logOpt = WithLogger(nil)
+	}
+
+	reader := NewClient(WithVersion(Version1_0_1), logOpt)
+	reader.conn = conn
+
+	td := TestDevice{
+		rConn:  conn,
+		reader: reader,
+		maxVer: VersionMax,
+		w:      newMsgWriter(conn, Version1_0_1),
+	}
+
+	td.setupInitialHandlers()
+
+	return &td, nil
+}
+
+func (td *TestDevice) setupInitialHandlers() {
+	td.reader.handlers[MsgGetSupportedVersion] = MessageHandlerFunc(td.getSupportedVersion)
+	td.reader.handlers[MsgSetProtocolVersion] = MessageHandlerFunc(td.setVersion)
+	td.reader.handlers[MsgCloseConnection] = MessageHandlerFunc(td.closeConnection)
+	td.reader.defaultHandler = MessageHandlerFunc(td.handleUnknownMessage)
 }
 
 func (td *TestDevice) SetResponse(mt MessageType, out Outgoing) {
@@ -259,7 +286,7 @@ func (td *TestDevice) Close() (err error) {
 
 	err = td.w.Write(
 		messageID(atomic.AddUint32((*uint32)(&td.mid), 1)),
-		NewConnectMessage(ConnSuccess))
+		NewCloseMessage())
 	return
 }
 
@@ -270,6 +297,9 @@ func (td *TestDevice) closeConnection(_ *Client, msg Message) {
 	}
 
 	td.write(msg.id, &CloseConnectionResponse{})
+
+	_ = td.reader.Close()
+	_ = td.rConn.Close()
 }
 
 // ConnectClient correctly connects the Client to the TestDevice and returns it.

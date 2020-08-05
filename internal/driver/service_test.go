@@ -1,3 +1,8 @@
+//
+// Copyright (C) 2020 Intel Corporation
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package driver
 
 import (
@@ -6,59 +11,61 @@ import (
 	"sync/atomic"
 )
 
-type MockSdkService struct {
+type MockSDKService struct {
 	devices map[string]contract.Device
 	added   uint32
+	Config  map[string]string
 }
 
-func NewMockSdkService() *MockSdkService {
-	return &MockSdkService{
+func NewMockSdkService() *MockSDKService {
+	return &MockSDKService{
 		devices: make(map[string]contract.Device),
 	}
 }
 
-func (s *MockSdkService) clearDevices() {
+func (s *MockSDKService) clearDevices() {
 	s.devices = make(map[string]contract.Device)
 	s.resetAddedCount()
 }
 
-func (s *MockSdkService) resetAddedCount() {
+func (s *MockSDKService) resetAddedCount() {
 	atomic.StoreUint32(&s.added, 0)
 }
 
-func (s *MockSdkService) Devices() []contract.Device {
-	devices := make([]contract.Device, 0, len(s.devices))
+func (s *MockSDKService) Devices() []contract.Device {
+	devices := make([]contract.Device, len(s.devices))
 	for _, v := range s.devices {
 		devices = append(devices, v)
 	}
 	return devices
 }
 
-func (s *MockSdkService) AddDiscoveredDevices(discovered []dsModels.DiscoveredDevice) {
+func (s *MockSDKService) AddDiscoveredDevices(discovered []dsModels.DiscoveredDevice) {
 	for _, d := range discovered {
-		device := contract.Device{
-			Name:            d.Name,
-			Protocols:       d.Protocols,
-		}
-
-		s.devices[device.Name] = device
-		if device.Id == "" {
-			device.Id = device.Name
-		}
-		atomic.AddUint32(&s.added, 1)
+		_, _ = s.AddDevice(contract.Device{
+			Name:      d.Name,
+			Protocols: d.Protocols,
+			Profile: contract.DeviceProfile{
+				Name: LLRPDeviceProfile,
+			},
+		})
 	}
 }
 
-func (s *MockSdkService) AddDevice(device contract.Device) (id string, err error) {
-	s.devices[device.Name] = device
+func (s *MockSDKService) AddDevice(device contract.Device) (id string, err error) {
 	if device.Id == "" {
 		device.Id = device.Name
 	}
+	s.devices[device.Name] = device
 	atomic.AddUint32(&s.added, 1)
 	return device.Id, nil
 }
 
-func (s *MockSdkService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
+func (s *MockSDKService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
 	// todo: implement mock
 	return nil
+}
+
+func (s *MockSDKService) DriverConfigs() map[string]string {
+	return s.Config
 }

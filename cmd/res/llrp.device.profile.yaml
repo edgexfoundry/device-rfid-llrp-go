@@ -94,13 +94,11 @@ deviceCommands:
   - name: capabilities
     get:
       - { index: "1", operation: "get", deviceResource: "ReaderCapabilities"}
-
   - name: config
     get:
       - { index: "1", operation: "get", deviceResource: "ReaderConfig"}
     set:
       - { index: "1", operation: "set", deviceResource: "ReaderConfig"}
-
   - name: roSpec
     get:
       - { index: "1", operation: "get", deviceResource: "ROSpec"}

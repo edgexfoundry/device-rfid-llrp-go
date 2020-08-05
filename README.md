@@ -39,11 +39,79 @@ in an effort to discover devices that support LLRP.
 This discovery also happens at a regular interval and can be configured via 
 [EdgeX Consul](http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/) 
 for existing installations, 
-and [configuration.toml](cmd/res/configuration.toml) for default values.
+and [configuration.toml](cmd/res/docker/configuration.toml) for default values.
 
-The local network is probed for every IP on the default LLRP port (`5084`). 
-If a device returns LLRP response messages, 
-a new EdgeX device is generated under the name format `IP_Port`, like so: `192.0.2.1_1234`.  
+The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml](cmd/res/docker/configuration.toml) file.
+```toml
+[Driver]
+# NOTE: Items in the Driver section MUST be in quotes, even for numbers due to EdgeX limitation
+
+# List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+# separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+DiscoverySubnets = ""
+
+# Maximum simultaneous network probes
+ProbeAsyncLimit = "1000"
+
+# Maximum amount of seconds to wait for each IP probe before timing out
+# (this will also be the min time a discovery will take, but not the max)
+ProbeTimeoutSeconds = "2"
+
+# Port to scan for LLRP devices on
+ScanPort = "5084"
+```
+
+Discovery can be manually triggered via REST:
+```
+[POST http://<hostname>:<device-llrp-go port>/api/v1/discovery]
+curl -X POST http://localhost:51992/api/v1/discovery
+```
+
+The subnets provided in the configuration field `DiscoverySubnets` is probed for every IP at the specified `ScanPort` (default `5084`). 
+If a device returns LLRP response messages, a new EdgeX device is created.
+
+### EdgeX Device Naming
+EdgeX device names are generated from information it receives from the LLRP device. 
+In the case of Impinj readers, this devcice name *should* match the device's hostname given by
+Impinj, however the hostname information is not available through LLRP, 
+so the generated name may differ in certain edge cases.
+
+The device names are generated using the following naming format:
+```
+<Prefix>-<ID>
+```
+
+`<Prefix>` is generated based on the Vendor and Model of the LLRP device. 
+If the device is a model with a known naming scheme such as most Impinj readers,
+the prefix will be set accordingly, otherwise it will default to `LLRP`.
+
+`<ID>` field is based on the LLRP value `GetReaderConfigResponse.Identification.ReaderID` and can be one of two things. 
+
+If the LLRP device returns a MAC address (`ID_MAC_EUI64`)
+for the `GetReaderConfigResponse.Identification.IDType` field, the **last 3 octets**
+of the mac address will be used in the following format: `XX-XX-XX`.
+So given the following MAC address `00:ef:16:19:fe:16`, the `<ID>` portion of
+the device name would be `19-FE-16`.
+
+If the LLRP device returns an EPC (`ID_EPC`)
+for the `GetReaderConfigResponse.Identification.IDType` field, the entire 
+value of the `GetReaderConfigResponse.Identification.ReaderID` field
+is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-12fec5432453df3ac`
+
+#### Example Device Names by Model
+##### MAC based
+- **Impinj Speedway R120, R220, R420, R700 and xPortal:**
+    - `SpeedwayR-19-FE-16`
+- **Impinj xSpan:**
+    - `xSpan-19-FE-16`
+- **Impinj xArray, xArray EAP and xArray WM:**
+    - `xArray-19-FE-16`
+- **Other Vendors and Unknown Models**
+    - `LLRP-19-FE-16`
+
+##### EPC based
+- **Other Vendors and Unknown Models**
+    - `LLRP-12fec5432453df3ac`
 
 ## Connection Management
 After an LLRP device is added, either via discovery or directly through EdgeX,

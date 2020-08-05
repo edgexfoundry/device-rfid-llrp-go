@@ -1,9 +1,15 @@
+//
+// Copyright (C) 2020 Intel Corporation
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package driver
 
 import (
 	"encoding/binary"
 	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"net"
 	"os"
 	"strconv"
@@ -26,16 +32,21 @@ var (
 
 func TestMain(m *testing.M) {
 	NewProtocolDriver()
+
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
+	driver.config = &driverConfiguration{
+		DiscoverySubnets:    []string{"127.0.0.1/32"},
+		ProbeAsyncLimit:     1000,
+		ProbeTimeoutSeconds: 1,
+		ScanPort:            "50923",
+	}
 
 	os.Exit(m.Run())
 }
 
 func TestAutoDiscover(t *testing.T) {
-	oldPortStr := llrpPortStr
-	llrpPortStr = "50923"
-
+	t.Parallel()
 	// attempt to discover without emulator, expect none found
 	svc.clearDevices()
 	discovered := autoDiscover()
@@ -44,25 +55,96 @@ func TestAutoDiscover(t *testing.T) {
 	}
 
 	// attempt to discover WITH emulator, expect emulator to be found
-	port, _ := strconv.Atoi(llrpPortStr)
-	go emuServer(port)
+	port, err := strconv.Atoi(driver.config.ScanPort)
+	if err != nil {
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
+	}
+	emu := llrp.NewTestEmulator()
+	if err := emu.StartAsync(port); err != nil {
+		t.Fatal("unable to start emulator: " + err.Error())
+	}
+
+	readerConfig := llrp.GetReaderConfigResponse{
+		Identification: &llrp.Identification{
+			IDType:   llrp.ID_MAC_EUI64,
+			ReaderID: []byte{0x00, 0x00, 0x00, 0x00, 0x19, 0xC5, 0xD6},
+		},
+	}
+	emu.SetResponse(llrp.MsgGetReaderConfig, &readerConfig)
+
+	readerCaps := llrp.GetReaderCapabilitiesResponse{
+		GeneralDeviceCapabilities: &llrp.GeneralDeviceCapabilities{
+			MaxSupportedAntennas:    4,
+			CanSetAntennaProperties: false,
+			HasUTCClock:             true,
+			DeviceManufacturer:      uint32(Impinj),
+			Model:                   uint32(SpeedwayR420),
+			FirmwareVersion:         "5.14.0.240",
+		},
+	}
+	emu.SetResponse(llrp.MsgGetReaderCapabilities, &readerCaps)
+
 	discovered = autoDiscover()
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
+	}
+	if discovered[0].Name != "SpeedwayR-19-C5-D6" {
+		t.Errorf("expected discovered device's name to be SpeedwayR-19-C5-D6, but was: %s", discovered[0].Name)
 	}
 	svc.AddDiscoveredDevices(discovered)
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
 	svc.resetAddedCount()
-	go emuServer(port)
 	discovered = autoDiscover()
 	if len(discovered) != 0 {
 		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
 	}
 
+	// update reader id and model information
+	readerConfig.Identification.ReaderID = []byte{0x00, 0x00, 0x00, 0x00, 0x25, 0x9C, 0xD4}
+	readerCaps.GeneralDeviceCapabilities.Model = uint32(XArray)
+	// clear and re-discover
+	svc.clearDevices()
+	discovered = autoDiscover()
+	if len(discovered) != 1 {
+		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
+	}
+	if discovered[0].Name != "xArray-25-9C-D4" {
+		t.Errorf("expected discovered device's name to be xArray-25-9C-D4, but was: %s", discovered[0].Name)
+	}
+
+	// update reader id and model information
+	readerConfig.Identification.ReaderID = []byte{0x00, 0x00, 0x00, 0x00, 0xFC, 0x4D, 0x1A}
+	readerCaps.GeneralDeviceCapabilities.DeviceManufacturer = uint32(0x32) // unknown vendor
+	readerCaps.GeneralDeviceCapabilities.Model = uint32(0x32)              // unknown model
+	// clear and re-discover
+	svc.clearDevices()
+	discovered = autoDiscover()
+	if len(discovered) != 1 {
+		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
+	}
+	if discovered[0].Name != "LLRP-FC-4D-1A" {
+		t.Errorf("expected discovered device's name to be LLRP-FC-4D-1A, but was: %s", discovered[0].Name)
+	}
+
+	// update reader id and model information
+	readerConfig.Identification.IDType = llrp.ID_EPC                                        // test non-mac id types
+	readerConfig.Identification.ReaderID = []byte{0x00, 0x1A, 0x00, 0x4F, 0xD9, 0xCA, 0x2B} // will be used as-is, not parsed
+	// clear and re-discover
+	svc.clearDevices()
+	discovered = autoDiscover()
+	if len(discovered) != 1 {
+		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
+	}
+	if discovered[0].Name != "LLRP-001a004fd9ca2b" {
+		t.Errorf("expected discovered device's name to be LLRP-001a004fd9ca2b, but was: %s", discovered[0].Name)
+	}
+
+	if err := emu.Shutdown(); err != nil {
+		t.Errorf("error shutting down test emulator: %s", err.Error())
+	}
 	// reset
 	svc.clearDevices()
-	llrpPortStr = oldPortStr
 }
 
 // computeNetSz computes the amount of IPs in a subnet for testing purposes
@@ -73,7 +155,7 @@ func computeNetSz(subnetSz int) uint32 {
 	return ^uint32(0)>>subnetSz - 1
 }
 
-func mockIpWorker(wg *sync.WaitGroup, ipCh <-chan uint32, result *inetTest) {
+func mockIpWorker(ipCh <-chan uint32, result *inetTest) {
 	ip := net.IP([]byte{0, 0, 0, 0})
 	var last uint32
 
@@ -87,36 +169,28 @@ func mockIpWorker(wg *sync.WaitGroup, ipCh <-chan uint32, result *inetTest) {
 		}
 		binary.BigEndian.PutUint32(ip, last)
 		result.last = ip.String()
-
-		wg.Done()
 	}
 
-}
-
-func mockIPv4NetGenerator(input inetTest, result *inetTest) <-chan *net.IPNet {
-	netCh := make(chan *net.IPNet)
-	go func() {
-		_, inet, err := net.ParseCIDR(input.inet)
-		if err != nil {
-			result.err = true
-		} else {
-			netCh <- inet
-		}
-		close(netCh)
-	}()
-	return netCh
 }
 
 func ipGeneratorTest(input inetTest) (result inetTest) {
 	var wg sync.WaitGroup
 	ipCh := make(chan uint32, input.size)
 
-	netCh := mockIPv4NetGenerator(input, &result)
-	go mockIpWorker(&wg, ipCh, &result)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		mockIpWorker(ipCh, &result)
+	}()
 
-	ipGenerator(&wg, netCh, ipCh)
-	wg.Wait()
+	_, inet, err := net.ParseCIDR(input.inet)
+	if err != nil {
+		result.err = true
+		return result
+	}
+	ipGenerator(inet, ipCh)
 	close(ipCh)
+	wg.Wait()
 
 	return result
 }
@@ -184,32 +258,6 @@ func TestIpGeneratorSubnetSizes(t *testing.T) {
 			result := ipGeneratorTest(inetTest{size: uint32(i), inet: fmt.Sprintf("192.168.1.1/%d", i)})
 			if result.size != computeNetSz(i) {
 				t.Errorf("expected %d ips, but got %d", computeNetSz(i), result.size)
-			}
-		})
-	}
-}
-
-func TestVirtualRegex_virtual(t *testing.T) {
-	ifaces := []string{"docker0", "docker_gwbridge", "br-123456", "veth12", "virbr0-nic"}
-
-	for _, iface := range ifaces {
-		iface := iface
-		t.Run(iface, func(t *testing.T) {
-			if !virtualRegex.MatchString(iface) {
-				t.Errorf("expected interface %s to be detected as virtual, but was detected as real", iface)
-			}
-		})
-	}
-}
-
-func TestVirtualRegex_notVirtual(t *testing.T) {
-	ifaces := []string{"eth0", "eno1", "enp13s0"}
-
-	for _, iface := range ifaces {
-		iface := iface
-		t.Run(iface, func(t *testing.T) {
-			if virtualRegex.MatchString(iface) {
-				t.Errorf("expected interface %s to be detected as real, but was detected as virtual", iface)
 			}
 		})
 	}
