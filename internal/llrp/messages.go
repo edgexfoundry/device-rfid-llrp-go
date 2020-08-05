@@ -18,9 +18,6 @@ import (
 	"time"
 )
 
-// MessageType corresponds to the LLRP binary encoding for message headers.
-type MessageType uint16
-
 const (
 	minMsgType     = MsgGetReaderCapabilities
 	maxMsgType     = MsgCustomMessage // highest legal message type

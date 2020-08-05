@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+#
+#
+# Copyright (C) 2020 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
 # command.sh - simple script to interact with EdgeX's core-command
 #   to see and manipulate ROs, reader config, and reader capabilities.
 #   Use --help to view usage.
@@ -32,6 +39,7 @@ usage() {
     echo "      $0 list devices"
     echo "      $0 get ReaderCapabilities"
     echo "      $0 set ReaderConfig path/to/config.json"
+    echo "      $0 set ReaderConfig <(jq -n '{KeepAliveSpec: {Trigger: 1, Interval: 1000}}')"
     echo "      $0 add ROSpec path/to/ROSpec.json"
     echo "      $0 enable ROSpec 1"
     echo "      $0 delete ROSpec 0"

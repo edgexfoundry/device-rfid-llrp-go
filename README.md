@@ -92,9 +92,16 @@ so don't rely on them for much more than happy-path testing.
 They assume everything is running and expect you have a these on your path:
 `jq`, `curl`, `sed`, `xargs`, `base64`, and `od`. 
 By default, they all try to connect to `localhost` on the typical EdgeX ports.
-`commands.sh` and `data.sh` take args/options; use `--help` to see their usage.
+`command.sh` and `data.sh` take args/options; use `--help` to see their usage.
 `example.sh` uses a couple of variables defined at the top of the file
 to determine which host/port/file to use.
+
+The [command][] script in particular shows some examples in its `usage`.
+You can use it to control arbitrary LLRP configuration,
+such as adding/modifying/removing `ROSpec`s and `AccessSpec`s, 
+changing a Reader's default `ROAccessReport` reported data,
+enabling/modifying/disabling `KeepAlive` messages,
+and enabling/disabling specific `ReaderEventNotification`s.
 
 [command]: examples/command.sh
 [data]: examples/data.sh
