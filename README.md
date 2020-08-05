@@ -39,11 +39,30 @@ in an effort to discover devices that support LLRP.
 This discovery also happens at a regular interval and can be configured via 
 [EdgeX Consul](http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/) 
 for existing installations, 
-and [configuration.toml](cmd/res/configuration.toml) for default values.
+and [configuration.toml][config_toml] for default values.
 
 The local network is probed for every IP on the default LLRP port (`5084`). 
 If a device returns LLRP response messages, 
 a new EdgeX device is generated under the name format `IP_Port`, like so: `192.0.2.1_1234`.  
+
+### Manually Adding a Device
+You can add devices directly via [EdgeX's APIs][add_device]
+or via the [toml configuration][config_toml], as in the following example:
+
+```
+[[DeviceList]]
+  Name = "Speedway"
+  Profile = "Device.LLRP.Profile"
+  Description = "LLRP RFID Reader"
+  Labels = ["LLRP", "RFID"]
+  [DeviceList.Protocols]
+    [DeviceList.Protocols.tcp]
+      host = "192.168.86.88"
+      port = "5084"
+```
+
+[add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/1.2.0#/default/post_v1_device
+[config_toml]: cmd/res/configuration.toml
 
 ## Connection Management
 After an LLRP device is added, either via discovery or directly through EdgeX,
@@ -67,8 +86,7 @@ Note that it can take up to two minutes before the dropped connection is detecte
 These values are not currently configurable,
 but they are easy to change before building
 within [this code](internal/driver/device.go).
-Future work may make these configurable
-and/or automatically set up a KeepAlive spec on connection.
+Future work will automatically set up a KeepAlive spec on connection.
 
 ## Example Scripts
 There are a couple of example scripts here

@@ -15,7 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
-	"time"
 )
 
 const (
@@ -346,65 +345,6 @@ type Incoming interface {
 type Outgoing interface {
 	encoding.BinaryMarshaler
 	Type() MessageType
-}
-
-// NewROSpec returns a valid, basic ROSpec parameter.
-func NewROSpec() *ROSpec {
-	return &ROSpec{
-		ROSpecID:           1,
-		Priority:           0,
-		ROSpecCurrentState: ROSpecStateDisabled,
-		ROBoundarySpec: ROBoundarySpec{
-			StartTrigger: ROSpecStartTrigger{
-				Trigger: ROStartTriggerImmediate,
-			},
-			StopTrigger: ROSpecStopTrigger{
-				Trigger:              ROStopTriggerDuration,
-				DurationTriggerValue: 10,
-			},
-		},
-		AISpecs: []AISpec{{
-			AntennaIDs: []AntennaID{0},
-			StopTrigger: AISpecStopTrigger{
-				Trigger: AIStopTriggerNone,
-			},
-			InventoryParameterSpecs: []InventoryParameterSpec{{
-				InventoryParameterSpecID: 1,
-				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
-			}},
-		}},
-	}
-}
-
-// SetPeriodic configures an ROSpec to send tag reports at least within the period interval.
-// If the ROSpec doesn't have a ReportSpec, it adds one with PeakRSSI enabled.
-func (ros *ROSpec) SetPeriodic(period time.Duration) {
-	ros.ROBoundarySpec.StopTrigger = ROSpecStopTrigger{
-		Trigger:              ROStopTriggerDuration,
-		DurationTriggerValue: Millisecs32(period.Milliseconds()),
-	}
-
-	if ros.ROReportSpec == nil {
-		ros.ROReportSpec = &ROReportSpec{
-			TagReportContentSelector: TagReportContentSelector{
-				EnableROSpecID:             false,
-				EnableSpecIndex:            false,
-				EnableInventoryParamSpecID: false,
-				EnableAntennaID:            false,
-				EnableChannelIndex:         false,
-				EnablePeakRSSI:             true,
-				EnableFirstSeenTimestamp:   false,
-				EnableLastSeenTimestamp:    false,
-				EnableTagSeenCount:         false,
-				EnableAccessSpecID:         false,
-				C1G2EPCMemorySelector:      nil,
-				Custom:                     nil,
-			},
-		}
-	}
-
-	ros.ROReportSpec.Trigger = ROReportTriggerType(2)
-	ros.ROReportSpec.N = 0
 }
 
 // Add returns an EnableROSpec message for this ROSpecID.

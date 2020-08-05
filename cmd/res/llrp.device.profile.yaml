@@ -4,7 +4,7 @@ model: "RFID Reader"
 labels:
   - "LLRP"
   - "RFID"
-description: "Device profile of RFID based readers that communicate using LLRP protocol"
+description: "A generic device profile for readers that communicate over LLRP"
 
 deviceResources:
   - name: "ReaderCapabilities"

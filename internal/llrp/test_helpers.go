@@ -255,11 +255,12 @@ func (td *TestDevice) Close() (err error) {
 		if err == nil {
 			err = closeErr
 		}
+		_ = td.rConn.Close()
 	}()
 
 	err = td.w.Write(
 		messageID(atomic.AddUint32((*uint32)(&td.mid), 1)),
-		NewConnectMessage(ConnSuccess))
+		NewCloseMessage())
 	return
 }
 
@@ -270,6 +271,8 @@ func (td *TestDevice) closeConnection(_ *Client, msg Message) {
 	}
 
 	td.write(msg.id, &CloseConnectionResponse{})
+	_ = td.reader.Close()
+	_ = td.rConn.Close()
 }
 
 // ConnectClient correctly connects the Client to the TestDevice and returns it.
@@ -285,14 +288,12 @@ func (td *TestDevice) ConnectClient(t *testing.T) (c *Client) {
 	}()
 
 	t.Cleanup(func() {
-		if err := td.Close(); err != nil {
-			t.Errorf("%+v", err)
-		}
+		defer td.rConn.Close()
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 		defer cancel()
 		if err := td.Client.Shutdown(ctx); err != nil {
-			if err := td.Client.Close(); err != nil {
+			if err := td.Client.Close(); err != nil && !errors.Is(err, ErrClientClosed) {
 				t.Errorf("%+v", err)
 			}
 			t.Errorf("%+v", err)
