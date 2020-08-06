@@ -8,6 +8,7 @@ package driver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"github.com/pkg/errors"
@@ -19,48 +20,60 @@ import (
 )
 
 const (
-	shutdownGrace = time.Second // time permitted to Shutdown; if exceeded, Close is called
-	maxRetries    = 3           // number of times to retry sending a message if it fails due to a closed reader
-
-	dialTimeout  = time.Second * 10
-	connTimeout  = time.Second * 30
-	sendTimeout  = time.Second * 30
-	noMsgTimeout = time.Second * 120 // resets the connection if more than 120s pass without a message.
+	dialTimeout       = time.Second * 30 // how long to wait after dialing for the Reader to answer
+	sendTimeout       = time.Second * 20 // how long to wait in each send attempt in TrySend
+	shutdownGrace     = time.Second      // time permitted to Shutdown; if exceeded, we call Close
+	maxSendAttempts   = 3                // number of times to retry send in TrySend
+	maxConnAttempts   = 5                // number of times to retry connecting before considering the device offline
+	keepAliveInterval = time.Second * 30 // how often the Reader should send us a KeepAlive
+	maxMissedKAs      = 2                // number of KAs that can be "missed" before resetting a connection
 )
 
-// LLRPDevice represents a managed connection to a device that speaks LLRP.
-// It is safe to use an LLRPDevice's methods concurrently.
+// LLRPDevice manages a connection to a device that speaks LLRP,
+// and notifies EdgeX of relevant device events.
 //
-// It self-manages its connection, redialing and reconnecting if it drops.
-// It'll continue to do so until you tell it to Stop,
-// after which it no longer receives reports/event notifications,
-// and all TrySend attempts will fail.
+// LLRPDevice attempts to maintain a connection to the Reader,
+// provides methods to retry message sends that fail due to closed connections,
+// and notifies EdgeX if it is a Reader connection appears lost.
+// It forwards ROAccessReports & ReaderEventNotifications to EdgeX,
 //
-// The device notifies the driver
-// of incoming ROAccessReports & ReaderEventNotifications.
-// It does some processing on incoming reports and events
-// to make them more useful to down-the-line consumers.
+// It is safe to use an LLRPDevice's methods concurrently and when disconnected.
+// If TrySend fails due to connection issues,
+// it reattempts the send a few times, backing off between attempts.
+//
+// Use Stop to stop actively managing the connection.
+// After Stop, we no longer receive reports or event notifications,
+// and all calls to TrySend will fail.
+// At that point, to reconnect to the same Reader,
+// you must create a new LLRPDevice instance.
 type LLRPDevice struct {
 	// Although the driver package can access these directly,
 	// it's important to use the methods instead
 	// to ensure it can properly handle connect/reconnect behavior.
 
-	name string // comes from EdgeX
+	name string // comes from EdgeX; assumed not written after construction
 	lc   logger.LoggingClient
+	ch   chan<- *dsModels.AsyncValues
 
-	addrMu  sync.RWMutex
-	address net.Addr
+	deviceMu sync.RWMutex
+	address  net.Addr
+	// readerStart is used for the special case in which a Reader lacks a UTC clock.
+	// It is not relevant if the Reader has a UTC clock.
+	//
+	// For ones that don't, the Reader sends timestamps as Uptime rather than UTC.
+	// Effectively, this means is counting microseconds since it started
+	// instead of microseconds since Jan 1, 1970,
+	// so when we get the initial connect ReaderEventNotification,
+	// we use our own clock to calculate when that Reader moment was in UTC.
+	// We can then add this value to other Uptime parameters to convert them to UTC.
+	readerStart time.Time
 
-	clientLock sync.RWMutex // we'll recreate client if it closes
+	clientLock sync.RWMutex // we'll recreate client if it closes; note its lock is independent
 	client     *llrp.Client
 	cancel     context.CancelFunc // stops the reconnect process
 }
 
 // NewLLRPDevice returns an LLRPDevice which attempts to connect to the given address.
-//
-// It will continue to maintain this connection until Stop is called
-// and will forward (semi)-processed ROAccessReports and ReaderEventNotifications
-// to the driver.
 func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 	// We need a context to manage cancellation in some of the methods below,
 	// and as a bonus, we can use it to simplify Stopping reattempts
@@ -73,14 +86,15 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 		cancel:  cancel,
 		address: address,
 		lc:      d.lc,
+		ch:      d.asyncCh,
 	}
 
 	// These options will be used each time we reconnect.
 	opts := []llrp.ClientOpt{
 		llrp.WithLogger(&edgexLLRPClientLogger{devName: name, lc: d.lc}),
-		llrp.WithMessageHandler(llrp.MsgROAccessReport, newROHandler(l, d)),
-		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, newReaderEventHandler(l, d)),
-		llrp.WithTimeout(noMsgTimeout),
+		llrp.WithMessageHandler(llrp.MsgROAccessReport, l.newROHandler()),
+		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, l.newReaderEventHandler()),
+		llrp.WithTimeout(keepAliveInterval * maxMissedKAs),
 	}
 
 	// Create the initial client, which we can immediately make Send requests to,
@@ -101,34 +115,18 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 		// If the Client closes in a "normal" way while the context is still alive,
 		// reset both retry/backoff policies and restart the dial/connect loop.
 		for ctx.Err() == nil {
-			d.lc.Debug("Establishing a new connection.", "device", name)
+			err := retry.Quick.RetryWithCtx(ctx, maxConnAttempts, func(ctx context.Context) (bool, error) {
+				l.deviceMu.RLock()
+				addr := l.address
+				l.deviceMu.RUnlock()
 
-			// The error that would be returned can only be the result of canceling the context
-			_ = retry.Quick.RetryWithCtx(ctx, retry.Forever, func(ctx context.Context) (bool, error) {
-				// generate a new context
-				connCtx, connCtxCancel := context.WithTimeout(ctx, connTimeout)
-				defer connCtxCancel()
-
-				var conn net.Conn
-				if err := retry.Slow.RetryWithCtx(connCtx, retry.Forever, func(connCtx context.Context) (again bool, err error) {
-					dialCtx, dialCtxCancel := context.WithTimeout(connCtx, dialTimeout)
-					defer dialCtxCancel()
-
-					l.addrMu.RLock()
-					addr := l.address
-					l.addrMu.RUnlock()
-
-					d.lc.Debug("Attempting to dial Reader.", "address", addr.String(), "device", name)
-
-					conn, err = dialer.DialContext(dialCtx, addr.Network(), addr.String())
-					if err != nil {
-						d.lc.Error("Failed to dial Reader.",
-							"error", err.Error(),
-							"address", addr.String(),
-							"device", name)
-					}
-					return true, err
-				}); err != nil {
+				d.lc.Debug("Attempting to dial Reader.", "address", addr.String(), "device", name)
+				dialCtx, dialCtxCancel := context.WithTimeout(ctx, dialTimeout)
+				defer dialCtxCancel()
+				conn, err := dialer.DialContext(dialCtx, addr.Network(), addr.String())
+				if err != nil {
+					d.lc.Error("Failed to dial Reader.", "error", err.Error(),
+						"address", addr.String(), "device", name)
 					return true, err
 				}
 
@@ -136,7 +134,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 
 				d.lc.Debug("Attempting LLRP Client connection.", "device", name)
 
-				// Block until the Client closes.
+				// Blocks until the Client closes.
 				clientErr := c.Connect(conn)
 				_ = conn.Close()
 
@@ -157,6 +155,12 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 
 				return true, clientErr
 			})
+
+			// If there are too many failed connections, disable the device in EdgeX.
+			if err != nil && err != context.Canceled {
+				cancel()
+				d.disableDevice(name)
+			}
 		}
 
 		d.lc.Debug("No longer attempting to maintain active connection to device.", "device", name)
@@ -165,10 +169,34 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 	return l
 }
 
-// TrySend works like llrp.SendFor,
-// but will reattempt the send a few times if it fails due to a closed reader.
+// TrySend works like the llrp.Client's SendFor method,
+// but reattempts sends a few times if they fails due to a closed reader.
+// Additionally, it enforces our KeepAlive interval for timeout detection
+// upon SetReaderConfig messages.
 func (l *LLRPDevice) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp.Incoming) error {
-	return retry.Quick.RetryWithCtx(ctx, maxRetries, func(ctx context.Context) (bool, error) {
+	if req, ok := request.(*llrp.SetReaderConfig); ok {
+		ka := llrp.Millisecs32(keepAliveInterval.Milliseconds())
+		if req.KeepAliveSpec != nil {
+			reqKA := req.KeepAliveSpec
+			if reqKA.Interval != ka || reqKA.Trigger != llrp.KATriggerPeriodic {
+				l.lc.Warn("This device service enforces a KeepAlive interval "+
+					"based on its connection timeout; "+
+					"overriding the KeepAliveSpec in SetReaderConfig.",
+					"requestedKA", req.KeepAliveSpec.Interval, "enforcedKA", ka)
+				req.KeepAliveSpec.Interval = ka
+				req.KeepAliveSpec.Trigger = llrp.KATriggerPeriodic
+			}
+		} else {
+			l.lc.Info("Adding device-service-enforced a KeepAlive spec to ReaderConfig.",
+				"forcedKA", keepAliveInterval)
+			req.KeepAliveSpec = &llrp.KeepAliveSpec{
+				Trigger:  llrp.KATriggerPeriodic,
+				Interval: ka,
+			}
+		}
+	}
+
+	return retry.Quick.RetryWithCtx(ctx, maxSendAttempts, func(ctx context.Context) (bool, error) {
 		l.lc.Debug("Attempting send.", "device", l.name, "message", request.Type().String())
 
 		l.clientLock.RLock()
@@ -207,9 +235,14 @@ func (l *LLRPDevice) Stop(ctx context.Context) error {
 // It may return an error if closing the current connection fails for some reason.
 // Nevertheless, it updates the address and will attempt to use it the next time it connects.
 func (l *LLRPDevice) UpdateAddr(ctx context.Context, addr net.Addr) error {
-	l.addrMu.Lock()
+	l.deviceMu.Lock()
+	old := l.address
 	l.address = addr
-	l.addrMu.Unlock()
+	l.deviceMu.Unlock()
+
+	if old == addr {
+		return nil
+	}
 
 	l.clientLock.Lock()
 	defer l.clientLock.Unlock()
@@ -243,64 +276,147 @@ func (l *LLRPDevice) closeLocked(ctx context.Context) error {
 	return nil
 }
 
-// newReaderEventHandler returns an llrp.MessageHandler bound to the l and d instances
-// that converts the notification to an EdgeX event and sends it on d's asyncCh.
-func newReaderEventHandler(l *LLRPDevice, d *Driver) llrp.MessageHandler {
+// resetConn closes the current client connection.
+// The connection may attempt reconnection automatically.
+func (l *LLRPDevice) resetConn() {
+	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+	defer cancel()
+
+	l.clientLock.Lock()
+	defer l.clientLock.Unlock()
+	if err := l.closeLocked(ctx); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
+		// Short of a panic, logging is the only thing to be done here.
+		l.lc.Error("Failed to close Reader connection.",
+			"error", err.Error(), "device", l.name)
+	}
+}
+
+// newReaderEventHandler returns an llrp.MessageHandler for ReaderEventNotifications.
+//
+// If the event is a new successful connection event,
+// it ensures the Reader has our desired configuration state.
+func (l *LLRPDevice) newReaderEventHandler() llrp.MessageHandler {
 	return llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
+		now := time.Now()
+
 		event := &llrp.ReaderEventNotification{}
-
-		// at some point, it may be worthwhile to provide a direct bin -> JSON conversion.
 		if err := msg.UnmarshalTo(event); err != nil {
-			d.lc.Error("failed to unmarshal LLRP reader event notification", "error", err.Error())
+			l.lc.Error("Failed to unmarshal LLRP reader event notification", "error", err.Error())
 			return
 		}
 
-		data, err := json.Marshal(event)
-		if err != nil {
-			d.lc.Error("failed to marshal reader event notification to JSON", "error", err.Error())
-			return
+		l.deviceMu.RLock()
+		readerStart := l.readerStart
+		l.deviceMu.RUnlock()
+
+		renData := event.ReaderEventNotificationData
+		if renData.UTCTimestamp == 0 && readerStart.IsZero() {
+			readerStart = now.Add(-1 * time.Microsecond * time.Duration(renData.Uptime))
 		}
 
-		cv := dsModels.NewStringValue(ResourceReaderNotification, time.Now().UnixNano(), string(data))
-
-		d.asyncCh <- &dsModels.AsyncValues{
-			DeviceName:    l.name,
-			CommandValues: []*dsModels.CommandValue{cv},
+		if !readerStart.IsZero() {
+			renData.UTCTimestamp = uptimeToUTC(readerStart, renData.Uptime)
 		}
+
+		if renData.ConnectionAttemptEvent != nil &&
+			llrp.ConnectionAttemptEventType(*renData.ConnectionAttemptEvent) == llrp.ConnSuccess {
+			go l.onConnect()
+		}
+
+		go l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
 	})
 }
 
-// newROHandler returns an llrp.MessageHandler bound to the l and d instances
-// that processes the report to one or more EdgeX events and sends them on d's asyncCh.
-func newROHandler(l *LLRPDevice, d *Driver) llrp.MessageHandler {
+// sendEdgeXEvent marshals an interface to JSON and sends it as an EdgeX event.
+func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{}) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		l.lc.Error("Failed to marshal event to JSON", "error", err.Error(),
+			"event", fmt.Sprintf("%+v", event))
+		return
+	}
+
+	l.ch <- &dsModels.AsyncValues{
+		DeviceName:    l.name,
+		CommandValues: []*dsModels.CommandValue{dsModels.NewStringValue(eventName, ns, string(data))},
+	}
+}
+
+// newROHandler returns an llrp.MessageHandler to handle ROAccessReports.
+func (l *LLRPDevice) newROHandler() llrp.MessageHandler {
 	return llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
+		now := time.Now()
 		report := &llrp.ROAccessReport{}
 
 		if err := msg.UnmarshalTo(report); err != nil {
-			d.lc.Error("failed to unmarshal async event from LLRP", "error", err.Error())
+			l.lc.Error("Failed to unmarshal async event from LLRP.", "error", err.Error())
 			return
 		}
 
-		// todo: here we can add custom logic when processing tag report data.
-		//  We should populate some fields on the LLRPDevice when we initially connect.
-		//  Namely, it should grab device capabilities, config, & ro specs,
-		//  since they are needed to disambiguate nils and timestamps within a report.
-		//  If the reader doesn't have a UTC clock,
-		//  we'll want to store our own UTC time + the connect's Uptime value.
-		//  Then we can convert report/notification Uptimes to UTC by:
-		//      reportUTC := savedUTC + (reportUptime - savedUptime)
+		l.deviceMu.RLock()
+		readerStart := l.readerStart
+		l.deviceMu.RUnlock()
 
-		data, err := json.Marshal(report)
-		if err != nil {
-			d.lc.Error("failed to marshal async event to JSON", "error", err.Error())
-			return
-		}
-
-		cv := dsModels.NewStringValue(ResourceROAccessReport, time.Now().UnixNano(), string(data))
-
-		d.asyncCh <- &dsModels.AsyncValues{
-			DeviceName:    l.name,
-			CommandValues: []*dsModels.CommandValue{cv},
-		}
+		go func() {
+			if !readerStart.IsZero() {
+				processReport(readerStart, report)
+			}
+			l.sendEdgeXEvent(ResourceROAccessReport, now.UnixNano(), report)
+		}()
 	})
+}
+
+func uptimeToUTC(readerStart time.Time, uptime llrp.Uptime) llrp.UTCTimestamp {
+	// UTC of event = readerStartUTC + duration between reader start and event.
+	// We have to divide by 1000 to get from nanosecs back to microsecs.
+	return llrp.UTCTimestamp(readerStart.
+		Add(time.Microsecond*time.Duration(uptime)).
+		UnixNano() / 1000)
+}
+
+// processReport processes an llrp.ROAccessReport
+// by setting UTC parameters from their Uptime values.
+func processReport(readerStart time.Time, report *llrp.ROAccessReport) {
+	// If the Reader has a UTC clock, we don't need to inspect the survey data.
+	if readerStart.IsZero() {
+		return
+	}
+
+	for i := range report.RFSurveyReportData {
+		surveyData := &report.RFSurveyReportData[i]
+		for j := range surveyData.FrequencyRSSILevelEntries {
+			surveyData.FrequencyRSSILevelEntries[j].UTCTimestamp =
+				uptimeToUTC(readerStart, surveyData.FrequencyRSSILevelEntries[j].Uptime)
+		}
+	}
+
+	for i := range report.TagReportData {
+		data := &report.TagReportData[i] // avoid copying the struct
+
+		if data.FirstSeenUptime != nil {
+			*data.FirstSeenUTC = llrp.FirstSeenUTC(uptimeToUTC(readerStart, llrp.Uptime(*data.FirstSeenUptime)))
+		}
+
+		if data.LastSeenUptime != nil {
+			*data.LastSeenUTC = llrp.LastSeenUTC(uptimeToUTC(readerStart, llrp.Uptime(*data.LastSeenUptime)))
+		}
+	}
+}
+
+// onConnect is called when we open a new connection to a Reader.
+func (l *LLRPDevice) onConnect() {
+	l.lc.Debug("Setting Reader KeepAlive spec.", "device", l.name)
+	conf := &llrp.SetReaderConfig{
+		KeepAliveSpec: &llrp.KeepAliveSpec{
+			Trigger:  llrp.KATriggerPeriodic,
+			Interval: llrp.Millisecs32(keepAliveInterval.Milliseconds()),
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+	defer cancel()
+	if err := l.TrySend(ctx, conf, &llrp.SetReaderConfigResponse{}); err != nil {
+		l.lc.Error("Failed to set KeepAlive interval.", "device", l.name, "error", err.Error())
+		l.resetConn()
+	}
 }

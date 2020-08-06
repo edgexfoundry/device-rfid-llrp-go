@@ -67,7 +67,7 @@ func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
 
 // makeDeviceMap creates a lookup table of existing devices in order to skip scanning
 func makeDeviceMap() map[string]bool {
-	devices := driver.service().Devices()
+	devices := driver.svc.Devices()
 	deviceMap := make(map[string]bool, len(devices))
 
 	for _, d := range devices {

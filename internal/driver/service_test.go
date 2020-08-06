@@ -1,8 +1,14 @@
+//
+// Copyright (C) 2020 Intel Corporation
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package driver
 
 import (
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/pkg/errors"
 	"sync/atomic"
 )
 
@@ -61,4 +67,12 @@ func (s *MockSdkService) AddDevice(device contract.Device) (id string, err error
 func (s *MockSdkService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
 	// todo: implement mock
 	return nil
+}
+
+func (s *MockSdkService) UpdateDeviceOperatingState(name string, state string) error {
+	return errors.New("Method not implemented.")
+}
+
+func (s *MockSdkService) GetDeviceByName(name string) (contract.Device, error) {
+	return contract.Device{}, errors.New("Method not implemented.")
 }

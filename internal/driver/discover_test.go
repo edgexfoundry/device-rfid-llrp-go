@@ -1,3 +1,8 @@
+//
+// Copyright (C) 2020 Intel Corporation
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package driver
 
 import (
@@ -25,7 +30,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	NewProtocolDriver()
+	Instance()
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
 
