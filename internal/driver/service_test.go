@@ -6,6 +6,7 @@
 package driver
 
 import (
+	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"sync/atomic"
@@ -46,7 +47,7 @@ func (s *MockSDKService) AddDiscoveredDevices(discovered []dsModels.DiscoveredDe
 			Name:      d.Name,
 			Protocols: d.Protocols,
 			Profile: contract.DeviceProfile{
-				Name: LLRPDeviceProfile,
+				Name: "LLRP.Device.Profile",
 			},
 		})
 	}
@@ -68,4 +69,25 @@ func (s *MockSDKService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionW
 
 func (s *MockSDKService) DriverConfigs() map[string]string {
 	return s.Config
+}
+
+func (s *MockSDKService) GetDeviceByName(name string) (contract.Device, error) {
+	device, ok := s.devices[name]
+	if ok {
+		return device, nil
+	}
+	return contract.Device{}, fmt.Errorf("device %s was not found", name)
+}
+
+func (s *MockSDKService) UpdateDevice(device contract.Device) error {
+	s.devices[device.Name] = device
+	return nil
+}
+
+func (s *MockSDKService) UpdateDeviceOperatingState(deviceName string, state string) error {
+	if d, ok := s.devices[deviceName]; ok {
+		d.OperatingState = contract.OperatingState(state)
+		return nil
+	}
+	return fmt.Errorf("device with name %s not found", deviceName)
 }

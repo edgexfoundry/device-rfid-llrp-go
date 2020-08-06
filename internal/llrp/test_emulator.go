@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"testing"
 )
 
 // TestEmulator acts like an LLRP server. It accepts connections on a configurable network port,
@@ -18,6 +17,8 @@ import (
 // NOTE: Unlike an actual LLRP server/reader, more than one simultaneous client are allowed to connect to it,
 //		 however each client will receive the same canned responses.
 type TestEmulator struct {
+	silent bool
+
 	listener net.Listener
 	done     uint32
 
@@ -30,8 +31,9 @@ type TestEmulator struct {
 	devicesMu sync.Mutex
 }
 
-func NewTestEmulator() *TestEmulator {
+func NewTestEmulator(silent bool) *TestEmulator {
 	return &TestEmulator{
+		silent: silent,
 		responses: make(map[MessageType]Outgoing),
 		devices:   make(map[*TestDevice]bool),
 	}
@@ -85,7 +87,7 @@ func (emu *TestEmulator) listenUntilCancelled() {
 
 // handleNewConn handles a new incoming connection the net.Listener (should be spawned async)
 func (emu *TestEmulator) handleNewConn(conn net.Conn) {
-	td, err := NewReaderOnlyTestDevice(conn, !testing.Verbose())
+	td, err := NewReaderOnlyTestDevice(conn, emu.silent)
 	if err != nil {
 		panic("unable to create a new ReaderOnly TestDevice: " + err.Error())
 	}

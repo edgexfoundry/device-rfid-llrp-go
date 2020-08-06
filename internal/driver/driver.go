@@ -41,8 +41,6 @@ const (
 	ActionStop     = "Stop"
 
 	provisionWatcherFilename = "res/provisionwatcher.json"
-
-	LLRPDeviceProfile = "Device.LLRP.Profile"
 )
 
 var (
@@ -64,9 +62,6 @@ type Driver struct {
 	config *driverConfiguration
 
 	svc ServiceWrapper
-
-	debounceTimer *time.Timer
-	debounceMu    sync.Mutex
 }
 
 func NewProtocolDriver() dsModels.ProtocolDriver {
@@ -107,11 +102,6 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 		// startup all devices
 		for _, dev := range d.svc.Devices() {
-			if dev.Profile.Name != LLRPDeviceProfile {
-				// skip devices that are not llrp readers
-				// todo: does this only return devices added by this service?
-				continue
-			}
 			if _, err := d.getDevice(dev.Name, dev.Protocols); err != nil {
 				d.lc.Error(err.Error())
 			}
@@ -524,19 +514,19 @@ func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 func getAddr(protocols protocolMap) (net.Addr, error) {
-	tcp := protocols["tcp"]
-	if tcp == nil {
+	tcpInfo := protocols["tcp"]
+	if tcpInfo == nil {
 		return nil, errors.New("missing tcp protocol")
 	}
 
-	if tcp["host"] == "" || tcp["port"] == "" {
-		return nil, errors.Errorf("tcp missing required information - host: %s, port: %s", tcp["host"], tcp["port"])
+	host, port := tcpInfo["host"], tcpInfo["port"]
+	if host == "" || port == "" {
+		return nil, errors.Errorf("tcp missing host or port (%q, %q)", host, port)
 	}
 
-	address := tcp["host"] + ":" + tcp["port"]
-	addr, err := net.ResolveTCPAddr("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
 	return addr, errors.Wrapf(err,
-		"unable to create addr for tcp protocol (%q)", address)
+		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
 func (d *Driver) addProvisionWatcher() error {

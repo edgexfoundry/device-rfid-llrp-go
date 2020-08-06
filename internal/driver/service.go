@@ -14,6 +14,9 @@ import (
 type ServiceWrapper interface {
 	// Inherit
 	Devices() []contract.Device
+	GetDeviceByName(name string) (contract.Device, error)
+	UpdateDevice(device contract.Device) error
+	UpdateDeviceOperatingState(deviceName string, state string) error
 
 	// Pass-through
 	DriverConfigs() map[string]string

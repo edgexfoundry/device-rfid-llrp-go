@@ -67,7 +67,7 @@ Discovery can be manually triggered via REST:
 curl -X POST http://localhost:51992/api/v1/discovery
 ```
 
-The subnets provided in the configuration field `DiscoverySubnets` is probed for every IP at the specified `ScanPort` (default `5084`). 
+Every IP address in all the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
 If a device returns LLRP response messages, a new EdgeX device is created.
 
 ### EdgeX Device Naming

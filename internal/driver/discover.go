@@ -45,21 +45,27 @@ func newDiscoveryInfo(host string, port string) *discoveryInfo {
 
 // workerParams is a helper struct to store shared parameters to ipWorkers
 type workerParams struct {
-	deviceMap map[string]bool
+	deviceMap map[string]edgexModels.Device
 	ipCh      <-chan uint32
 	resultCh  chan<- *discoveryInfo
 }
 
 // autoDiscover probes all addresses in the configured network to attempt to discover any possible
 // RFID readers that support LLRP.
-func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
-	ipCh := make(chan uint32, 5*driver.config.ProbeAsyncLimit)
+func autoDiscover() []dsModels.DiscoveredDevice {
+	if driver.config.DiscoverySubnets == nil || len(driver.config.DiscoverySubnets) == 0 {
+		driver.lc.Warn("Discover was called, but no subnet information has been configured!")
+		return nil
+	}
+
+		ipCh := make(chan uint32, 5*driver.config.ProbeAsyncLimit)
 	resultCh := make(chan *discoveryInfo)
 
 	// todo: take in a context and allow for cancellation
 
+	deviceMap := makeDeviceMap()
 	wParams := workerParams{
-		deviceMap: makeDeviceMap(),
+		deviceMap: deviceMap,
 		ipCh:      ipCh,
 		resultCh:  resultCh,
 	}
@@ -78,17 +84,17 @@ func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
 		var wgIPGenerators sync.WaitGroup
 		for _, cidr := range driver.config.DiscoverySubnets {
 			if cidr == "" {
-				driver.lc.Warn("empty CIDR provided, unable to scan for LLRP readers")
+				driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
 				continue
 			}
 
 			ip, ipnet, err := net.ParseCIDR(cidr)
 			if err != nil {
-				driver.lc.Error(fmt.Sprintf("unable to parse CIDR: %s", cidr))
+				driver.lc.Error(fmt.Sprintf("Unable to parse CIDR: %q", cidr), "error", err)
 				continue
 			}
 			if ip == nil || ipnet == nil || ip.To4() == nil {
-				driver.lc.Error("currently only ipv4 subnets are supported", "subnet", cidr)
+				driver.lc.Error("Currently only ipv4 subnets are supported.", "subnet", cidr)
 				continue
 			}
 
@@ -110,38 +116,117 @@ func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
 		close(resultCh)
 	}()
 
-	discovered = make([]dsModels.DiscoveredDevice, 0)
-	for c := range resultCh {
-		if c != nil {
-			discovered = append(discovered, newDiscoveredDevice(c))
+	// this blocks until the resultCh is closed in above go routine
+	return processResultChannel(resultCh, deviceMap)
+}
+
+// processResultChannel reads all incoming results until the resultCh is closed.
+// it determines if a device is new or existing, and proceeds accordingly.
+func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]edgexModels.Device) []dsModels.DiscoveredDevice {
+	discovered := make([]dsModels.DiscoveredDevice, 0)
+	for info := range resultCh {
+		if info != nil {
+
+			// check if any devices already exist at that address, and if so disable them
+			existing, found := deviceMap[info.host+":"+info.port]
+			if found && existing.Name != info.deviceName {
+				// disable it and remove its protocol information since it is no longer valid
+				delete(existing.Protocols, "tcp")
+				existing.OperatingState = edgexModels.Disabled
+				if err := driver.svc.UpdateDevice(existing); err != nil {
+					driver.lc.Warn("There was an issue trying to disable an existing device.",
+						"deviceName", existing.Name,
+						"error", err)
+				}
+			}
+
+			// check if we have an existing device registered with this name
+			device, err := driver.svc.GetDeviceByName(info.deviceName)
+			if err != nil {
+				// no existing device; add it to the list and move on
+				discovered = append(discovered, newDiscoveredDevice(info))
+				continue
+			}
+
+			// this means we have discovered an existing device that is
+			// either disabled or has changed IP addresses.
+			// we need to update its protocol information and operating state
+			if err := info.updateExistingDevice(device); err != nil {
+				driver.lc.Warn("There was an issue trying to update an existing device based on newly discovered details.",
+					"deviceName", device.Name,
+					"discoveryInfo", fmt.Sprintf("%+v", info),
+					"error", err)
+			}
 		}
 	}
 	return discovered
 }
 
-// makeDeviceMap creates a lookup table of existing devices in order to skip scanning
-func makeDeviceMap() map[string]bool {
+// updateExistingDevice is used when an existing device is discovered
+// and needs to update its information to either a new address or set
+// its operating state to enabled.
+func (info *discoveryInfo) updateExistingDevice(device edgexModels.Device) error {
+	tcpInfo := device.Protocols["tcp"]
+	if tcpInfo == nil ||
+		info.host != tcpInfo["host"] ||
+		info.port != tcpInfo["port"] {
+		driver.lc.Info("Existing device has been discovered with a different network address.",
+			"oldInfo", fmt.Sprintf("%+v", tcpInfo),
+			"discoveredInfo", fmt.Sprintf("%+v", info))
+
+		// todo: double check to make sure EdgeX calls driver.UpdateDevice()
+		device.Protocols["tcp"] = map[string]string{
+			"host": info.host,
+			"port": info.port,
+		}
+		// make sure it is enabled
+		device.OperatingState = edgexModels.Enabled
+		err := driver.svc.UpdateDevice(device)
+		if err != nil {
+			driver.lc.Error("There was an error updating the tcp address for an existing device.",
+				"deviceName", device.Name,
+				"error", err)
+		}
+
+		// return now as we already force set the operating state
+		return err
+	}
+
+	// this code block will only run if the tcp address is the same
+	if device.OperatingState == edgexModels.Disabled {
+		err := driver.svc.UpdateDeviceOperatingState(device.Name, edgexModels.Enabled)
+		if err != nil {
+			driver.lc.Error("There was an error setting the device OperatingState to Enabled.",
+				"deviceName", device.Name,
+				"error", err)
+		}
+		return err
+	}
+
+	// the address is the same and device is already enabled, should not reach here
+	driver.lc.Warn("Re-discovered existing device at the same TCP address, nothing to do.")
+	return nil
+}
+
+// makeDeviceMap creates a lookup table of existing devices by tcp address in order to skip scanning
+func makeDeviceMap() map[string]edgexModels.Device {
 	devices := driver.svc.Devices()
-	deviceMap := make(map[string]bool, len(devices))
+	deviceMap := make(map[string]edgexModels.Device, len(devices))
 
 	for _, d := range devices {
-		if d.Profile.Name != LLRPDeviceProfile {
-			// not an llrp reader, skip
+		tcpInfo := d.Protocols["tcp"]
+		if tcpInfo == nil {
+			driver.lc.Warn("Found registered device without tcp protocol information.", "deviceName", d.Name)
 			continue
 		}
 
-		tcp := d.Protocols["tcp"]
-		if tcp == nil {
-			driver.lc.Warn("found registered device without tcp protocol information: " + d.Name)
+		host, port := tcpInfo["host"], tcpInfo["port"]
+		if host == "" || port == "" {
+			driver.lc.Warn(fmt.Sprintf("Registered device is missing required tcp protocol information host: %q, port: %q", host, port))
 			continue
 		}
 
-		if tcp["host"] == "" || tcp["port"] == "" {
-			driver.lc.Warn(fmt.Sprintf("registered device is missing required tcp protocol information host: %s, port: %s", tcp["host"], tcp["port"]))
-			continue
-		}
-
-		deviceMap[tcp["host"]+":"+tcp["port"]] = true
+		deviceMap[host+":"+port] = d
 	}
 
 	return deviceMap
@@ -191,7 +276,7 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 	}
 	defer conn.Close()
 
-	driver.lc.Info("connection dialed")
+	driver.lc.Info("Connection dialed", "host", host, "port", port)
 	c := llrp.NewClient(llrp.WithLogger(&edgexLLRPClientLogger{
 		devName: "probe-" + host,
 		lc:      driver.lc,
@@ -200,49 +285,49 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 	readerConfig := llrp.GetReaderConfigResponse{}
 	readerCaps := llrp.GetReaderCapabilitiesResponse{}
 
-	// do message passing in a separate thread
+	// send llrp messages in a separate thread and block the main thread until it is complete
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 		defer cancel()
 
 		defer func() {
 			if err := c.Shutdown(ctx); err != nil {
-				driver.lc.Warn("error occurred while attempting to shutdown temporary discover device: " + err.Error())
+				driver.lc.Warn("Error occurred while attempting to shutdown temporary discover device.", "error", err)
 			}
 		}()
 
-		driver.lc.Debug("sending GetReaderConfig")
+		driver.lc.Debug("Sending GetReaderConfig.")
 		configReq := llrp.GetReaderConfig{
 			RequestedData: llrp.ReaderConfReqIdentification,
 		}
 		err = c.SendFor(ctx, &configReq, &readerConfig)
 		if err != nil {
-			driver.lc.Error(errors.Wrap(err, "error sending GetReaderConfig").Error())
+			driver.lc.Warn("Error sending GetReaderConfig to discovered device.", "error", err)
 			return
 		}
 
-		driver.lc.Debug("sending GetReaderCapabilities")
+		driver.lc.Debug("Sending GetReaderCapabilities.")
 		capabilitiesReq := llrp.GetReaderCapabilities{
 			ReaderCapabilitiesRequestedData: llrp.ReaderCapGeneralDeviceCapabilities,
 		}
 		err = c.SendFor(ctx, &capabilitiesReq, &readerCaps)
 		if err != nil {
-			driver.lc.Error(errors.Wrap(err, "error sending GetReaderCapabilities").Error())
+			driver.lc.Warn("Error sending GetReaderCapabilities to discovered device.", "error", err)
 			return
 		}
 	}()
 
-	driver.lc.Info("connecting to device")
+	driver.lc.Info("Attempting to connect to potential LLRP device...", "host", host, "port", port)
 	// this will block until `c.Shutdown()` is called in the above go routine
 	if err = c.Connect(conn); !errors.Is(err, llrp.ErrClientClosed) {
-		driver.lc.Error("error attempting to connect to potential LLRP device: " + err.Error())
+		driver.lc.Warn("Error attempting to connect to potential LLRP device: " + err.Error())
 		return nil, err
 	}
-	driver.lc.Info("connection initiated successfully")
+	driver.lc.Info("Connection initiated successfully.", "host", host, "port", port)
 
 	info := newDiscoveryInfo(host, port)
 	if readerCaps.GeneralDeviceCapabilities == nil {
-		driver.lc.Warn("readerCaps.GeneralDeviceCapabilities was nil, unable to determine vendor and model info")
+		driver.lc.Warn("ReaderCapabilities.GeneralDeviceCapabilities was nil, unable to determine vendor and model info")
 		info.vendor = UnknownVendorID
 		info.model = UnknownModelID
 	} else {
@@ -251,7 +336,7 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 	}
 
 	if readerConfig.Identification == nil {
-		driver.lc.Error("readerConfig.Identification was nil, unable to register device")
+		driver.lc.Warn("ReaderConfig.Identification was nil, unable to register discovered device.")
 		return nil, fmt.Errorf("unable to retrieve device identification")
 	}
 
@@ -270,7 +355,7 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 	}
 
 	info.deviceName = prefix + "-" + suffix
-	driver.lc.Info(fmt.Sprintf("discovered device: %+v", info))
+	driver.lc.Info(fmt.Sprintf("Discovered device: %+v", info))
 
 	return info, nil
 }
@@ -285,9 +370,12 @@ func ipWorker(params *workerParams) {
 
 		ipStr := ip.String()
 		addr := ipStr + ":" + driver.config.ScanPort
-		if _, found := params.deviceMap[addr]; found {
-			driver.lc.Debug("skip scan of " + addr + ", device already registered")
-			continue
+		if d, found := params.deviceMap[addr]; found {
+			if d.OperatingState == edgexModels.Enabled {
+				driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
+				continue
+			}
+			driver.lc.Info("Existing device in disabled (disconnected) state will be scanned again.", "address", addr)
 		}
 
 		if info, err := probe(ipStr, driver.config.ScanPort, timeout); err == nil && info != nil {

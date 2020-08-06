@@ -59,7 +59,7 @@ func TestAutoDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
 	}
-	emu := llrp.NewTestEmulator()
+	emu := llrp.NewTestEmulator(!testing.Verbose())
 	if err := emu.StartAsync(port); err != nil {
 		t.Fatal("unable to start emulator: " + err.Error())
 	}
