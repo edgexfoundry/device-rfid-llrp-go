@@ -37,8 +37,8 @@ func (s *MockSdkService) Devices() []contract.Device {
 func (s *MockSdkService) AddDiscoveredDevices(discovered []dsModels.DiscoveredDevice) {
 	for _, d := range discovered {
 		device := contract.Device{
-			Name:            d.Name,
-			Protocols:       d.Protocols,
+			Name:      d.Name,
+			Protocols: d.Protocols,
 		}
 
 		s.devices[device.Name] = device
