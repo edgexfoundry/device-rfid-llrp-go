@@ -196,8 +196,37 @@ func testGatherTagReads(t *testing.T) {
 	}
 	r := GetFunctionalClient(t, *readerAddr)
 
-	spec := NewROSpec()
-	spec.SetPeriodic(5 * time.Second)
+	spec := &ROSpec{
+		ROSpecID:           1,
+		Priority:           0,
+		ROSpecCurrentState: ROSpecStateDisabled,
+		ROBoundarySpec: ROBoundarySpec{
+			StartTrigger: ROSpecStartTrigger{
+				Trigger: ROStartTriggerImmediate,
+			},
+			StopTrigger: ROSpecStopTrigger{
+				Trigger:              ROStopTriggerDuration,
+				DurationTriggerValue: 10,
+			},
+		},
+		AISpecs: []AISpec{{
+			AntennaIDs: []AntennaID{0},
+			StopTrigger: AISpecStopTrigger{
+				Trigger: AIStopTriggerNone,
+			},
+			InventoryParameterSpecs: []InventoryParameterSpec{{
+				InventoryParameterSpecID: 1,
+				AirProtocolID:            AirProtoEPCGlobalClass1Gen2,
+			}},
+		}},
+		ROReportSpec: &ROReportSpec{
+			Trigger: NTagsOrROEnd,
+			N:       5,
+			TagReportContentSelector: TagReportContentSelector{
+				EnablePeakRSSI: true,
+			},
+		},
+	}
 
 	sendAndCheck(t, r, &AddROSpec{*spec}, &AddROSpecResponse{})
 	sendAndCheck(t, r, &EnableROSpec{ROSpecID: spec.ROSpecID}, &EnableROSpecResponse{})
