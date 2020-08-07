@@ -58,7 +58,7 @@ func autoDiscover() []dsModels.DiscoveredDevice {
 		return nil
 	}
 
-		ipCh := make(chan uint32, 5*driver.config.ProbeAsyncLimit)
+	ipCh := make(chan uint32, 5*driver.config.ProbeAsyncLimit)
 	resultCh := make(chan *discoveryInfo)
 
 	// todo: take in a context and allow for cancellation

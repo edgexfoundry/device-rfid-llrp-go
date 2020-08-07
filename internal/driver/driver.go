@@ -96,17 +96,12 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	d.config = config
 	d.lc.Debug(fmt.Sprintf("%+v", config))
 
-	go func() {
-		// todo: how to know when this is ready
-		time.Sleep(5 * time.Second)
-
-		// startup all devices
-		for _, dev := range d.svc.Devices() {
-			if _, err := d.getDevice(dev.Name, dev.Protocols); err != nil {
-				d.lc.Error(err.Error())
-			}
+	// startup all devices
+	for _, dev := range d.svc.Devices() {
+		if _, err := d.getDevice(dev.Name, dev.Protocols); err != nil {
+			d.lc.Error(err.Error())
 		}
-	}()
+	}
 
 	return nil
 }

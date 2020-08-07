@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// configuration holds the values for the driver configuration
+// driverConfiguration holds the values for the driver configuration
 type driverConfiguration struct {
 	// DiscoverySubnets holds a list of CIDR subnets to scan for devices
 	DiscoverySubnets []string

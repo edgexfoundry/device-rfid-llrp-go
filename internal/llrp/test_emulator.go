@@ -33,7 +33,7 @@ type TestEmulator struct {
 
 func NewTestEmulator(silent bool) *TestEmulator {
 	return &TestEmulator{
-		silent: silent,
+		silent:    silent,
 		responses: make(map[MessageType]Outgoing),
 		devices:   make(map[*TestDevice]bool),
 	}
