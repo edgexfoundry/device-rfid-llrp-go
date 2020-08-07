@@ -12,24 +12,29 @@ LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
  - Docker
  - Docker-compose
  
-#### Build ####
+##### Build #####
 ```
-make build
-```
-
-#### Build Docker image ####
-```
-sudo make docker
+$ make build
 ```
 
-#### Docker-compose run with other Edgex services (Geneva Release) ####
+##### Build Docker image #####
 ```
-sudo make run
+$ make docker
 ```
 
-#### Docker-compose stop ####
+##### Docker-compose run with other Edgex services (Geneva Release) #####
 ```
-sudo make stop
+$ make run
+```
+
+##### Docker-compose stop #####
+```
+$ make stop
+```
+
+##### Format #####
+```
+$ make fmt
 ```
 
 ## Device Discovery
