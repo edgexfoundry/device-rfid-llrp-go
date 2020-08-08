@@ -545,7 +545,7 @@ func (d *Driver) addProvisionWatcher() error {
 
 // Discover performs a discovery of LLRP readers on the network and passes them to EdgeX to get provisioned
 func (d *Driver) Discover() {
-	d.lc.Info("discover was called")
+	d.lc.Info("Discover was called.")
 
 	provisionOnce.Do(func() {
 		err := d.addProvisionWatcher()
@@ -555,8 +555,23 @@ func (d *Driver) Discover() {
 		}
 	})
 
+	ctx := context.Background()
+	if driver.config.MaxDiscoverDurationSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(),
+			time.Duration(driver.config.MaxDiscoverDurationSeconds)*time.Second)
+		defer cancel()
+	}
+
+	d.discover(ctx)
+}
+
+func (d *Driver) discover(ctx context.Context) {
 	t1 := time.Now()
-	result := autoDiscover()
+	result := autoDiscover(ctx)
+	if ctx.Err() != nil {
+		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
+	}
 	d.deviceCh <- result
-	d.lc.Info(fmt.Sprintf("discovered %d new devices in %v", len(result), time.Now().Sub(t1)))
+	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Now().Sub(t1)))
 }

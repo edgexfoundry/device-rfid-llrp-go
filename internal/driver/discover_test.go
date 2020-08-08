@@ -6,6 +6,7 @@
 package driver
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
@@ -49,7 +50,7 @@ func TestAutoDiscover(t *testing.T) {
 	t.Parallel()
 	// attempt to discover without emulator, expect none found
 	svc.clearDevices()
-	discovered := autoDiscover()
+	discovered := autoDiscover(context.Background())
 	if len(discovered) != 0 {
 		t.Fatalf("expected 0 discovered devices, however got: %d", len(discovered))
 	}
@@ -84,7 +85,7 @@ func TestAutoDiscover(t *testing.T) {
 	}
 	emu.SetResponse(llrp.MsgGetReaderCapabilities, &readerCaps)
 
-	discovered = autoDiscover()
+	discovered = autoDiscover(context.Background())
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
@@ -95,7 +96,7 @@ func TestAutoDiscover(t *testing.T) {
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
 	svc.resetAddedCount()
-	discovered = autoDiscover()
+	discovered = autoDiscover(context.Background())
 	if len(discovered) != 0 {
 		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
 	}
@@ -105,7 +106,7 @@ func TestAutoDiscover(t *testing.T) {
 	readerCaps.GeneralDeviceCapabilities.Model = uint32(XArray)
 	// clear and re-discover
 	svc.clearDevices()
-	discovered = autoDiscover()
+	discovered = autoDiscover(context.Background())
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
@@ -119,7 +120,7 @@ func TestAutoDiscover(t *testing.T) {
 	readerCaps.GeneralDeviceCapabilities.Model = uint32(0x32)              // unknown model
 	// clear and re-discover
 	svc.clearDevices()
-	discovered = autoDiscover()
+	discovered = autoDiscover(context.Background())
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
@@ -132,7 +133,7 @@ func TestAutoDiscover(t *testing.T) {
 	readerConfig.Identification.ReaderID = []byte{0x00, 0x1A, 0x00, 0x4F, 0xD9, 0xCA, 0x2B} // will be used as-is, not parsed
 	// clear and re-discover
 	svc.clearDevices()
-	discovered = autoDiscover()
+	discovered = autoDiscover(context.Background())
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
@@ -147,12 +148,21 @@ func TestAutoDiscover(t *testing.T) {
 	svc.clearDevices()
 }
 
-// computeNetSz computes the amount of IPs in a subnet for testing purposes
-func computeNetSz(subnetSz int) uint32 {
-	if subnetSz >= 31 {
-		return 1
-	}
-	return ^uint32(0)>>subnetSz - 1
+func TestBalh(t *testing.T) {
+	_, ipnet, _ := net.ParseCIDR("129.168.1.1/32")
+	ones, bits := ipnet.Mask.Size()
+	t.Logf("ones: %v, bits: %v", ones, bits)
+
+	_, ipnet, _ = net.ParseCIDR("129.168.1.1/16")
+	ones, bits = ipnet.Mask.Size()
+	t.Logf("ones: %v, bits: %v", ones, bits)
+
+	_, ipnet, _ = net.ParseCIDR("129.168.1.1/8")
+	ones, bits = ipnet.Mask.Size()
+	t.Logf("ones: %v, bits: %v", ones, bits)
+
+	t.Logf("%d", computeNetSz(24))
+
 }
 
 func mockIpWorker(ipCh <-chan uint32, result *inetTest) {
@@ -188,7 +198,8 @@ func ipGeneratorTest(input inetTest) (result inetTest) {
 		result.err = true
 		return result
 	}
-	ipGenerator(inet, ipCh)
+
+	ipGenerator(context.Background(), inet, ipCh)
 	close(ipCh)
 	wg.Wait()
 

@@ -11,11 +11,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"math/bits"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,35 +46,79 @@ func newDiscoveryInfo(host string, port string) *discoveryInfo {
 
 // workerParams is a helper struct to store shared parameters to ipWorkers
 type workerParams struct {
-	deviceMap map[string]edgexModels.Device
+	deviceMap map[string]contract.Device
 	ipCh      <-chan uint32
 	resultCh  chan<- *discoveryInfo
+	ctx       context.Context
+}
+
+// computeNetSz computes the total amount of valid IP addresses for a given subnet size
+// Subnets of size 31 and 32 have only 1 valid IP address
+// Ex. For a /24 subnet, computeNetSz(24) -> 254
+func computeNetSz(subnetSz int) uint32 {
+	if subnetSz >= 31 {
+		return 1
+	}
+	return ^uint32(0)>>subnetSz - 1
 }
 
 // autoDiscover probes all addresses in the configured network to attempt to discover any possible
 // RFID readers that support LLRP.
-func autoDiscover() []dsModels.DiscoveredDevice {
+func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 	if driver.config.DiscoverySubnets == nil || len(driver.config.DiscoverySubnets) == 0 {
 		driver.lc.Warn("Discover was called, but no subnet information has been configured!")
 		return nil
 	}
 
-	ipCh := make(chan uint32, 5*driver.config.ProbeAsyncLimit)
-	resultCh := make(chan *discoveryInfo)
+	ipnets := make([]*net.IPNet, 0)
+	var estimatedProbes int
+	for _, cidr := range driver.config.DiscoverySubnets {
+		if cidr == "" {
+			driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
+			continue
+		}
 
-	// todo: take in a context and allow for cancellation
+		ip, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			driver.lc.Error(fmt.Sprintf("Unable to parse CIDR: %q", cidr), "error", err)
+			continue
+		}
+		if ip == nil || ipnet == nil || ip.To4() == nil {
+			driver.lc.Error("Currently only ipv4 subnets are supported.", "subnet", cidr)
+			continue
+		}
+
+		ipnets = append(ipnets, ipnet)
+		// compute the estimate total amount of network probes we are going to make
+		// this is an estimate because it may be lower due to skipped addresses (existing devices)
+		sz, _ := ipnet.Mask.Size()
+		estimatedProbes += int(computeNetSz(sz))
+	}
+
+	asyncLimit := driver.config.ProbeAsyncLimit
+	// if the estimated amount of probes we are going to make is less than
+	// the async limit, we only need to set the worker count to the total number
+	// of probes to avoid spawning more workers than probes
+	if estimatedProbes < driver.config.ProbeAsyncLimit {
+		asyncLimit = estimatedProbes
+	}
+	driver.lc.Debug(fmt.Sprintf("total estimated network probes: %d, async limit: %d", estimatedProbes, asyncLimit))
+
+	ipCh := make(chan uint32, asyncLimit)
+	resultCh := make(chan *discoveryInfo)
 
 	deviceMap := makeDeviceMap()
 	wParams := workerParams{
 		deviceMap: deviceMap,
 		ipCh:      ipCh,
 		resultCh:  resultCh,
+		ctx:       ctx,
 	}
 
 	// start the workers before adding any ips so they are ready to process
 	var wgIPWorkers sync.WaitGroup
-	wgIPWorkers.Add(driver.config.ProbeAsyncLimit)
-	for i := 0; i < driver.config.ProbeAsyncLimit; i++ {
+	wgIPWorkers.Add(asyncLimit)
+	for i := 0; i < asyncLimit; i++ {
 		go func() {
 			defer wgIPWorkers.Done()
 			ipWorker(&wParams)
@@ -98,11 +143,18 @@ func autoDiscover() []dsModels.DiscoveredDevice {
 				continue
 			}
 
+			select {
+			case <-ctx.Done():
+				// quit early if we have been cancelled
+				return
+			default:
+			}
+
 			// wait on each ipGenerator
 			wgIPGenerators.Add(1)
 			go func(inet *net.IPNet) {
 				defer wgIPGenerators.Done()
-				ipGenerator(inet, ipCh)
+				ipGenerator(ctx, inet, ipCh)
 			}(ipnet)
 		}
 
@@ -122,7 +174,10 @@ func autoDiscover() []dsModels.DiscoveredDevice {
 
 // processResultChannel reads all incoming results until the resultCh is closed.
 // it determines if a device is new or existing, and proceeds accordingly.
-func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]edgexModels.Device) []dsModels.DiscoveredDevice {
+//
+// Does not check for context cancellation because we still want to
+// process any in-flight results.
+func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]contract.Device) []dsModels.DiscoveredDevice {
 	discovered := make([]dsModels.DiscoveredDevice, 0)
 	for info := range resultCh {
 		if info != nil {
@@ -132,7 +187,7 @@ func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]edg
 			if found && existing.Name != info.deviceName {
 				// disable it and remove its protocol information since it is no longer valid
 				delete(existing.Protocols, "tcp")
-				existing.OperatingState = edgexModels.Disabled
+				existing.OperatingState = contract.Disabled
 				if err := driver.svc.UpdateDevice(existing); err != nil {
 					driver.lc.Warn("There was an issue trying to disable an existing device.",
 						"deviceName", existing.Name,
@@ -165,7 +220,7 @@ func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]edg
 // updateExistingDevice is used when an existing device is discovered
 // and needs to update its information to either a new address or set
 // its operating state to enabled.
-func (info *discoveryInfo) updateExistingDevice(device edgexModels.Device) error {
+func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
 	tcpInfo := device.Protocols["tcp"]
 	if tcpInfo == nil ||
 		info.host != tcpInfo["host"] ||
@@ -180,7 +235,7 @@ func (info *discoveryInfo) updateExistingDevice(device edgexModels.Device) error
 			"port": info.port,
 		}
 		// make sure it is enabled
-		device.OperatingState = edgexModels.Enabled
+		device.OperatingState = contract.Enabled
 		err := driver.svc.UpdateDevice(device)
 		if err != nil {
 			driver.lc.Error("There was an error updating the tcp address for an existing device.",
@@ -193,8 +248,8 @@ func (info *discoveryInfo) updateExistingDevice(device edgexModels.Device) error
 	}
 
 	// this code block will only run if the tcp address is the same
-	if device.OperatingState == edgexModels.Disabled {
-		err := driver.svc.UpdateDeviceOperatingState(device.Name, edgexModels.Enabled)
+	if device.OperatingState == contract.Disabled {
+		err := driver.svc.UpdateDeviceOperatingState(device.Name, contract.Enabled)
 		if err != nil {
 			driver.lc.Error("There was an error setting the device OperatingState to Enabled.",
 				"deviceName", device.Name,
@@ -209,9 +264,9 @@ func (info *discoveryInfo) updateExistingDevice(device edgexModels.Device) error
 }
 
 // makeDeviceMap creates a lookup table of existing devices by tcp address in order to skip scanning
-func makeDeviceMap() map[string]edgexModels.Device {
+func makeDeviceMap() map[string]contract.Device {
 	devices := driver.svc.Devices()
-	deviceMap := make(map[string]edgexModels.Device, len(devices))
+	deviceMap := make(map[string]contract.Device, len(devices))
 
 	for _, d := range devices {
 		tcpInfo := d.Protocols["tcp"]
@@ -234,7 +289,7 @@ func makeDeviceMap() map[string]edgexModels.Device {
 
 // ipGenerator generates all valid IP addresses for a given subnet, and
 // sends them to the ip channel one at a time
-func ipGenerator(inet *net.IPNet, ipCh chan<- uint32) {
+func ipGenerator(ctx context.Context, inet *net.IPNet, ipCh chan<- uint32) {
 	addr := inet.IP.To4()
 	if addr == nil {
 		return
@@ -262,7 +317,13 @@ func ipGenerator(inet *net.IPNet, ipCh chan<- uint32) {
 		if netId&umask != ip&umask {
 			continue
 		}
-		ipCh <- ip
+
+		select {
+		case <-ctx.Done():
+			// bail if we have been cancelled
+			return
+		case ipCh <- ip:
+		}
 	}
 }
 
@@ -365,21 +426,42 @@ func ipWorker(params *workerParams) {
 	ip := net.IP([]byte{0, 0, 0, 0})
 	timeout := time.Duration(driver.config.ProbeTimeoutSeconds) * time.Second
 
-	for a := range params.ipCh {
-		binary.BigEndian.PutUint32(ip, a)
+	for {
+		select {
+		case <-params.ctx.Done():
+			// stop working if we have been cancelled
+			return
 
-		ipStr := ip.String()
-		addr := ipStr + ":" + driver.config.ScanPort
-		if d, found := params.deviceMap[addr]; found {
-			if d.OperatingState == edgexModels.Enabled {
-				driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
-				continue
+		case a, ok := <-params.ipCh:
+			if !ok {
+				// channel has been closed
+				return
 			}
-			driver.lc.Info("Existing device in disabled (disconnected) state will be scanned again.", "address", addr)
-		}
 
-		if info, err := probe(ipStr, driver.config.ScanPort, timeout); err == nil && info != nil {
-			params.resultCh <- info
+			binary.BigEndian.PutUint32(ip, a)
+
+			ipStr := ip.String()
+			addr := ipStr + ":" + driver.config.ScanPort
+			if d, found := params.deviceMap[addr]; found {
+				if d.OperatingState == contract.Enabled {
+					driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
+					continue
+				}
+				driver.lc.Info("Existing device in disabled (disconnected) state will be scanned again.",
+					"address", addr,
+					"deviceName", d.Name)
+			}
+
+			select {
+			case <-params.ctx.Done():
+				// bail if we have already been cancelled
+				return
+			default:
+			}
+
+			if info, err := probe(ipStr, driver.config.ScanPort, timeout); err == nil && info != nil {
+				params.resultCh <- info
+			}
 		}
 	}
 }
@@ -393,12 +475,16 @@ func newDiscoveredDevice(info *discoveryInfo) dsModels.DiscoveredDevice {
 	}
 	if VendorIDType(info.vendor) == Impinj {
 		labels = append(labels, Impinj.String())
-		labels = append(labels, ImpinjModelType(info.model).String())
+		modelStr := ImpinjModelType(info.model).String()
+		// only add the label if we know the model
+		if !strings.HasPrefix(modelStr, "ImpinjModelType(") {
+			labels = append(labels, modelStr)
+		}
 	}
 
 	return dsModels.DiscoveredDevice{
 		Name: info.deviceName,
-		Protocols: map[string]edgexModels.ProtocolProperties{
+		Protocols: map[string]contract.ProtocolProperties{
 			"tcp": {
 				"host": info.host,
 				"port": info.port,

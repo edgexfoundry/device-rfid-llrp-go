@@ -58,12 +58,16 @@ DiscoverySubnets = ""
 # Maximum simultaneous network probes
 ProbeAsyncLimit = "1000"
 
-# Maximum amount of seconds to wait for each IP probe before timing out
-# (this will also be the min time a discovery will take, but not the max)
+# Maximum amount of seconds to wait for each IP probe before timing out.
+# This will also be the minimum time the discovery process can take.
 ProbeTimeoutSeconds = "2"
 
 # Port to scan for LLRP devices on
 ScanPort = "5084"
+
+# Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+# It is especially important to have this configured in the case of larger subnets such as /16 and /8
+MaxDiscoverDurationSeconds = "300"
 ```
 
 Discovery can be manually triggered via REST:

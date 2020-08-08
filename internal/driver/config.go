@@ -22,9 +22,24 @@ type driverConfiguration struct {
 	ProbeTimeoutSeconds int
 	// ScanPort is the port to scan for LLRP devices on
 	ScanPort string
+	// MaxDiscoverDurationSeconds is the maximum amount of seconds for a discovery to run. It is important
+	// to have this configured in the case of larger subnets such as /16 and /8
+	MaxDiscoverDurationSeconds int
 }
 
-// CreateDriverConfig loads driver config from config map
+var (
+	// defaultConfig holds default values for each configurable item in case
+	// they are not present in the configuration
+	defaultConfig = map[string]string{
+		"DiscoverySubnets":           "",
+		"ProbeAsyncLimit":            "1000",
+		"ProbeTimeoutSeconds":        "2",
+		"ScanPort":                   "5084",
+		"MaxDiscoverDurationSeconds": "300",
+	}
+)
+
+// CreateDriverConfig loads driver config from config map strings from EdgeX
 func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, error) {
 	config := new(driverConfiguration)
 	err := load(configMap, config)
@@ -33,14 +48,21 @@ func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, erro
 
 // load by reflect to check map key and then fetch the value
 func load(configMap map[string]string, config *driverConfiguration) error {
+	cfgMap := configMap
+
 	configValue := reflect.ValueOf(config).Elem()
 	for i := 0; i < configValue.NumField(); i++ {
 		typeField := configValue.Type().Field(i)
 		valueField := configValue.Field(i)
 
-		val, ok := configMap[typeField.Name]
+		val, ok := cfgMap[typeField.Name]
 		if !ok {
-			return fmt.Errorf("config is missing property '%s'", typeField.Name)
+			val, ok = defaultConfig[typeField.Name]
+			if !ok {
+				return fmt.Errorf("config is missing required property '%s'", typeField.Name)
+			} else {
+				driver.lc.Debug(fmt.Sprintf("Config is missing property '%s', value has been set to the default value of '%s'", typeField.Name, val))
+			}
 		}
 		if !valueField.CanSet() {
 			return fmt.Errorf("cannot set field '%s'", typeField.Name)
@@ -81,9 +103,16 @@ func load(configMap map[string]string, config *driverConfiguration) error {
 			}
 			slice = reflect.AppendSlice(valueField, slice)
 			valueField.Set(slice)
+			// delete each handled field to know if there are any un-handled ones left
+			delete(cfgMap, typeField.Name)
 		default:
 			return fmt.Errorf("config uses unsupported property kind %v for field %v", valueField.Kind(), typeField.Name)
 		}
+	}
+	// in this case there were extra fields that are not in our config map.
+	// these could either be outdated config options or typos
+	if len(cfgMap) > 0 {
+		driver.lc.Warn(fmt.Sprintf("Got unexpected config values: %+v", cfgMap))
 	}
 	return nil
 }
