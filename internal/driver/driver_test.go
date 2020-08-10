@@ -120,10 +120,6 @@ func TestHandleRead(t *testing.T) {
 	} {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-
-			spec := llrp.NewROSpec()
-			spec.ROBoundarySpec.StartTrigger.Trigger = llrp.ROStartTriggerNone
-
 			cvs, err := d.HandleReadCommands("localReader", protocolMap{}, []dsModels.CommandRequest{{
 				DeviceResourceName: testCase.name,
 				Type:               dsModels.String,

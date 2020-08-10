@@ -812,7 +812,7 @@ parameters:
           ChannelIndex within the Fixed Frequency Table,
           for jurisdictions that do not permit frequency hopping.
           The fixed frequency information is presented in the Reader's capabilities,
-          under RegulatorCapabilities -> UHFBandCapabilities -> FrequencyInformation.
+          under RegulatoryCapabilities -> UHFBandCapabilities -> FrequencyInformation.
           Unlike other tables, this table does not have entries with IDs;
           instead, the ChannelIndex is the 1-based offset within the array.
       - name: TransmitPowerIndex
@@ -821,7 +821,7 @@ parameters:
           TransmitPowerIndex, as from the
           for jurisdictions that do not permit frequency hopping.
           The power levels are presented in the Reader's capabilities,
-          under RegulatorCapabilities -> UHFBandCapabilities -> TransmitPowerLevels.
+          under RegulatoryCapabilities -> UHFBandCapabilities -> TransmitPowerLevels.
 
   - name: GPIPortCurrentState
     type_id: 225
@@ -842,7 +842,7 @@ parameters:
         description: >-
           HoldEventsAndReportsUponReconnect instructs the reader
           to hold reports and events (except ConnectionAttemptEvent)
-          upon initation of a new connection
+          upon initiation of a new connection
           until the client issues an EnableEventsAndReports message.
           Once received, reporting proceeds normally for the duration of the connection.
 
@@ -1653,7 +1653,7 @@ parameters:
       - type: bool
         name: SB3
         partial: true
-        bit: 5  # literally all others start at bit 0 whyyyyyyyyy LLRP? WHY?!?
+        bit: 5
       - type: bool
         name: SB2
         partial: true
@@ -2120,9 +2120,19 @@ types:
       - TIDMemory
       - UserMemory
 
+  - name: MessageType
+    storage: uint16
+    kind: enum
+    description: MessageType corresponds to the LLRP binary encoding for message headers.
+    # the values are "missing" here, but are from the type ID values in the message defs.
+
   - name: ParamType
     storage: uint16
-    kind: external
+    kind: enum
+    description: >-
+      ParamType is an 8 or 10 bit value identifying
+      both the encoding and content of an LLRP Parameter.
+    # the values are "missing" here, but are from the type ID values in the message defs.
 
   - name: VersionNum
     storage: uint8
@@ -2190,7 +2200,7 @@ types:
       - All
       - GeneralDeviceCapabilities
       - LLRPCapabilities
-      - RegulatorCapabilities
+      - RegulatoryCapabilities
       - AirProtocolLLRPCapabilities
 
   - name: ReaderConfigRequestedDataType
