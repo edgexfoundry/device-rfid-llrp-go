@@ -61,6 +61,10 @@ func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, erro
 // `!errors.Is(err, ErrUnexpectedConfigItems)`
 // It may also return ErrParsingConfigValue or ErrMissingRequiredKey
 func load(configMap map[string]string, config *driverConfiguration) error {
+	if config == nil {
+		panic("driverConfiguration was nil!")
+	}
+
 	cloneMap := make(map[string]string, len(configMap))
 	for k, v := range configMap {
 		cloneMap[k] = v

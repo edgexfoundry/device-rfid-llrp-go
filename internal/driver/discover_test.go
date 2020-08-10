@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type inetTest struct {
@@ -46,8 +47,149 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// todo: add unit tests for re-discovering disabled devices, and device ip changes
+
+// TestAutoDiscoverNaming tests the naming of discovered devices using various
+// different known and unknown vendors and models. It also tests the difference between
+// mac based and epc based identification.
+func TestAutoDiscoverNaming(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		identity    llrp.Identification
+		caps        llrp.GeneralDeviceCapabilities
+	}{
+		{
+			name:        "SpeedwayR-19-C5-D6",
+			description: "Test standard Speedway R420",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_MAC_EUI64,
+				ReaderID: []byte{0x00, 0x00, 0x00, 0x00, 0x19, 0xC5, 0xD6},
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(Impinj),
+				Model:              uint32(SpeedwayR420),
+				FirmwareVersion:    "5.14.0.240",
+			},
+		},
+		{
+			name:        "xArray-25-9C-D4",
+			description: "Test standard xArray",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_MAC_EUI64,
+				ReaderID: []byte{0x00, 0x00, 0x00, 0x00, 0x25, 0x9C, 0xD4},
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(Impinj),
+				Model:              uint32(XArray),
+				FirmwareVersion:    "5.14.0.240",
+			},
+		},
+		{
+			name:        "LLRP-D2-7F-A1",
+			description: "Test unknown Impinj model with MAC_EUI64 ID type",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_MAC_EUI64,
+				ReaderID: []byte{0x00, 0x00, 0x00, 0x00, 0xD2, 0x7F, 0xA1},
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(Impinj),
+				Model:              uint32(0x32), // unknown model
+				FirmwareVersion:    "7.0.0",
+			},
+		},
+		{
+			name:        "LLRP-302411f9c92d4f",
+			description: "Test unknown Impinj model with EPC ID type",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_EPC,
+				ReaderID: []byte{0x30, 0x24, 0x11, 0xF9, 0xC9, 0x2D, 0x4F},
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(Impinj),
+				Model:              uint32(0x32), // unknown model
+				FirmwareVersion:    "7.0.0",
+			},
+		},
+		{
+			name:        "LLRP-FC-4D-1A",
+			description: "Test unknown vendor and unknown model with MAC_EUI64 ID type",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_MAC_EUI64,
+				ReaderID: []byte{0x00, 0x00, 0x00, 0x00, 0xFC, 0x4D, 0x1A},
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(0x32), // unknown vendor
+				Model:              uint32(0x32), // unknown model
+				FirmwareVersion:    "1.0.0",
+			},
+		},
+		{
+			name:        "LLRP-001a004fd9ca2b",
+			description: "Test unknown vendor and unknown model with EPC ID type",
+			identity: llrp.Identification{
+				IDType:   llrp.ID_EPC,                                      // test non-mac id types
+				ReaderID: []byte{0x00, 0x1A, 0x00, 0x4F, 0xD9, 0xCA, 0x2B}, // will be used as-is, not parsed
+			},
+			caps: llrp.GeneralDeviceCapabilities{
+				DeviceManufacturer: uint32(0x32), // unknown vendor
+				Model:              uint32(0x32), // unknown model
+				FirmwareVersion:    "1.0.0",
+			},
+		},
+	}
+
+	port, err := strconv.Atoi(driver.config.ScanPort)
+	if err != nil {
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emu := llrp.NewTestEmulator(!testing.Verbose())
+			if err := emu.StartAsync(port); err != nil {
+				t.Fatal("unable to start emulator: " + err.Error())
+			}
+
+			// set some extra non-relevant values to fill in the minimum byte requirement
+			// for a GetReaderCapabilitiesResponse message
+			test.caps.MaxSupportedAntennas = 4
+			test.caps.CanSetAntennaProperties = false
+			test.caps.HasUTCClock = true
+
+			readerConfig := llrp.GetReaderConfigResponse{
+				Identification: &test.identity,
+			}
+			emu.SetResponse(llrp.MsgGetReaderConfig, &readerConfig)
+
+			readerCaps := llrp.GetReaderCapabilitiesResponse{
+				GeneralDeviceCapabilities: &test.caps,
+			}
+			emu.SetResponse(llrp.MsgGetReaderCapabilities, &readerCaps)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			discovered := autoDiscover(ctx)
+			if len(discovered) != 1 {
+				t.Errorf("expected 1 discovered device, however got: %d", len(discovered))
+			} else if discovered[0].Name != test.name {
+				t.Errorf("expected discovered device's name to be %s, but was: %s", test.name, discovered[0].Name)
+			}
+
+			if err := emu.Shutdown(); err != nil {
+				t.Errorf("error shutting down test emulator: %s", err.Error())
+			}
+		})
+	}
+}
+
+// TestAutoDiscover uses an emulator to fake discovery process on localhost.
+// It checks:
+// 1. That no devices are discovered when the emulator is not running
+// 2. It discovers the emulator ok when it is running
+// 3. It does not re-discover the emulator when it is already registered with EdgeX
 func TestAutoDiscover(t *testing.T) {
-	t.Parallel()
 	// attempt to discover without emulator, expect none found
 	svc.clearDevices()
 	discovered := autoDiscover(context.Background())
@@ -89,9 +231,6 @@ func TestAutoDiscover(t *testing.T) {
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
-	if discovered[0].Name != "SpeedwayR-19-C5-D6" {
-		t.Errorf("expected discovered device's name to be SpeedwayR-19-C5-D6, but was: %s", discovered[0].Name)
-	}
 	svc.AddDiscoveredDevices(discovered)
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
@@ -101,68 +240,11 @@ func TestAutoDiscover(t *testing.T) {
 		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
 	}
 
-	// update reader id and model information
-	readerConfig.Identification.ReaderID = []byte{0x00, 0x00, 0x00, 0x00, 0x25, 0x9C, 0xD4}
-	readerCaps.GeneralDeviceCapabilities.Model = uint32(XArray)
-	// clear and re-discover
-	svc.clearDevices()
-	discovered = autoDiscover(context.Background())
-	if len(discovered) != 1 {
-		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
-	}
-	if discovered[0].Name != "xArray-25-9C-D4" {
-		t.Errorf("expected discovered device's name to be xArray-25-9C-D4, but was: %s", discovered[0].Name)
-	}
-
-	// update reader id and model information
-	readerConfig.Identification.ReaderID = []byte{0x00, 0x00, 0x00, 0x00, 0xFC, 0x4D, 0x1A}
-	readerCaps.GeneralDeviceCapabilities.DeviceManufacturer = uint32(0x32) // unknown vendor
-	readerCaps.GeneralDeviceCapabilities.Model = uint32(0x32)              // unknown model
-	// clear and re-discover
-	svc.clearDevices()
-	discovered = autoDiscover(context.Background())
-	if len(discovered) != 1 {
-		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
-	}
-	if discovered[0].Name != "LLRP-FC-4D-1A" {
-		t.Errorf("expected discovered device's name to be LLRP-FC-4D-1A, but was: %s", discovered[0].Name)
-	}
-
-	// update reader id and model information
-	readerConfig.Identification.IDType = llrp.ID_EPC                                        // test non-mac id types
-	readerConfig.Identification.ReaderID = []byte{0x00, 0x1A, 0x00, 0x4F, 0xD9, 0xCA, 0x2B} // will be used as-is, not parsed
-	// clear and re-discover
-	svc.clearDevices()
-	discovered = autoDiscover(context.Background())
-	if len(discovered) != 1 {
-		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
-	}
-	if discovered[0].Name != "LLRP-001a004fd9ca2b" {
-		t.Errorf("expected discovered device's name to be LLRP-001a004fd9ca2b, but was: %s", discovered[0].Name)
-	}
-
 	if err := emu.Shutdown(); err != nil {
 		t.Errorf("error shutting down test emulator: %s", err.Error())
 	}
 	// reset
 	svc.clearDevices()
-}
-
-func TestBalh(t *testing.T) {
-	_, ipnet, _ := net.ParseCIDR("129.168.1.1/32")
-	ones, bits := ipnet.Mask.Size()
-	t.Logf("ones: %v, bits: %v", ones, bits)
-
-	_, ipnet, _ = net.ParseCIDR("129.168.1.1/16")
-	ones, bits = ipnet.Mask.Size()
-	t.Logf("ones: %v, bits: %v", ones, bits)
-
-	_, ipnet, _ = net.ParseCIDR("129.168.1.1/8")
-	ones, bits = ipnet.Mask.Size()
-	t.Logf("ones: %v, bits: %v", ones, bits)
-
-	t.Logf("%d", computeNetSz(24))
-
 }
 
 func mockIpWorker(ipCh <-chan uint32, result *inetTest) {

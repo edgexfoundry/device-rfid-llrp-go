@@ -277,7 +277,9 @@ func makeDeviceMap() map[string]contract.Device {
 
 		host, port := tcpInfo["host"], tcpInfo["port"]
 		if host == "" || port == "" {
-			driver.lc.Warn(fmt.Sprintf("Registered device is missing required tcp protocol information host: %q, port: %q", host, port))
+			driver.lc.Warn("Registered device is missing required tcp protocol information.",
+				"host", host,
+				"port", port)
 			continue
 		}
 
@@ -352,8 +354,9 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 		defer cancel()
 
 		defer func() {
-			if err := c.Shutdown(ctx); err != nil {
-				driver.lc.Warn("Error occurred while attempting to shutdown temporary discover device.", "error", err)
+			if err := c.Shutdown(ctx); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
+				driver.lc.Warn("Error closing discovery device.", "error", err.Error())
+				_ = c.Close()
 			}
 		}()
 
@@ -362,7 +365,10 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 			RequestedData: llrp.ReaderConfReqIdentification,
 		}
 		err = c.SendFor(ctx, &configReq, &readerConfig)
-		if err != nil {
+		if errors.Is(err, llrp.ErrClientClosed) {
+			driver.lc.Warn("Client connection was closed while sending GetReaderConfig to discovered device.", "error", err)
+			return
+		} else if err != nil {
 			driver.lc.Warn("Error sending GetReaderConfig to discovered device.", "error", err)
 			return
 		}
@@ -372,7 +378,10 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 			ReaderCapabilitiesRequestedData: llrp.ReaderCapGeneralDeviceCapabilities,
 		}
 		err = c.SendFor(ctx, &capabilitiesReq, &readerCaps)
-		if err != nil {
+		if errors.Is(err, llrp.ErrClientClosed) {
+			driver.lc.Warn("Client connection was closed while sending GetReaderCapabilities to discovered device.", "error", err)
+			return
+		} else if err != nil {
 			driver.lc.Warn("Error sending GetReaderCapabilities to discovered device.", "error", err)
 			return
 		}

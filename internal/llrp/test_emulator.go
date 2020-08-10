@@ -108,7 +108,10 @@ func (emu *TestEmulator) handleNewConn(conn net.Conn) {
 
 // SetResponse adds a canned response to all future clients. Optionally,
 // if `applyExisting` is true, this will affect all currently active clients.
+//
 // NOTE 1: This will OVERRIDE existing response for given message type
+//
+// NOTE 2: Setting the response for MsgCloseConnection is NOT SUPPORTED and will be overridden by internal handler.
 func (emu *TestEmulator) SetResponse(mt MessageType, out Outgoing) {
 	emu.responsesMu.Lock()
 	emu.responses[mt] = out
