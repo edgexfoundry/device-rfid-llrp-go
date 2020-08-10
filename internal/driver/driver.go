@@ -89,7 +89,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	d.svc = &DeviceSDKService{service.RunningService()}
 
 	config, err := CreateDriverConfig(d.svc.DriverConfigs())
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrUnexpectedConfigItems) {
 		return errors.Wrap(err, "read driver configuration failed")
 	}
 
