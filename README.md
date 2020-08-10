@@ -76,8 +76,7 @@ in an effort to discover devices that support LLRP.
 
 This discovery also happens at a regular interval and can be configured via 
 [EdgeX Consul](http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/) 
-for existing installations, 
-and [configuration.toml](cmd/res/docker/configuration.toml) for default values.
+for existing installations, and [configuration.toml][config_toml] for default values.
 
 The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml](cmd/res/docker/configuration.toml) file.
 ```toml
@@ -168,6 +167,25 @@ is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-1
 - **Other Vendors and Unknown Models**
     - `LLRP-12fec5432453df3ac`
 
+### Manually Adding a Device
+You can add devices directly via [EdgeX's APIs][add_device]
+or via the [toml configuration][config_toml], as in the following example:
+
+```
+[[DeviceList]]
+  Name = "Speedway"
+  Profile = "Device.LLRP.Profile"
+  Description = "LLRP RFID Reader"
+  Labels = ["LLRP", "RFID"]
+  [DeviceList.Protocols]
+    [DeviceList.Protocols.tcp]
+      host = "192.168.86.88"
+      port = "5084"
+```
+
+[add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/1.2.0#/default/post_v1_device
+[config_toml]: cmd/res/configuration.toml
+
 ## Connection Management
 After an LLRP device is added, either via discovery or directly through EdgeX,
 the driver works to maintain a connection to it.
@@ -190,8 +208,11 @@ Note that it can take up to two minutes before the dropped connection is detecte
 These values are not currently configurable,
 but they are easy to change before building
 within [this code](internal/driver/device.go).
-Future work may make these configurable
-and/or automatically set up a KeepAlive spec on connection.
+Future work will automatically set up a KeepAlive spec on connection.
+
+## LLRP Information and JSON Syntax
+You can learn more about our LLRP library in the 
+[documentation here](internal/llrp/hacking_with_llrp.md).
 
 ## Example Scripts
 There are a couple of example scripts here
@@ -215,9 +236,16 @@ so don't rely on them for much more than happy-path testing.
 They assume everything is running and expect you have a these on your path:
 `jq`, `curl`, `sed`, `xargs`, `base64`, and `od`. 
 By default, they all try to connect to `localhost` on the typical EdgeX ports.
-`commands.sh` and `data.sh` take args/options; use `--help` to see their usage.
+`command.sh` and `data.sh` take args/options; use `--help` to see their usage.
 `example.sh` uses a couple of variables defined at the top of the file
 to determine which host/port/file to use.
+
+The [command][] script in particular shows some examples in its `usage`.
+You can use it to control arbitrary LLRP configuration,
+such as adding/modifying/removing `ROSpec`s and `AccessSpec`s, 
+changing a Reader's default `ROAccessReport` reported data,
+enabling/modifying/disabling `KeepAlive` messages,
+and enabling/disabling specific `ReaderEventNotification`s.
 
 [command]: examples/command.sh
 [data]: examples/data.sh
