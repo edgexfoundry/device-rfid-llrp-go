@@ -1309,7 +1309,7 @@ class Container:
             blk = ''
             if not mut_excl:
                 w.noindent(f'\nparamGroup{i}:')
-                blk = f'for len(data) > {1 if any(tvs) else 4}'
+                blk = f'for len(data) >= {1 if any(tvs) else 4}'
 
             def default_case(w: GoWriter):
                 if optional or repeatable:
