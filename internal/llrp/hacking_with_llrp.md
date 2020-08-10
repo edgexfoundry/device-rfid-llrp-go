@@ -1,15 +1,15 @@
 # Hacker's Guide to LLRP
 
-This is document is a minimum need-to-know about LLRP,
+This document is a minimum need-to-know about LLRP,
 where to go next/when you need more info,
 what to watch out for,
 and the basics of how to use this library effectively.
-It can't replace reading the actual protocol spec,
+It can't replace reading [the actual protocol spec][llrp_1_0_1],
 but it can get you started.
 
 This doc makes some underlying assumptions about how you're using LLRP
-(specifically, as binary messages exchanged over `tcp/ip`,
-and that the RFID air protocol in use is the Class1 Gen2 standard) 
+(specifically, you're exchanging binary messages over `tcp/ip`
+with an RFID Reader that operates according to the [EPC UHF air protocol][epc_standard]) 
 even though _technically_ you could do it other ways
 The LLRP manual makes a big distinction 
 between the "abstract" message format and the binary format,
@@ -17,16 +17,20 @@ but in reality they are tightly coupled.
 However, if you're in doubt about something this doc says, 
 the protocol specification is the authority.
 
+[llrp_1_0_1]: https://www.gs1.org/standards/epc-rfid/llrp/1-0-1
+[llrp_1_1]: https://www.gs1.org/standards/epc-rfid/llrp/1-1-0
+[epc_standard]: https://www.gs1.org/standards/epc-rfid/uhf-air-interface-protocol
+
 ## Basics
 In LLRP there's a Client (your computer) and Reader (the RFID device).
 They exchange LLRP `Message`s, 
 most of which are a Client request followed by a Reader response.
 
 A Client connects to a Reader, 
-gives it one or more "Reader Operation Specification" (`ROSpec`s),
-maybe setups up "Access Specifications" (`AccessSpec`s),
-and depending on the config,
-and either waits for incoming tag reports,
+gives it one or more "Reader Operation Specifications" (`ROSpec`s),
+possibly sets up "Access Specifications" (`AccessSpec`s),
+and (depending on the config) 
+either waits for incoming tag reports,
 or polls the Reader for tag reports. 
 LLRP also has some stuff to handle general input/output ports,
 but this doc isn't going to go into it. 
@@ -128,26 +132,42 @@ You can get its `usage` via the `-help` flag.
     and it's up to other layers with more specific knowledge to deal with them. 
 - Technically, LLRP requires Clients be capable of accepting Reader connections,
   even though they can choose not to do so; we do not accept Reader connections. 
+  
+### Mapping Identifiers between LLRP and our Library
+To interact with our library via Go or JSON,
+you'll need to know the parameter names and structures.
+For the most part, the library uses typical LLRP parameter and message names,
+but this is not universally true:
+in some cases, LLRP parameter names are not valid Go identifiers,
+and in other cases they are simply too unwieldy for reasonable, ergonomic use. 
+
+Our LLRP library uses the Go standard library JSON marshaling/unmarshaling,
+so you need only to know these structures' names and exported fields,
+which can be found simply by perusing [the code](generated_structs.go)
+or using `go doc llrp`.
+
+In the Go library, we've given identifiers to many LLRP enumerations;
+in JSON, these constants are simply their LLRP equivalent:
+e.g., in LLRP `Periodic` `KeepAliveTrigger` has the value `1`,
+so in Go, you can write `Trigger: llrp.KATriggerPeriodic` 
+whereas in JSON, you'd use `Trigger: 1`.
 
 ## Navigating the Specification
 There are (sort of) two versions of LLRP:
-- [`1.0.1`](https://www.gs1.org/standards/epc-rfid/llrp/1-0-1) 
-    (aka version `1`) was published in 2007.
-- [`1.1`](https://www.gs1.org/standards/epc-rfid/llrp/1-1-0) 
-    (aka version `2`) was published in 2010.
+- [`1.0.1`][llrp_1_0_1] (aka version `1`) was published in 2007.
+- [`1.1`][llrp_1_1] (aka version `2`) was published in 2010.
 
 `1.1` only adds a couple of things, 
 and technically still says "draft", even though the standards body 
-(previously EPCglobal, now GS1) publishes it on their website.
+(previously EPCglobal, now GS1) publishes it on their website as "the latest version".
 It doesn't appear widely adopted,
 but our library will marshal the messages and handle version negotiation.
 
-You may need to reference the EPC  
-[standard](https://www.gs1.org/standards/epc-rfid/uhf-air-interface-protocol)
-to fully understand some of the parameter definitions.
-It is enormous, and has been updated more frequently/recently than LLRP;
+You may need to reference the [EPC standard][epc_standard]
+to fully understand all the parameter definitions.
+It is enormous and has been updated more frequently/recently than LLRP;
 it's not required reading to understand LLRP,
-but it is to make the best use of the parameters.
+but you do need to understand it to make the best use of all LLRP's parameters.
 
 The major chunks of the doc:
 - Chapters 1-4 are basic definitions & intro material.
@@ -157,12 +177,13 @@ The major chunks of the doc:
   The `1.1` state transition diagrams are more clear.
 - Chapters 8-15 (16 in `1.1`) describe the "abstract" message format,
   while Chapter 16 (17 in `1.1`) gives the binary format.
-  It's helpful to have the doc opened twice so you can cross-reference.
+  You should open two copies of the spec 
+  and compare the message formats side-by-side, 
+  as it will make their structures easier to understand.
 - The rest of the doc is just helpful information,
   like where to find other specification docs.
   The `1.0.1` includes some UML drawings of questionable value.
   
- 
 > Important: The "abstract" format often presents fields/parameters
 > in an order different from the binary format.
 > Some parts of the abstract format allow for more flexibility

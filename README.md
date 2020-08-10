@@ -88,6 +88,10 @@ but they are easy to change before building
 within [this code](internal/driver/device.go).
 Future work will automatically set up a KeepAlive spec on connection.
 
+## LLRP Information and JSON Syntax
+You can learn more about our LLRP library in the 
+[documentation here](internal/llrp/hacking_with_llrp.md).
+
 ## Example Scripts
 There are a couple of example scripts here
 to interact with devices through EdgeX's APIs.
