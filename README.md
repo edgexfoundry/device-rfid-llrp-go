@@ -13,32 +13,65 @@ LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
  - Docker-compose
  
 ##### Build #####
-```
+```bash
 $ make build
 ```
 
 ##### Build Docker image #####
-```
+```bash
 $ make docker
 ```
 
 ##### Docker-compose run with other Edgex services (Geneva Release) #####
-```
+```bash
 $ make run
 ```
 
 ##### Docker-compose stop #####
-```
+```bash
 $ make stop
 ```
 
 ##### Format #####
-```
+```bash
 $ make fmt
 ```
 
+## First Run
+**Build and deploy**
+```bash
+make docker deploy
+```
+**Configure subnet information**
+```bash
+make auto-configure
+```
+**Restart service to pick up configuration changes**
+```bash
+docker-compose -f docker-compose-geneva-redis-no-secty.yml restart device-llrp
+```
+**Trigger a device discovery**
+
+*Note: make sure your LLRP devices are plugged in and powered on before this step*
+```bash
+curl -X POST http://localhost:51992/api/v1/discovery
+```
+**Tail the service logs**
+```bash
+docker-compose -f docker-compose-geneva-redis-no-secty.yml logs -f device-llrp
+```
+
+At this point the `device-llrp` service should have discovered your LLRP devices on the network and
+registered them with EdgeX.
+
+For more detailed info, see [Device Discovery](#Device-Discovery) and 
+[EdgeX Device Naming](#EdgeX-Device-Naming).
+
 ## Device Discovery
-Upon startup this service will probe the local network 
+*Note: Device discovery is currently only compatible with IPv4 networks.
+If using an IPv6-only network, you will need to manually add your devices to EdgeX.*
+
+This service has the functionality to probe the local network 
 in an effort to discover devices that support LLRP.
 
 This discovery also happens at a regular interval and can be configured via 
@@ -70,13 +103,26 @@ ScanPort = "5084"
 MaxDiscoverDurationSeconds = "300"
 ```
 
-Discovery can be manually triggered via REST:
+The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur.
+The easiest way of doing this is via a make command:
+```bash
+make auto-configure
 ```
-[POST http://<hostname>:<device-llrp-go port>/api/v1/discovery]
+What this command does is check your local machine's network interfaces to see which ones are both online
+and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
+field in Consul for you.
+
+Discovery can be manually triggered via REST:
+```bash
+# POST http://<hostname>:<device-llrp-go port>/api/v1/discovery
 curl -X POST http://localhost:51992/api/v1/discovery
 ```
+or make:
+```bash
+make discover
+```
 
-Every IP address in all the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
+Every IP address in each of the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
 If a device returns LLRP response messages, a new EdgeX device is created.
 
 ### EdgeX Device Naming
