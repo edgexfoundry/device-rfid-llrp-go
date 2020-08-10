@@ -288,6 +288,8 @@ func ipGeneratorTest(input inetTest) (result inetTest) {
 	return result
 }
 
+// TestIpGenerator calls the ip generator and validates that the first ip, last ip, and size
+// match the expected values.
 func TestIpGenerator(t *testing.T) {
 	tests := []inetTest{
 		{
@@ -324,6 +326,7 @@ func TestIpGenerator(t *testing.T) {
 	for _, input := range tests {
 		input := input
 		t.Run(input.inet, func(t *testing.T) {
+			t.Parallel()
 			result := ipGeneratorTest(input)
 			if result.err && !input.err {
 				t.Error("got unexpected error")
@@ -344,10 +347,14 @@ func TestIpGenerator(t *testing.T) {
 	}
 }
 
+// TestIpGeneratorSubnetSizes calls the ip generator for various subnet sizes and validates that
+// the correct amount of IP addresses are generated
 func TestIpGeneratorSubnetSizes(t *testing.T) {
+	// stop at 10 because the time taken gets exponentially longer
 	for i := 32; i >= 10; i-- {
 		i := i
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 			result := ipGeneratorTest(inetTest{size: uint32(i), inet: fmt.Sprintf("192.168.1.1/%d", i)})
 			if result.size != computeNetSz(i) {
 				t.Errorf("expected %d ips, but got %d", computeNetSz(i), result.size)
