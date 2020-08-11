@@ -10,17 +10,19 @@ import (
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/pkg/errors"
 )
 
 // ServiceWrapper wraps an EdgeX SDK service so it can be easily mocked in tests.
 type ServiceWrapper interface {
 	// Direct pass-through methods.
 	Devices() []contract.Device
-	UpdateDeviceOperatingState(name string, state string) error
 	GetDeviceByName(name string) (contract.Device, error)
 
 	// Custom functionality or macros.
 	AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error
+
+	SetDeviceOpState(name string, state contract.OperatingState) error
 }
 
 // DeviceSdkService just embeds the normal EdgeX service struct
@@ -42,4 +44,16 @@ func (s *DeviceSdkService) AddOrUpdateProvisionWatcher(watcher contract.Provisio
 	}
 
 	return err
+}
+
+func (s *DeviceSdkService) SetDeviceOpState(name string, state contract.OperatingState) error {
+	// workaround: the device-service-sdk's uses core-contracts for the API URLs,
+	// but the metadata service API for opstate updates changed between v1.1.0 and v1.2.0.
+	d, err := s.GetDeviceByName(name)
+	if err != nil {
+		return errors.New("no such device")
+	}
+
+	d.OperatingState = state
+	return s.UpdateDevice(d)
 }

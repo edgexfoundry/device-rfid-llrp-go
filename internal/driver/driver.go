@@ -91,11 +91,6 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	for i := range registered {
 		device := &registered[i] // the Device struct is nearly 1kb, so this avoids copying it
 
-		if device.OperatingState == contract.Disabled {
-			d.lc.Warn("Device is disabled.", "deviceName", device.Name)
-			continue
-		}
-
 		addr, err := getAddr(device.Protocols)
 		if err != nil {
 			d.lc.Error("Unsupported protocol mapping.",
@@ -105,7 +100,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 			continue
 		}
 
-		d.lc.Info("Creating new connection for device.", "deviceName", device.Name)
+		d.lc.Info("Creating a new Reader connection.", "deviceName", device.Name)
 		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
 	}
 
@@ -160,7 +155,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	dev, err := d.getDevice(devName, p)
+	dev, _, err := d.getDevice(devName, p)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +222,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		return errors.New("missing requests")
 	}
 
-	dev, err := d.getDevice(devName, p)
+	dev, _, err := d.getDevice(devName, p)
 	if err != nil {
 		return err
 	}
@@ -431,7 +426,9 @@ func (d *Driver) Stop(force bool) error {
 
 	for _, dev := range d.activeDevices {
 		go func(dev *LLRPDevice) {
-			d.stopDevice(ctx, dev)
+			if err := dev.Stop(ctx); err != nil {
+				d.lc.Error("Error attempting client shutdown.", "error", err.Error())
+			}
 			if !force {
 				wg.Done()
 			}
@@ -450,7 +447,7 @@ func (d *Driver) Stop(force bool) error {
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
-	_, err := d.getDevice(deviceName, protocols)
+	_, _, err := d.getDevice(deviceName, protocols)
 	if err != nil {
 		d.lc.Error("Failed to add device.", "error", err, "deviceName", deviceName)
 	}
@@ -485,25 +482,16 @@ func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminSta
 		}
 	}()
 
-	edev, err := d.svc.GetDeviceByName(deviceName)
-	if err != nil {
-		d.lc.Error("Device Lookup failed.", "deviceName", deviceName, "error", err.Error())
-		return
-	}
-
 	// This uses the shutdownGrace period because updating the address
 	// may require closing a current connection to an existing device.
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
 
-	if edev.OperatingState == contract.Disabled {
-		d.removeDevice(ctx, deviceName)
-		return
-	}
-
 	var dev *LLRPDevice
-	dev, err = d.getDevice(deviceName, protocols)
-	if err != nil {
+	var isNew bool
+	dev, isNew, err = d.getDevice(deviceName, protocols)
+	// No need to call update if the device was just created.
+	if !(err == nil && isNew) {
 		return err
 	}
 
@@ -528,43 +516,46 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	return nil
 }
 
-// getOrCreate returns a Client, creating one if needed.
+// getDevice returns an LLRPDevice, creating one if needed.
 //
-// If a Client with this name already exists, it returns it.
-// Otherwise, calls the createNew function to get a new Client,
-// which it adds to the map and then returns.
-func (d *Driver) getDevice(name string, p protocolMap) (*LLRPDevice, error) {
+// If the Driver is already managing an LLRPDevice with this name,
+// then this call simply returns it.
+// Otherwise, it creates and returns a new LLRPDevice instance
+// after adding it to its map of managed devices.
+// If the new LLRPDevice is created as a result of this call,
+// the returned boolean `isNew` will be the true.
+func (d *Driver) getDevice(name string, p protocolMap) (dev *LLRPDevice, isNew bool, err error) {
 	// Try with just a read lock.
 	d.devicesMu.RLock()
 	c, ok := d.activeDevices[name]
 	d.devicesMu.RUnlock()
 	if ok {
-		return c, nil
+		return c, false, nil
 	}
 
 	addr, err := getAddr(p)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// It's important it holds the lock while creating a device.
 	// If two requests arrive at about the same time and target the same device,
 	// one will block waiting for the lock and the other will create/add it.
-	// When gaining the lock, we recheck the map
+	// When gaining the lock, we recheck the map.
 	// This way, only one device exists for any name,
 	// and all requests that target it use the same one.
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
 
-	dev, ok := d.activeDevices[name]
+	dev, ok = d.activeDevices[name]
 	if ok {
-		return dev, nil
+		return dev, false, nil
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
 	dev = d.NewLLRPDevice(name, addr)
 	d.activeDevices[name] = dev
-	return dev, nil
+	return dev, true, nil
 }
 
 // removeDevice deletes a device from the active devices map
@@ -575,32 +566,11 @@ func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
 
 	if dev, ok := d.activeDevices[deviceName]; ok {
 		d.lc.Info("Stopping connection for device.", "device", deviceName)
-		go d.stopDevice(ctx, dev)
+		if err := dev.Stop(ctx); err != nil {
+			d.lc.Error("Error attempting client shutdown.", "error", err.Error())
+		}
 		delete(d.activeDevices, deviceName)
 	}
-}
-
-// stopDevice stops a device's reconnect loop,
-// closing any active connection it may currently have.
-// Any pending requests targeting that device may fail.
-// This doesn't remove it from the devices map.
-func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
-	if err := dev.Stop(ctx); err != nil {
-		d.lc.Error("Error attempting client shutdown.", "error", err.Error())
-	}
-}
-
-// disableDevice tells EdgeX that a device is DISABLED
-// and stops attempting to manage the device.
-func (d *Driver) disableDevice(devName string) {
-	if err := d.svc.UpdateDeviceOperatingState(devName, contract.Disabled); err != nil {
-		d.lc.Error("Failed to set device operating state to Disabled.",
-			"device", devName, "error", err.Error())
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
-	defer cancel()
-	d.removeDevice(ctx, devName)
 }
 
 // getAddr extracts an address from a protocol mapping.

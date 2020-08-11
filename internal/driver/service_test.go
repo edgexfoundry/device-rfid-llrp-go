@@ -69,7 +69,7 @@ func (s *MockSdkService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionW
 	return nil
 }
 
-func (s *MockSdkService) UpdateDeviceOperatingState(name string, state string) error {
+func (s *MockSdkService) SetDeviceOpState(name string, state contract.OperatingState) error {
 	return errors.New("Method not implemented.")
 }
 
