@@ -102,6 +102,8 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 		v = &GetROSpecsResponse{}
 	case MsgCloseConnectionResponse.String():
 		v = &CloseConnectionResponse{}
+	case MsgReaderEventNotification.String():
+		v = &ReaderEventNotification{}
 	case MsgROAccessReport.String():
 		v = &ROAccessReport{}
 		// note no default needed: the first couple lines of the test check for `nil`.
@@ -112,7 +114,8 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 	// binary -> Go -> JSON   & check it matches original JSON
 	return func(t *testing.T) {
 		if v == nil {
-			t.Fatalf("unknown message type: %s", msgName)
+			t.Fatalf("unknown message type: %s; "+
+				"did you add a new one but forget to add it to the switch?", msgName)
 		}
 
 		var originalJSON, originalBin, marshaledBin, marshaledJSON []byte

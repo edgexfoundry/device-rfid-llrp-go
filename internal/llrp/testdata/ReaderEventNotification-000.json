@@ -1,0 +1,19 @@
+{
+	"ReaderEventNotificationData": {
+		"UTCTimestamp": 1596721689842138,
+		"Uptime": 0,
+		"HoppingEvent": null,
+		"GPIEvent": null,
+		"ROSpecEvent": null,
+		"ReportBufferLevelWarningEvent": null,
+		"ReportBufferOverflowErrorEvent": null,
+		"ReaderExceptionEvent": null,
+		"RFSurveyEvent": null,
+		"AISpecEvent": null,
+		"AntennaEvent": null,
+		"ConnectionAttemptEvent": null,
+		"ConnectionCloseEvent": {},
+		"SpecLoopEvent": null,
+		"Custom": null
+	}
+}
