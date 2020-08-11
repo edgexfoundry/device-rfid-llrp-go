@@ -120,7 +120,7 @@ func (m *GetReaderCapabilities) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -172,7 +172,7 @@ func (m *GetReaderCapabilitiesResponse) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -210,7 +210,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -518,7 +518,7 @@ func (m *GetROSpecsResponse) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -750,7 +750,7 @@ func (m *GetAccessSpecsResponse) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -854,7 +854,7 @@ func (m *ROAccessReport) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -995,7 +995,7 @@ func (m *GetReaderConfig) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1062,7 +1062,7 @@ func (m *GetReaderConfigResponse) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1092,7 +1092,7 @@ paramGroup2:
 	}
 
 paramGroup3:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1131,7 +1131,7 @@ paramGroup3:
 	}
 
 paramGroup4:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1174,7 +1174,7 @@ paramGroup4:
 	}
 
 paramGroup6:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1229,7 +1229,7 @@ func (m *SetReaderConfig) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1259,7 +1259,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1290,7 +1290,7 @@ paramGroup2:
 	}
 
 paramGroup3:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1333,7 +1333,7 @@ paramGroup3:
 	}
 
 paramGroup5:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1668,7 +1668,7 @@ func (p *GeneralDeviceCapabilities) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1689,7 +1689,7 @@ paramGroup0:
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1727,7 +1727,7 @@ paramGroup1:
 	}
 
 paramGroup3:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1861,7 +1861,7 @@ func (p *RegulatoryCapabilities) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1895,7 +1895,7 @@ func (p *UHFBandCapabilities) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -1993,7 +1993,7 @@ func (p *FrequencyInformation) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2125,7 +2125,7 @@ func (p *ROSpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2161,7 +2161,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2246,7 +2246,7 @@ func (p *ROSpecStartTrigger) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2385,7 +2385,7 @@ func (p *AISpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2409,7 +2409,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2449,7 +2449,7 @@ func (p *AISpecStopTrigger) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2506,7 +2506,7 @@ func (p *InventoryParameterSpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2567,7 +2567,7 @@ func (p *RFSurveySpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2665,7 +2665,7 @@ func (p *AccessSpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2726,7 +2726,7 @@ func (p *AccessCommand) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2792,7 +2792,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -2853,7 +2853,7 @@ func (p *ClientRequestResponse) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3002,7 +3002,7 @@ func (p *AntennaConfiguration) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3033,7 +3033,7 @@ paramGroup0:
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3127,7 +3127,7 @@ func (p *ROReportSpec) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3190,7 +3190,7 @@ func (p *TagReportContentSelector) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3268,7 +3268,7 @@ func (p *TagReportData) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 1 {
+	for len(data) >= 1 {
 		var pt ParamType
 		if data[0]&0x80 != 0 {
 			// TV parameter
@@ -3458,7 +3458,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3517,7 +3517,7 @@ func (p *RFSurveyReportData) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 1 {
+	for len(data) >= 1 {
 		pt := ParamType(data[0] & 0x7F)
 		switch pt {
 		case ParamROSpecID:
@@ -3534,7 +3534,7 @@ paramGroup0:
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3558,7 +3558,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3634,7 +3634,7 @@ func (p *ReaderEventNotificationSpec) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3705,7 +3705,7 @@ func (p *ReaderEventNotificationData) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3777,7 +3777,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -3870,7 +3870,7 @@ func (p *ReaderExceptionEvent) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 1 {
+	for len(data) >= 1 {
 		pt := ParamType(data[0] & 0x7F)
 		switch pt {
 		case ParamROSpecID:
@@ -3906,7 +3906,7 @@ paramGroup0:
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4016,7 +4016,7 @@ func (p *LLRPStatus) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4070,7 +4070,7 @@ func (p *ParameterError) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4123,7 +4123,7 @@ func (p *UHFC1G2RFModeTable) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4181,7 +4181,7 @@ func (p *C1G2InventoryCommand) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4205,7 +4205,7 @@ paramGroup0:
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4233,7 +4233,7 @@ paramGroup1:
 	}
 
 paramGroup2:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4286,7 +4286,7 @@ func (p *C1G2Filter) UnmarshalBinary(data []byte) error {
 	}
 
 paramGroup1:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
@@ -4558,7 +4558,7 @@ func (p *C1G2Lock) UnmarshalBinary(data []byte) error {
 	// sub-parameters
 
 paramGroup0:
-	for len(data) > 4 {
+	for len(data) >= 4 {
 		pt := ParamType(binary.BigEndian.Uint16(data))
 		subLen := binary.BigEndian.Uint16(data[2:])
 		if int(subLen) > len(data) {
