@@ -141,27 +141,32 @@ func TestAutoDiscoverNaming(t *testing.T) {
 
 	port, err := strconv.Atoi(driver.config.ScanPort)
 	if err != nil {
-		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", driver.config.ScanPort)
+	}
+
+	// create a fake rx sensitivity table to produce a more valid GetReaderCapabilitiesResponse
+	var i uint16
+	sensitivities := make([]llrp.ReceiveSensitivityTableEntry, 11)
+	for i = 1; i <= 11; i++ {
+		sensitivities = append(sensitivities, llrp.ReceiveSensitivityTableEntry{
+			Index:              i,
+			ReceiveSensitivity: 10 + (4 * (i - 1)), // min 10, max 50
+		})
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			emu := llrp.NewTestEmulator(!testing.Verbose())
 			if err := emu.StartAsync(port); err != nil {
-				t.Fatal("unable to start emulator: " + err.Error())
+				t.Fatalf("unable to start emulator: %+v", err)
 			}
-
-			// set some extra non-relevant values to fill in the minimum byte requirement
-			// for a GetReaderCapabilitiesResponse message
-			test.caps.MaxSupportedAntennas = 4
-			test.caps.CanSetAntennaProperties = false
-			test.caps.HasUTCClock = true
 
 			readerConfig := llrp.GetReaderConfigResponse{
 				Identification: &test.identity,
 			}
 			emu.SetResponse(llrp.MsgGetReaderConfig, &readerConfig)
 
+			test.caps.ReceiveSensitivities = sensitivities
 			readerCaps := llrp.GetReaderCapabilitiesResponse{
 				GeneralDeviceCapabilities: &test.caps,
 			}
@@ -200,11 +205,11 @@ func TestAutoDiscover(t *testing.T) {
 	// attempt to discover WITH emulator, expect emulator to be found
 	port, err := strconv.Atoi(driver.config.ScanPort)
 	if err != nil {
-		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", driver.config.ScanPort)
 	}
 	emu := llrp.NewTestEmulator(!testing.Verbose())
 	if err := emu.StartAsync(port); err != nil {
-		t.Fatal("unable to start emulator: " + err.Error())
+		t.Fatalf("unable to start emulator: %+v", err)
 	}
 
 	readerConfig := llrp.GetReaderConfigResponse{
@@ -241,7 +246,7 @@ func TestAutoDiscover(t *testing.T) {
 	}
 
 	if err := emu.Shutdown(); err != nil {
-		t.Errorf("error shutting down test emulator: %s", err.Error())
+		t.Errorf("error shutting down test emulator: %+v", err)
 	}
 	// reset
 	svc.clearDevices()

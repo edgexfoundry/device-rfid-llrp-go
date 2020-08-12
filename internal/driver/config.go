@@ -56,10 +56,10 @@ func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, erro
 
 // load is the internal function that takes the incoming strings map and parses it to fill
 // in the values of the driverConfiguration pointer.
-// It returns ErrUnexpectedConfigItems if there are additional unused keys and values after parsing
-// is complete. This error can be safely ignored using:
+// It returns an error wrapping ErrUnexpectedConfigItems if there are additional unused keys and
+// values after parsing is complete. This error can be safely ignored using:
 // `!errors.Is(err, ErrUnexpectedConfigItems)`
-// It may also return ErrParsingConfigValue or ErrMissingRequiredKey
+// It may also return an error wrapping ErrParsingConfigValue or ErrMissingRequiredKey
 func load(configMap map[string]string, config *driverConfiguration) error {
 	if config == nil {
 		panic("driverConfiguration was nil!")
@@ -113,8 +113,8 @@ func wrapParseError(err error, key string) error {
 
 // pop retrieves the value stored in `cloneMap` for the specified key if it exists
 // and deletes it from the map. If it does not exist, it uses the default value configured
-// for that key. It will return `ErrMissingRequiredKey` if the key is missing from `cloneMap`
-// and there is no default value specified for that key.
+// for that key. It will return an error wrapping `ErrMissingRequiredKey` if the key is
+// missing from `cloneMap` and there is no default value specified for that key.
 func pop(cloneMap map[string]string, key string) (string, error) {
 	val, ok := cloneMap[key]
 	if !ok {

@@ -37,7 +37,7 @@ type discoveryInfo struct {
 }
 
 // newDiscoveryInfo creates a new discoveryInfo with just a host and port pre-filled
-func newDiscoveryInfo(host string, port string) *discoveryInfo {
+func newDiscoveryInfo(host, port string) *discoveryInfo {
 	return &discoveryInfo{
 		host: host,
 		port: port,
@@ -70,7 +70,7 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 		return nil
 	}
 
-	ipnets := make([]*net.IPNet, 0)
+	ipnets := make([]*net.IPNet, 0, len(driver.config.DiscoverySubnets))
 	var estimatedProbes int
 	for _, cidr := range driver.config.DiscoverySubnets {
 		if cidr == "" {
@@ -127,22 +127,7 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 
 	go func() {
 		var wgIPGenerators sync.WaitGroup
-		for _, cidr := range driver.config.DiscoverySubnets {
-			if cidr == "" {
-				driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
-				continue
-			}
-
-			ip, ipnet, err := net.ParseCIDR(cidr)
-			if err != nil {
-				driver.lc.Error(fmt.Sprintf("Unable to parse CIDR: %q", cidr), "error", err)
-				continue
-			}
-			if ip == nil || ipnet == nil || ip.To4() == nil {
-				driver.lc.Error("Currently only ipv4 subnets are supported.", "subnet", cidr)
-				continue
-			}
-
+		for _, ipnet := range ipnets {
 			select {
 			case <-ctx.Done():
 				// quit early if we have been cancelled
@@ -180,38 +165,39 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]contract.Device) []dsModels.DiscoveredDevice {
 	discovered := make([]dsModels.DiscoveredDevice, 0)
 	for info := range resultCh {
-		if info != nil {
+		if info == nil {
+			continue
+		}
 
-			// check if any devices already exist at that address, and if so disable them
-			existing, found := deviceMap[info.host+":"+info.port]
-			if found && existing.Name != info.deviceName {
-				// disable it and remove its protocol information since it is no longer valid
-				delete(existing.Protocols, "tcp")
-				existing.OperatingState = contract.Disabled
-				if err := driver.svc.UpdateDevice(existing); err != nil {
-					driver.lc.Warn("There was an issue trying to disable an existing device.",
-						"deviceName", existing.Name,
-						"error", err)
-				}
-			}
-
-			// check if we have an existing device registered with this name
-			device, err := driver.svc.GetDeviceByName(info.deviceName)
-			if err != nil {
-				// no existing device; add it to the list and move on
-				discovered = append(discovered, newDiscoveredDevice(info))
-				continue
-			}
-
-			// this means we have discovered an existing device that is
-			// either disabled or has changed IP addresses.
-			// we need to update its protocol information and operating state
-			if err := info.updateExistingDevice(device); err != nil {
-				driver.lc.Warn("There was an issue trying to update an existing device based on newly discovered details.",
-					"deviceName", device.Name,
-					"discoveryInfo", fmt.Sprintf("%+v", info),
+		// check if any devices already exist at that address, and if so disable them
+		existing, found := deviceMap[info.host+":"+info.port]
+		if found && existing.Name != info.deviceName {
+			// disable it and remove its protocol information since it is no longer valid
+			delete(existing.Protocols, "tcp")
+			existing.OperatingState = contract.Disabled
+			if err := driver.svc.UpdateDevice(existing); err != nil {
+				driver.lc.Warn("There was an issue trying to disable an existing device.",
+					"deviceName", existing.Name,
 					"error", err)
 			}
+		}
+
+		// check if we have an existing device registered with this name
+		device, err := driver.svc.GetDeviceByName(info.deviceName)
+		if err != nil {
+			// no existing device; add it to the list and move on
+			discovered = append(discovered, newDiscoveredDevice(info))
+			continue
+		}
+
+		// this means we have discovered an existing device that is
+		// either disabled or has changed IP addresses.
+		// we need to update its protocol information and operating state
+		if err := info.updateExistingDevice(device); err != nil {
+			driver.lc.Warn("There was an issue trying to update an existing device based on newly discovered details.",
+				"deviceName", device.Name,
+				"discoveryInfo", fmt.Sprintf("%+v", info),
+				"error", err)
 		}
 	}
 	return discovered
@@ -331,7 +317,7 @@ func ipGenerator(ctx context.Context, inet *net.IPNet, ipCh chan<- uint32) {
 
 // probe attempts to make a connection to a specific ip and port to determine
 // if an LLRP reader exists at that network address
-func probe(host string, port string, timeout time.Duration) (*discoveryInfo, error) {
+func probe(host, port string, timeout time.Duration) (*discoveryInfo, error) {
 	addr := host + ":" + port
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
