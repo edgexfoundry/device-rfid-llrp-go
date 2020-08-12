@@ -50,6 +50,8 @@ type workerParams struct {
 	ipCh      <-chan uint32
 	resultCh  chan<- *discoveryInfo
 	ctx       context.Context
+	timeout   time.Duration
+	scanPort  string
 }
 
 // computeNetSz computes the total amount of valid IP addresses for a given subnet size
@@ -65,14 +67,21 @@ func computeNetSz(subnetSz int) uint32 {
 // autoDiscover probes all addresses in the configured network to attempt to discover any possible
 // RFID readers that support LLRP.
 func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
-	if driver.config.DiscoverySubnets == nil || len(driver.config.DiscoverySubnets) == 0 {
+	driver.configMu.RLock()
+	subnets := driver.config.DiscoverySubnets
+	asyncLimit := driver.config.ProbeAsyncLimit
+	timeout := time.Duration(driver.config.ProbeTimeoutSeconds) * time.Second
+	scanPort := driver.config.ScanPort
+	driver.configMu.RUnlock()
+
+	if subnets == nil || len(subnets) == 0 {
 		driver.lc.Warn("Discover was called, but no subnet information has been configured!")
 		return nil
 	}
 
 	ipnets := make([]*net.IPNet, 0)
 	var estimatedProbes int
-	for _, cidr := range driver.config.DiscoverySubnets {
+	for _, cidr := range subnets {
 		if cidr == "" {
 			driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
 			continue
@@ -95,11 +104,10 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 		estimatedProbes += int(computeNetSz(sz))
 	}
 
-	asyncLimit := driver.config.ProbeAsyncLimit
 	// if the estimated amount of probes we are going to make is less than
 	// the async limit, we only need to set the worker count to the total number
 	// of probes to avoid spawning more workers than probes
-	if estimatedProbes < driver.config.ProbeAsyncLimit {
+	if estimatedProbes < asyncLimit {
 		asyncLimit = estimatedProbes
 	}
 	driver.lc.Debug(fmt.Sprintf("total estimated network probes: %d, async limit: %d", estimatedProbes, asyncLimit))
@@ -113,6 +121,8 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 		ipCh:      ipCh,
 		resultCh:  resultCh,
 		ctx:       ctx,
+		timeout:   timeout,
+		scanPort:  scanPort,
 	}
 
 	// start the workers before adding any ips so they are ready to process
@@ -121,13 +131,13 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 	for i := 0; i < asyncLimit; i++ {
 		go func() {
 			defer wgIPWorkers.Done()
-			ipWorker(&wParams)
+			ipWorker(wParams)
 		}()
 	}
 
 	go func() {
 		var wgIPGenerators sync.WaitGroup
-		for _, cidr := range driver.config.DiscoverySubnets {
+		for _, cidr := range subnets {
 			if cidr == "" {
 				driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
 				continue
@@ -431,9 +441,8 @@ func probe(host string, port string, timeout time.Duration) (*discoveryInfo, err
 }
 
 // ipWorker pulls uint32s, convert to IPs, and sends back successful probes to the resultCh
-func ipWorker(params *workerParams) {
+func ipWorker(params workerParams) {
 	ip := net.IP([]byte{0, 0, 0, 0})
-	timeout := time.Duration(driver.config.ProbeTimeoutSeconds) * time.Second
 
 	for {
 		select {
@@ -450,7 +459,7 @@ func ipWorker(params *workerParams) {
 			binary.BigEndian.PutUint32(ip, a)
 
 			ipStr := ip.String()
-			addr := ipStr + ":" + driver.config.ScanPort
+			addr := ipStr + ":" + params.scanPort
 			if d, found := params.deviceMap[addr]; found {
 				if d.OperatingState == contract.Enabled {
 					driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
@@ -468,7 +477,7 @@ func ipWorker(params *workerParams) {
 			default:
 			}
 
-			if info, err := probe(ipStr, driver.config.ScanPort, timeout); err == nil && info != nil {
+			if info, err := probe(ipStr, params.scanPort, params.timeout); err == nil && info != nil {
 				params.resultCh <- info
 			}
 		}

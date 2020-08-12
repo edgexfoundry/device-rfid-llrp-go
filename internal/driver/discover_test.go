@@ -37,12 +37,15 @@ func TestMain(m *testing.M) {
 
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
+
+	driver.configMu.Lock()
 	driver.config = &driverConfiguration{
 		DiscoverySubnets:    []string{"127.0.0.1/32"},
 		ProbeAsyncLimit:     1000,
 		ProbeTimeoutSeconds: 1,
 		ScanPort:            "50923",
 	}
+	driver.configMu.Unlock()
 
 	os.Exit(m.Run())
 }
@@ -139,9 +142,13 @@ func TestAutoDiscoverNaming(t *testing.T) {
 		},
 	}
 
-	port, err := strconv.Atoi(driver.config.ScanPort)
+	driver.configMu.RLock()
+	scanPort := driver.config.ScanPort
+	driver.configMu.RUnlock()
+
+	port, err := strconv.Atoi(scanPort)
 	if err != nil {
-		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + scanPort)
 	}
 
 	for _, test := range tests {
@@ -197,8 +204,12 @@ func TestAutoDiscover(t *testing.T) {
 		t.Fatalf("expected 0 discovered devices, however got: %d", len(discovered))
 	}
 
+	driver.configMu.RLock()
+	scanPort := driver.config.ScanPort
+	driver.configMu.RUnlock()
+
 	// attempt to discover WITH emulator, expect emulator to be found
-	port, err := strconv.Atoi(driver.config.ScanPort)
+	port, err := strconv.Atoi(scanPort)
 	if err != nil {
 		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v" + driver.config.ScanPort)
 	}

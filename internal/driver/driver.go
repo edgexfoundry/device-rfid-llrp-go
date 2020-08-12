@@ -11,18 +11,25 @@ import (
 	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
+	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/flags"
+	"github.com/edgexfoundry/go-mod-configuration/configuration"
+	"github.com/edgexfoundry/go-mod-configuration/pkg/types"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
 	"net"
+	"net/url"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
 const (
-	ServiceName = "edgex-device-llrp"
+	ServiceName    = "edgex-device-llrp"
+	BaseConsulPath = "edgex/devices/1.0/" + ServiceName
 
 	ResourceReaderCap          = "ReaderCapabilities"
 	ResourceReaderConfig       = "ReaderConfig"
@@ -55,11 +62,13 @@ type Driver struct {
 	lc       logger.LoggingClient
 	asyncCh  chan<- *dsModels.AsyncValues
 	deviceCh chan<- []dsModels.DiscoveredDevice
+	done     chan struct{}
 
 	activeDevices map[string]*LLRPDevice
 	devicesMu     sync.RWMutex
 
-	config *driverConfiguration
+	config   *driverConfiguration
+	configMu sync.RWMutex
 
 	svc ServiceWrapper
 }
@@ -93,8 +102,14 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		return errors.Wrap(err, "read driver configuration failed")
 	}
 
+	d.configMu.Lock()
 	d.config = config
 	d.lc.Debug(fmt.Sprintf("%+v", config))
+	d.configMu.Unlock()
+
+	if err := d.watchForConfigChanges(); err != nil {
+		d.lc.Warn("Unable to watch for configuration changes!", "error", err)
+	}
 
 	// startup all devices
 	for _, dev := range d.svc.Devices() {
@@ -103,6 +118,74 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		}
 	}
 
+	return nil
+}
+
+func (d *Driver) watchForConfigChanges() error {
+	sdkFlags := flags.New()
+	sdkFlags.Parse(os.Args[1:])
+	cpUrl, err := url.Parse(sdkFlags.ConfigProviderUrl())
+	if err != nil {
+		return err
+	}
+
+	cpPort := 8500
+	port := cpUrl.Port()
+	if port != "" {
+		cpPort, err = strconv.Atoi(port)
+		if err != nil {
+			cpPort = 8500
+		}
+	}
+
+	configClient, err := configuration.NewConfigurationClient(types.ServiceConfig{
+		Host:     cpUrl.Hostname(),
+		Port:     cpPort,
+		BasePath: BaseConsulPath,
+		Type:     cpUrl.Scheme,
+	})
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		errorStream := make(chan error)
+		defer close(errorStream)
+
+		updateStream := make(chan interface{})
+		defer close(updateStream)
+
+		cfg := driverConfiguration{}
+		configClient.WatchForChanges(updateStream, errorStream, &cfg, "/Driver")
+		d.lc.Info("watching for configuration changes...")
+
+		for {
+			select {
+			case <-d.done:
+				return
+
+			case ex := <-errorStream:
+				d.lc.Error(ex.Error())
+
+			case raw, ok := <-updateStream:
+				if !ok {
+					return
+				}
+
+				d.lc.Info("driver configuration has been updated!")
+				d.lc.Debug(fmt.Sprintf("raw: %+v", raw))
+
+				newCfg, ok := raw.(*driverConfiguration)
+				if ok {
+					d.configMu.Lock()
+					d.config = newCfg
+					d.configMu.Unlock()
+				} else {
+					d.lc.Warn("unable to decode incoming configuration from registry")
+				}
+			}
+		}
+	}()
 	return nil
 }
 
@@ -371,6 +454,8 @@ func (d *Driver) Stop(force bool) error {
 	}
 	d.lc.Debug("LLRP-Driver.Stop called", "force", force)
 
+	close(d.done)
+
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
 
@@ -547,6 +632,10 @@ func (d *Driver) addProvisionWatcher() error {
 func (d *Driver) Discover() {
 	d.lc.Info("Discover was called.")
 
+	d.configMu.RLock()
+	maxSeconds := driver.config.MaxDiscoverDurationSeconds
+	d.configMu.RUnlock()
+
 	provisionOnce.Do(func() {
 		err := d.addProvisionWatcher()
 		if err != nil {
@@ -556,10 +645,10 @@ func (d *Driver) Discover() {
 	})
 
 	ctx := context.Background()
-	if driver.config.MaxDiscoverDurationSeconds > 0 {
+	if maxSeconds > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(),
-			time.Duration(driver.config.MaxDiscoverDurationSeconds)*time.Second)
+			time.Duration(maxSeconds)*time.Second)
 		defer cancel()
 	}
 
