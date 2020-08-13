@@ -6,258 +6,486 @@
 package driver
 
 import (
+	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
-	"io"
 	"math/bits"
 	"net"
-	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
 
-// todo: most of these need to be configurable
 const (
-	probeTimeout          = 1 * time.Second
-	scanVirtualInterfaces = false
-	profileName           = "Device.LLRP.Profile"
-	probeAsyncLimit       = 1000
+	DefaultDevicePrefix = "LLRP"
+	UnknownVendorID     = 0
+	UnknownModelID      = 0
 )
 
-var (
-	llrpPortStr = "5084" // todo: support TLS connections
-)
+// discoveryInfo holds information about a discovered device
+type discoveryInfo struct {
+	deviceName string
+	host       string
+	port       string
+	vendor     uint32
+	model      uint32
+}
 
-// virtualRegex is a regular expression to determine if an interface is likely to be a virtual interface
-var virtualRegex = regexp.MustCompile("^(?:docker[0-9]+|br-.*|virbr[0-9]+.*|docker_gwbridge|veth.*)$")
+// newDiscoveryInfo creates a new discoveryInfo with just a host and port pre-filled
+func newDiscoveryInfo(host, port string) *discoveryInfo {
+	return &discoveryInfo{
+		host: host,
+		port: port,
+	}
+}
 
-// autoDiscover probes all addresses in the local network to attempt to discover any possible
+// workerParams is a helper struct to store shared parameters to ipWorkers
+type workerParams struct {
+	deviceMap map[string]contract.Device
+	ipCh      <-chan uint32
+	resultCh  chan<- *discoveryInfo
+	ctx       context.Context
+}
+
+// computeNetSz computes the total amount of valid IP addresses for a given subnet size
+// Subnets of size 31 and 32 have only 1 valid IP address
+// Ex. For a /24 subnet, computeNetSz(24) -> 254
+func computeNetSz(subnetSz int) uint32 {
+	if subnetSz >= 31 {
+		return 1
+	}
+	return ^uint32(0)>>subnetSz - 1
+}
+
+// autoDiscover probes all addresses in the configured network to attempt to discover any possible
 // RFID readers that support LLRP.
-func autoDiscover() (discovered []dsModels.DiscoveredDevice) {
-	ipCh := make(chan uint32, 5*probeAsyncLimit)
-	done := make(chan struct{})
-	resultCh := make(chan uint32)
-	var wg sync.WaitGroup
-
-	deviceMap := makeDeviceMap()
-
-	// start this before adding any ips so they are ready to process
-	for i := 0; i < probeAsyncLimit; i++ {
-		go ipWorker(deviceMap, &wg, done, ipCh, resultCh)
+func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
+	if driver.config.DiscoverySubnets == nil || len(driver.config.DiscoverySubnets) == 0 {
+		driver.lc.Warn("Discover was called, but no subnet information has been configured!")
+		return nil
 	}
 
-	discovered = make([]dsModels.DiscoveredDevice, 0)
-	go resultsWorker(resultCh, &discovered)
+	ipnets := make([]*net.IPNet, 0, len(driver.config.DiscoverySubnets))
+	var estimatedProbes int
+	for _, cidr := range driver.config.DiscoverySubnets {
+		if cidr == "" {
+			driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
+			continue
+		}
 
-	netCh := getIPv4Nets(scanVirtualInterfaces)
-	ipGenerator(&wg, netCh, ipCh)
+		ip, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			driver.lc.Error(fmt.Sprintf("Unable to parse CIDR: %q", cidr), "error", err)
+			continue
+		}
+		if ip == nil || ipnet == nil || ip.To4() == nil {
+			driver.lc.Error("Currently only ipv4 subnets are supported.", "subnet", cidr)
+			continue
+		}
 
-	wg.Wait()
-	close(ipCh)
-	close(resultCh)
-	close(done)
+		ipnets = append(ipnets, ipnet)
+		// compute the estimate total amount of network probes we are going to make
+		// this is an estimate because it may be lower due to skipped addresses (existing devices)
+		sz, _ := ipnet.Mask.Size()
+		estimatedProbes += int(computeNetSz(sz))
+	}
 
+	asyncLimit := driver.config.ProbeAsyncLimit
+	// if the estimated amount of probes we are going to make is less than
+	// the async limit, we only need to set the worker count to the total number
+	// of probes to avoid spawning more workers than probes
+	if estimatedProbes < driver.config.ProbeAsyncLimit {
+		asyncLimit = estimatedProbes
+	}
+	driver.lc.Debug(fmt.Sprintf("total estimated network probes: %d, async limit: %d", estimatedProbes, asyncLimit))
+
+	ipCh := make(chan uint32, asyncLimit)
+	resultCh := make(chan *discoveryInfo)
+
+	deviceMap := makeDeviceMap()
+	wParams := workerParams{
+		deviceMap: deviceMap,
+		ipCh:      ipCh,
+		resultCh:  resultCh,
+		ctx:       ctx,
+	}
+
+	// start the workers before adding any ips so they are ready to process
+	var wgIPWorkers sync.WaitGroup
+	wgIPWorkers.Add(asyncLimit)
+	for i := 0; i < asyncLimit; i++ {
+		go func() {
+			defer wgIPWorkers.Done()
+			ipWorker(&wParams)
+		}()
+	}
+
+	go func() {
+		var wgIPGenerators sync.WaitGroup
+		for _, ipnet := range ipnets {
+			select {
+			case <-ctx.Done():
+				// quit early if we have been cancelled
+				return
+			default:
+			}
+
+			// wait on each ipGenerator
+			wgIPGenerators.Add(1)
+			go func(inet *net.IPNet) {
+				defer wgIPGenerators.Done()
+				ipGenerator(ctx, inet, ipCh)
+			}(ipnet)
+		}
+
+		// wait for all ip generators to finish, then we can close the ip channel
+		wgIPGenerators.Wait()
+		close(ipCh)
+
+		// wait for the ipWorkers to finish, then close the results channel which
+		// will let the enclosing function finish
+		wgIPWorkers.Wait()
+		close(resultCh)
+	}()
+
+	// this blocks until the resultCh is closed in above go routine
+	return processResultChannel(resultCh, deviceMap)
+}
+
+// processResultChannel reads all incoming results until the resultCh is closed.
+// it determines if a device is new or existing, and proceeds accordingly.
+//
+// Does not check for context cancellation because we still want to
+// process any in-flight results.
+func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]contract.Device) []dsModels.DiscoveredDevice {
+	discovered := make([]dsModels.DiscoveredDevice, 0)
+	for info := range resultCh {
+		if info == nil {
+			continue
+		}
+
+		// check if any devices already exist at that address, and if so disable them
+		existing, found := deviceMap[info.host+":"+info.port]
+		if found && existing.Name != info.deviceName {
+			// disable it and remove its protocol information since it is no longer valid
+			delete(existing.Protocols, "tcp")
+			existing.OperatingState = contract.Disabled
+			if err := driver.svc.UpdateDevice(existing); err != nil {
+				driver.lc.Warn("There was an issue trying to disable an existing device.",
+					"deviceName", existing.Name,
+					"error", err)
+			}
+		}
+
+		// check if we have an existing device registered with this name
+		device, err := driver.svc.GetDeviceByName(info.deviceName)
+		if err != nil {
+			// no existing device; add it to the list and move on
+			discovered = append(discovered, newDiscoveredDevice(info))
+			continue
+		}
+
+		// this means we have discovered an existing device that is
+		// either disabled or has changed IP addresses.
+		// we need to update its protocol information and operating state
+		if err := info.updateExistingDevice(device); err != nil {
+			driver.lc.Warn("There was an issue trying to update an existing device based on newly discovered details.",
+				"deviceName", device.Name,
+				"discoveryInfo", fmt.Sprintf("%+v", info),
+				"error", err)
+		}
+	}
 	return discovered
 }
 
-// makeDeviceMap creates a lookup table of existing devices in order to skip scanning
-func makeDeviceMap() map[string]bool {
-	devices := driver.service().Devices()
-	deviceMap := make(map[string]bool, len(devices))
+// updateExistingDevice is used when an existing device is discovered
+// and needs to update its information to either a new address or set
+// its operating state to enabled.
+func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
+	tcpInfo := device.Protocols["tcp"]
+	if tcpInfo == nil ||
+		info.host != tcpInfo["host"] ||
+		info.port != tcpInfo["port"] {
+		driver.lc.Info("Existing device has been discovered with a different network address.",
+			"oldInfo", fmt.Sprintf("%+v", tcpInfo),
+			"discoveredInfo", fmt.Sprintf("%+v", info))
+
+		// todo: double check to make sure EdgeX calls driver.UpdateDevice()
+		device.Protocols["tcp"] = map[string]string{
+			"host": info.host,
+			"port": info.port,
+		}
+		// make sure it is enabled
+		device.OperatingState = contract.Enabled
+		err := driver.svc.UpdateDevice(device)
+		if err != nil {
+			driver.lc.Error("There was an error updating the tcp address for an existing device.",
+				"deviceName", device.Name,
+				"error", err)
+		}
+
+		// return now as we already force set the operating state
+		return err
+	}
+
+	// this code block will only run if the tcp address is the same
+	if device.OperatingState == contract.Disabled {
+		err := driver.svc.UpdateDeviceOperatingState(device.Name, contract.Enabled)
+		if err != nil {
+			driver.lc.Error("There was an error setting the device OperatingState to Enabled.",
+				"deviceName", device.Name,
+				"error", err)
+		}
+		return err
+	}
+
+	// the address is the same and device is already enabled, should not reach here
+	driver.lc.Warn("Re-discovered existing device at the same TCP address, nothing to do.")
+	return nil
+}
+
+// makeDeviceMap creates a lookup table of existing devices by tcp address in order to skip scanning
+func makeDeviceMap() map[string]contract.Device {
+	devices := driver.svc.Devices()
+	deviceMap := make(map[string]contract.Device, len(devices))
 
 	for _, d := range devices {
 		tcpInfo := d.Protocols["tcp"]
 		if tcpInfo == nil {
-			log.Infof("found registered device without tcp protocol information: %s", d.Name)
-			continue
-		}
-		host := tcpInfo["host"]
-		port := tcpInfo["port"]
-		if host == "" || port == "" {
-			log.Warnf("registered device is missing required tcp protocol information %s: %v", d.Name, d.Protocols)
+			driver.lc.Warn("Found registered device without tcp protocol information.", "deviceName", d.Name)
 			continue
 		}
 
-		deviceMap[makeDeviceName(host, port)] = true
+		host, port := tcpInfo["host"], tcpInfo["port"]
+		if host == "" || port == "" {
+			driver.lc.Warn("Registered device is missing required tcp protocol information.",
+				"host", host,
+				"port", port)
+			continue
+		}
+
+		deviceMap[host+":"+port] = d
 	}
 
 	return deviceMap
 }
 
-func getIPv4Nets(includeVirtual bool) <-chan *net.IPNet {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		log.Error(err)
-		return nil
+// ipGenerator generates all valid IP addresses for a given subnet, and
+// sends them to the ip channel one at a time
+func ipGenerator(ctx context.Context, inet *net.IPNet, ipCh chan<- uint32) {
+	addr := inet.IP.To4()
+	if addr == nil {
+		return
 	}
 
-	out := make(chan *net.IPNet, len(ifaces))
+	mask := inet.Mask
+	if len(mask) == net.IPv6len {
+		mask = mask[12:]
+	} else if len(mask) != net.IPv4len {
+		return
+	}
 
-	go func() {
-		for _, iface := range ifaces {
-			if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-				continue
-			}
+	umask := binary.BigEndian.Uint32(mask)
+	maskSz := bits.OnesCount32(umask)
+	if maskSz <= 1 {
+		return // skip point-to-point connections
+	} else if maskSz >= 31 {
+		ipCh <- binary.BigEndian.Uint32(inet.IP)
+		return
+	}
 
-			addrs, err := iface.Addrs()
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			if !includeVirtual && virtualRegex.MatchString(iface.Name) {
-				driver.lc.Debug("Skipping virtual network interface: " + iface.Name)
-				continue
-			}
-
-			for _, addr := range addrs {
-				if inet, ok := addr.(*net.IPNet); ok {
-					if inet.IP.To4() == nil {
-						continue
-					}
-					driver.lc.Info(fmt.Sprintf("Scan interface %s: %v", iface.Name, inet))
-					out <- inet
-				}
-			}
-		}
-		close(out)
-	}()
-	return out
-}
-
-func ipGenerator(wg *sync.WaitGroup, netCh <-chan *net.IPNet, ipCh chan<- uint32) {
-	var addr net.IP
-	for inet := range netCh {
-		addr = inet.IP.To4()
-		if addr == nil {
+	netId := binary.BigEndian.Uint32(addr) & umask // network ID
+	bcast := netId ^ (^umask)
+	for ip := netId + 1; ip < bcast; ip++ {
+		if netId&umask != ip&umask {
 			continue
 		}
 
-		mask := inet.Mask
-		if len(mask) == net.IPv6len {
-			mask = mask[12:]
-		} else if len(mask) != net.IPv4len {
-			continue
-		}
-
-		umask := binary.BigEndian.Uint32(mask)
-		maskSz := bits.OnesCount32(umask)
-		if maskSz <= 1 {
-			continue // skip point-to-point connections
-		} else if maskSz >= 31 {
-			// special cases where only 1 ip is valid in subnet
-			wg.Add(1)
-			ipCh <- binary.BigEndian.Uint32(inet.IP)
-			continue
-		}
-
-		netId := binary.BigEndian.Uint32(addr) & umask // network ID
-		bcast := netId ^ (^umask)
-		for ip := netId + 1; ip < bcast; ip++ {
-			if netId&umask != ip&umask {
-				continue
-			}
-
-			wg.Add(1)
-			ipCh <- ip
+		select {
+		case <-ctx.Done():
+			// bail if we have been cancelled
+			return
+		case ipCh <- ip:
 		}
 	}
 }
 
 // probe attempts to make a connection to a specific ip and port to determine
 // if an LLRP reader exists at that network address
-func probe(ip string, port string) error {
-	addr := ip + ":" + port
-	// driver.lc.Debug(fmt.Sprintf("probe: %s", ip))
-	conn, err := net.DialTimeout("tcp", addr, probeTimeout)
+func probe(host, port string, timeout time.Duration) (*discoveryInfo, error) {
+	addr := host + ":" + port
+	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer conn.Close()
 
-	driver.lc.Info("connection dialed")
+	driver.lc.Info("Connection dialed", "host", host, "port", port)
+	c := llrp.NewClient(llrp.WithLogger(&edgexLLRPClientLogger{
+		devName: "probe-" + host,
+		lc:      driver.lc,
+	}))
 
-	buf := make([]byte, llrp.HeaderSz)
-	_, err = io.ReadFull(conn, buf)
-	if err != nil {
-		log.Error(err)
-		return err
+	readerConfig := llrp.GetReaderConfigResponse{}
+	readerCaps := llrp.GetReaderCapabilitiesResponse{}
+
+	// send llrp messages in a separate thread and block the main thread until it is complete
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+		defer cancel()
+
+		defer func() {
+			if err := c.Shutdown(ctx); err != nil && !errors.Is(err, llrp.ErrClientClosed) {
+				driver.lc.Warn("Error closing discovery device.", "error", err.Error())
+				_ = c.Close()
+			}
+		}()
+
+		driver.lc.Debug("Sending GetReaderConfig.")
+		configReq := llrp.GetReaderConfig{
+			RequestedData: llrp.ReaderConfReqIdentification,
+		}
+		err = c.SendFor(ctx, &configReq, &readerConfig)
+		if errors.Is(err, llrp.ErrClientClosed) {
+			driver.lc.Warn("Client connection was closed while sending GetReaderConfig to discovered device.", "error", err)
+			return
+		} else if err != nil {
+			driver.lc.Warn("Error sending GetReaderConfig to discovered device.", "error", err)
+			return
+		}
+
+		driver.lc.Debug("Sending GetReaderCapabilities.")
+		capabilitiesReq := llrp.GetReaderCapabilities{
+			ReaderCapabilitiesRequestedData: llrp.ReaderCapGeneralDeviceCapabilities,
+		}
+		err = c.SendFor(ctx, &capabilitiesReq, &readerCaps)
+		if errors.Is(err, llrp.ErrClientClosed) {
+			driver.lc.Warn("Client connection was closed while sending GetReaderCapabilities to discovered device.", "error", err)
+			return
+		} else if err != nil {
+			driver.lc.Warn("Error sending GetReaderCapabilities to discovered device.", "error", err)
+			return
+		}
+	}()
+
+	driver.lc.Info("Attempting to connect to potential LLRP device...", "host", host, "port", port)
+	// this will block until `c.Shutdown()` is called in the above go routine
+	if err = c.Connect(conn); !errors.Is(err, llrp.ErrClientClosed) {
+		driver.lc.Warn("Error attempting to connect to potential LLRP device: " + err.Error())
+		return nil, err
+	}
+	driver.lc.Info("Connection initiated successfully.", "host", host, "port", port)
+
+	info := newDiscoveryInfo(host, port)
+	if readerCaps.GeneralDeviceCapabilities == nil {
+		driver.lc.Warn("ReaderCapabilities.GeneralDeviceCapabilities was nil, unable to determine vendor and model info")
+		info.vendor = UnknownVendorID
+		info.model = UnknownModelID
+	} else {
+		info.vendor = readerCaps.GeneralDeviceCapabilities.DeviceManufacturer
+		info.model = readerCaps.GeneralDeviceCapabilities.Model
 	}
 
-	h := llrp.Header{}
-	err = h.UnmarshalBinary(buf)
-	log.Debugf("connection header: %+v", h)
-
-	if h.Type() != llrp.MsgReaderEventNotification {
-		return errors.Errorf("expected %v, got %v", llrp.MsgReaderEventNotification, h.Type())
+	if readerConfig.Identification == nil {
+		driver.lc.Warn("ReaderConfig.Identification was nil, unable to register discovered device.")
+		return nil, fmt.Errorf("unable to retrieve device identification")
 	}
 
-	driver.lc.Info("Reader successfully discovered @ " + addr)
-	return nil
+	prefix := DefaultDevicePrefix
+	if VendorIDType(info.vendor) == Impinj {
+		prefix = ImpinjModelType(info.model).HostnamePrefix()
+	}
+
+	var suffix string
+	rID := readerConfig.Identification.ReaderID
+	if readerConfig.Identification.IDType == llrp.ID_MAC_EUI64 && len(rID) >= 3 {
+		mac := rID[len(rID)-3:]
+		suffix = fmt.Sprintf("%02X-%02X-%02X", mac[0], mac[1], mac[2])
+	} else {
+		suffix = hex.EncodeToString(rID)
+	}
+
+	info.deviceName = prefix + "-" + suffix
+	driver.lc.Info(fmt.Sprintf("Discovered device: %+v", info))
+
+	return info, nil
 }
 
-func resultsWorker(results <-chan uint32, discovered *[]dsModels.DiscoveredDevice) {
+// ipWorker pulls uint32s, convert to IPs, and sends back successful probes to the resultCh
+func ipWorker(params *workerParams) {
 	ip := net.IP([]byte{0, 0, 0, 0})
-	for a := range results {
-		binary.BigEndian.PutUint32(ip, a)
-		*discovered = append(*discovered, newDiscoveredDevice(ip.String(), llrpPortStr))
-	}
-}
+	timeout := time.Duration(driver.config.ProbeTimeoutSeconds) * time.Second
 
-// ipWorker pulls uint32s, convert to IPs, and sends back successful probes
-func ipWorker(deviceMap map[string]bool, wg *sync.WaitGroup, done <-chan struct{}, ipCh <-chan uint32, results chan<- uint32) {
-	ip := net.IP([]byte{0, 0, 0, 0})
 	for {
 		select {
-		case a, ok := <-ipCh:
+		case <-params.ctx.Done():
+			// stop working if we have been cancelled
+			return
+
+		case a, ok := <-params.ipCh:
 			if !ok {
+				// channel has been closed
 				return
 			}
+
 			binary.BigEndian.PutUint32(ip, a)
 
 			ipStr := ip.String()
-			if _, found := deviceMap[makeDeviceName(ipStr, llrpPortStr)]; found {
-				log.Infof("Skip scan of %s, device already registered", ipStr)
-				wg.Done()
-				continue
+			addr := ipStr + ":" + driver.config.ScanPort
+			if d, found := params.deviceMap[addr]; found {
+				if d.OperatingState == contract.Enabled {
+					driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
+					continue
+				}
+				driver.lc.Info("Existing device in disabled (disconnected) state will be scanned again.",
+					"address", addr,
+					"deviceName", d.Name)
 			}
 
-			if err := probe(ipStr, llrpPortStr); err == nil {
-				results <- a
+			select {
+			case <-params.ctx.Done():
+				// bail if we have already been cancelled
+				return
+			default:
 			}
-			wg.Done()
-		case <-done:
-			return
+
+			if info, err := probe(ipStr, driver.config.ScanPort, timeout); err == nil && info != nil {
+				params.resultCh <- info
+			}
 		}
 	}
 }
 
-func makeDeviceName(ip string, port string) string {
-	return ip + "_" + port
-}
-
 // newDiscoveredDevice takes the host and port number of a discovered LLRP reader and prepares it for
-// registering use with EdgeX
-func newDiscoveredDevice(ip string, port string) dsModels.DiscoveredDevice {
-	deviceName := makeDeviceName(ip, port)
+// registration with EdgeX
+func newDiscoveredDevice(info *discoveryInfo) dsModels.DiscoveredDevice {
+	labels := []string{
+		"RFID",
+		"LLRP",
+	}
+	if VendorIDType(info.vendor) == Impinj {
+		labels = append(labels, Impinj.String())
+		modelStr := ImpinjModelType(info.model).String()
+		// only add the label if we know the model
+		if !strings.HasPrefix(modelStr, "ImpinjModelType(") {
+			labels = append(labels, modelStr)
+		}
+	}
 
 	return dsModels.DiscoveredDevice{
-		Name: deviceName,
-		Protocols: map[string]edgexModels.ProtocolProperties{
+		Name: info.deviceName,
+		Protocols: map[string]contract.ProtocolProperties{
 			"tcp": {
-				"host": ip,
-				"port": port,
-				"llrp": "llrp", // for EdgeX provision watcher
+				"host": info.host,
+				"port": info.port,
 			},
 		},
 		Description: "LLRP RFID Reader",
-		Labels: []string{
-			"RFID", "LLRP",
-		},
+		Labels:      labels,
 	}
 }

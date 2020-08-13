@@ -24,7 +24,6 @@ RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/reposi
 # Install our build time packages.
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
-#WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go
 WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go
 COPY go.mod .
 RUN go mod download
@@ -39,7 +38,7 @@ RUN $MAKE
 
 FROM alpine
 
-ENV APP_PORT=49992
+ENV APP_PORT=51992
 EXPOSE $APP_PORT
 
 COPY --from=builder /go/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/cmd /

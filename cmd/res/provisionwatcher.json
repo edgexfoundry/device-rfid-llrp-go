@@ -1,7 +1,6 @@
 {
   "name":"llrp-provision-watcher",
   "identifiers":{
-    "llrp":"llrp"
   },
   "blockingidentifiers": {
   },

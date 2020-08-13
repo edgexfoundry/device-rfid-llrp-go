@@ -302,17 +302,13 @@ services:
   device-llrp:
     image: edgexfoundry/docker-device-llrp-go:0.0.0-dev
     ports:
-      - "127.0.0.1:49992:49992"
+      - "127.0.0.1:51992:51992"
     container_name: edgex-device-llrp
     hostname: edgex-device-llrp
     networks:
       edgex-network:
         aliases:
           - edgex-device-llrp
-#    networks:
-#      edgex-network:
-#        aliases:
-#          - edgex-device-llrp
     environment:
       <<: *common-variables
       Service_Host: edgex-device-llrp
