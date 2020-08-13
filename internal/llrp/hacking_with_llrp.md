@@ -11,9 +11,6 @@ This doc makes some underlying assumptions about how you're using LLRP
 (specifically, you're exchanging binary messages over `tcp/ip`
 with an RFID Reader that operates according to the [EPC UHF air protocol][epc_standard]) 
 even though _technically_ you could do it other ways
-The LLRP manual makes a big distinction 
-between the "abstract" message format and the binary format,
-but in reality they are tightly coupled.
 However, if you're in doubt about something this doc says, 
 the protocol specification is the authority.
 
@@ -160,8 +157,11 @@ There are (sort of) two versions of LLRP:
 `1.1` only adds a couple of things, 
 and technically still says "draft", even though the standards body 
 (previously EPCglobal, now GS1) publishes it on their website as "the latest version".
-It doesn't appear widely adopted,
-but our library will marshal the messages and handle version negotiation.
+Adoption varies among Reader manufacturers
+(e.g., Impinj Readers support 1.0.1, while Alien Readers support both),
+but our library handles version negotiation and all the standard messages.
+We don't validate that a given message is supported by a given version,
+as compliant Readers should reject invalid messages anyway.
 
 You may need to reference the [EPC standard][epc_standard]
 to fully understand all the parameter definitions.
@@ -177,12 +177,16 @@ The major chunks of the doc:
   The `1.1` state transition diagrams are more clear.
 - Chapters 8-15 (16 in `1.1`) describe the "abstract" message format,
   while Chapter 16 (17 in `1.1`) gives the binary format.
-  You should open two copies of the spec 
-  and compare the message formats side-by-side, 
-  as it will make their structures easier to understand.
 - The rest of the doc is just helpful information,
   like where to find other specification docs.
-  The `1.0.1` includes some UML drawings of questionable value.
+  The `1.0.1` doc includes some UML drawings of questionable value.
+ 
+The LLRP manual makes a big distinction 
+between the "abstract" message format and the binary format,
+but in reality they are tightly coupled.
+You should open two copies of the spec 
+and compare the message formats side-by-side, 
+as it will make their structures easier to understand.
   
 > Important: The "abstract" format often presents fields/parameters
 > in an order different from the binary format.
@@ -201,7 +205,6 @@ helpfully abbreviated `C1G2`.
 As a result, this library ignores that particular abstraction
 and instead directly inserts the C1G2 parameters
 as if they're the only ones allowed, because in practice, they are.
-
 
 ## Parsing Binary LLRP Messages 
 You will only need to deal with the binary message form 

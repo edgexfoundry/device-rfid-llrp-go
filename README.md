@@ -13,42 +13,159 @@ LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
  - Docker-compose
  
 ##### Build #####
-```
+```bash
 $ make build
 ```
 
 ##### Build Docker image #####
-```
+```bash
 $ make docker
 ```
 
 ##### Docker-compose run with other Edgex services (Geneva Release) #####
-```
+```bash
 $ make run
 ```
 
 ##### Docker-compose stop #####
-```
+```bash
 $ make stop
 ```
 
 ##### Format #####
-```
+```bash
 $ make fmt
 ```
 
+## First Run
+**Build and deploy**
+```bash
+make docker deploy
+```
+**Configure subnet information**
+```bash
+make auto-configure
+```
+**Restart service to pick up configuration changes**
+```bash
+docker-compose -f docker-compose-geneva-redis-no-secty.yml restart device-llrp
+```
+**Trigger a device discovery**
+
+*Note: make sure your LLRP devices are plugged in and powered on before this step*
+```bash
+curl -X POST http://localhost:51992/api/v1/discovery
+```
+**Tail the service logs**
+```bash
+docker-compose -f docker-compose-geneva-redis-no-secty.yml logs -f device-llrp
+```
+
+At this point the `device-llrp` service should have discovered your LLRP devices on the network and
+registered them with EdgeX.
+
+For more detailed info, see [Device Discovery](#Device-Discovery) and 
+[EdgeX Device Naming](#EdgeX-Device-Naming).
+
 ## Device Discovery
-Upon startup this service will probe the local network 
+*Note: Device discovery is currently only compatible with IPv4 networks.
+If using an IPv6-only network, you will need to manually add your devices to EdgeX.*
+
+This service has the functionality to probe the local network 
 in an effort to discover devices that support LLRP.
 
 This discovery also happens at a regular interval and can be configured via 
 [EdgeX Consul](http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/) 
-for existing installations, 
-and [configuration.toml][config_toml] for default values.
+for existing installations, and [configuration.toml][config_toml] for default values.
 
-The local network is probed for every IP on the default LLRP port (`5084`). 
-If a device returns LLRP response messages, 
-a new EdgeX device is generated under the name format `IP_Port`, like so: `192.0.2.1_1234`.  
+The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml](cmd/res/docker/configuration.toml) file.
+```toml
+[Driver]
+# NOTE: Items in the Driver section MUST be in quotes, even for numbers due to EdgeX limitation
+
+# List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+# separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+DiscoverySubnets = ""
+
+# Maximum simultaneous network probes
+ProbeAsyncLimit = "1000"
+
+# Maximum amount of seconds to wait for each IP probe before timing out.
+# This will also be the minimum time the discovery process can take.
+ProbeTimeoutSeconds = "2"
+
+# Port to scan for LLRP devices on
+ScanPort = "5084"
+
+# Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+# It is especially important to have this configured in the case of larger subnets such as /16 and /8
+MaxDiscoverDurationSeconds = "300"
+```
+
+The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur.
+The easiest way of doing this is via a make command:
+```bash
+make auto-configure
+```
+What this command does is check your local machine's network interfaces to see which ones are both online
+and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
+field in Consul for you.
+
+Discovery can be manually triggered via REST:
+```bash
+# POST http://<hostname>:<device-llrp-go port>/api/v1/discovery
+curl -X POST http://localhost:51992/api/v1/discovery
+```
+or make:
+```bash
+make discover
+```
+
+Every IP address in each of the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
+If a device returns LLRP response messages, a new EdgeX device is created.
+
+### EdgeX Device Naming
+EdgeX device names are generated from information it receives from the LLRP device. 
+In the case of Impinj readers, this devcice name *should* match the device's hostname given by
+Impinj, however the hostname information is not available through LLRP, 
+so the generated name may differ in certain edge cases.
+
+The device names are generated using the following naming format:
+```
+<Prefix>-<ID>
+```
+
+`<Prefix>` is generated based on the Vendor and Model of the LLRP device. 
+If the device is a model with a known naming scheme such as most Impinj readers,
+the prefix will be set accordingly, otherwise it will default to `LLRP`.
+
+`<ID>` field is based on the LLRP value `GetReaderConfigResponse.Identification.ReaderID` and can be one of two things. 
+
+If the LLRP device returns a MAC address (`ID_MAC_EUI64`)
+for the `GetReaderConfigResponse.Identification.IDType` field, the **last 3 octets**
+of the mac address will be used in the following format: `XX-XX-XX`.
+So given the following MAC address `00:ef:16:19:fe:16`, the `<ID>` portion of
+the device name would be `19-FE-16`.
+
+If the LLRP device returns an EPC (`ID_EPC`)
+for the `GetReaderConfigResponse.Identification.IDType` field, the entire 
+value of the `GetReaderConfigResponse.Identification.ReaderID` field
+is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-12fec5432453df3ac`
+
+#### Example Device Names by Model
+##### MAC based
+- **Impinj Speedway R120, R220, R420, R700 and xPortal:**
+    - `SpeedwayR-19-FE-16`
+- **Impinj xSpan:**
+    - `xSpan-19-FE-16`
+- **Impinj xArray, xArray EAP and xArray WM:**
+    - `xArray-19-FE-16`
+- **Other Vendors and Unknown Models**
+    - `LLRP-19-FE-16`
+
+##### EPC based
+- **Other Vendors and Unknown Models**
+    - `LLRP-12fec5432453df3ac`
 
 ### Manually Adding a Device
 You can add devices directly via [EdgeX's APIs][add_device]

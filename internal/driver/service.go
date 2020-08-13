@@ -15,24 +15,27 @@ import (
 
 // ServiceWrapper wraps an EdgeX SDK service so it can be easily mocked in tests.
 type ServiceWrapper interface {
-	// Direct pass-through methods.
+	// Inherit
 	Devices() []contract.Device
 	GetDeviceByName(name string) (contract.Device, error)
+	UpdateDevice(device contract.Device) error
+	UpdateDeviceOperatingState(deviceName string, state string) error
 
-	// Custom functionality or macros.
+	// Pass-through
+	DriverConfigs() map[string]string
+
+	// Custom functionality or macros
 	AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error
 
 	SetDeviceOpState(name string, state contract.OperatingState) error
 }
 
-// DeviceSdkService just embeds the normal EdgeX service struct
-// to satisfy the ServiceWrapper interface.
-type DeviceSdkService struct {
+type DeviceSDKService struct {
 	*service.Service
 	lc logger.LoggingClient
 }
 
-func (s *DeviceSdkService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
+func (s *DeviceSDKService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
 	existing, err := s.GetProvisionWatcherByName(watcher.Name)
 
 	if err != nil {
@@ -46,7 +49,13 @@ func (s *DeviceSdkService) AddOrUpdateProvisionWatcher(watcher contract.Provisio
 	return err
 }
 
-func (s *DeviceSdkService) SetDeviceOpState(name string, state contract.OperatingState) error {
+// DriverConfigs retrieves the driver specific configuration
+func (s *DeviceSDKService) DriverConfigs() map[string]string {
+	return service.DriverConfigs()
+}
+
+
+func (s *DeviceSDKService) SetDeviceOpState(name string, state contract.OperatingState) error {
 	// workaround: the device-service-sdk's uses core-contracts for the API URLs,
 	// but the metadata service API for opstate updates changed between v1.1.0 and v1.2.0.
 	d, err := s.GetDeviceByName(name)

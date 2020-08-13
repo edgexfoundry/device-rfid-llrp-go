@@ -9,25 +9,47 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
 	"net"
 	"sync"
 	"time"
-
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 )
 
 const (
-	ServiceName string = "edgex-device-llrp"
+	ServiceName = "edgex-device-llrp"
+
+	ResourceReaderCap          = "ReaderCapabilities"
+	ResourceReaderConfig       = "ReaderConfig"
+	ResourceReaderNotification = "ReaderEventNotification"
+	ResourceROSpec             = "ROSpec"
+	ResourceROSpecID           = "ROSpecID"
+	ResourceAccessSpec         = "AccessSpec"
+	ResourceAccessSpecID       = "AccessSpecID"
+	ResourceROAccessReport     = "ROAccessReport"
+
+	ResourceAction = "Action"
+	ActionDelete   = "Delete"
+	ActionEnable   = "Enable"
+	ActionDisable  = "Disable"
+	ActionStart    = "Start"
+	ActionStop     = "Stop"
+
+	provisionWatcherFilename = "res/provisionwatcher.json"
 )
 
-var once sync.Once
-var driver *Driver
+var (
+	createOnce    sync.Once
+	provisionOnce sync.Once
+	driver        *Driver
+)
+
+type protocolMap = map[string]contract.ProtocolProperties
 
 // Driver manages a collection of devices that speak LLRP
 // and connects them to the EdgeX ecosystem.
@@ -46,6 +68,8 @@ type Driver struct {
 	activeDevices map[string]*LLRPDevice
 	devicesMu     sync.RWMutex
 
+	config *driverConfiguration
+
 	svc ServiceWrapper
 }
 
@@ -59,7 +83,7 @@ var _ dsModels.ProtocolDriver = (*Driver)(nil)
 // Instance returns the package-global Driver instance, creating it if necessary.
 // It must be initialized before use via its Initialize method.
 func Instance() *Driver {
-	once.Do(func() {
+	createOnce.Do(func() {
 		driver = &Driver{
 			activeDevices: make(map[string]*LLRPDevice),
 		}
@@ -67,7 +91,8 @@ func Instance() *Driver {
 	return driver
 }
 
-// Initialize the driver with values from EdgeX.
+// Initialize performs protocol-specific initialization for the device
+// service.
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
 	if lc == nil {
 		// prevent panics from this annoyance
@@ -79,15 +104,23 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
-	d.svc = &DeviceSdkService{
+	d.svc = &DeviceSDKService{
 		Service: service.RunningService(),
 		lc:      lc,
 	}
 
+
+	config, err := CreateDriverConfig(d.svc.DriverConfigs())
+	if err != nil && !errors.Is(err, ErrUnexpectedConfigItems) {
+		return errors.Wrap(err, "read driver configuration failed")
+	}
+
+	d.config = config
+	d.lc.Debug(fmt.Sprintf("%+v", config))
+
 	registered := d.svc.Devices()
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
-
 	for i := range registered {
 		device := &registered[i] // the Device struct is nearly 1kb, so this avoids copying it
 
@@ -104,36 +137,10 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
 	}
 
-	go func() {
-		// hack: sleep to allow edgex time to finish loading cache and clients
-		time.Sleep(5 * time.Second)
 
-		d.addProvisionWatcher()
-		// todo: check configuration to make sure discovery is enabled
-		d.Discover()
-	}()
+
 	return nil
 }
-
-type protocolMap = map[string]contract.ProtocolProperties
-
-const (
-	ResourceReaderCap          = "ReaderCapabilities"
-	ResourceReaderConfig       = "ReaderConfig"
-	ResourceReaderNotification = "ReaderEventNotification"
-	ResourceROSpec             = "ROSpec"
-	ResourceROSpecID           = "ROSpecID"
-	ResourceAccessSpec         = "AccessSpec"
-	ResourceAccessSpecID       = "AccessSpecID"
-	ResourceROAccessReport     = "ROAccessReport"
-
-	ResourceAction = "Action"
-	ActionDelete   = "Delete"
-	ActionEnable   = "Enable"
-	ActionDisable  = "Disable"
-	ActionStart    = "Start"
-	ActionStop     = "Stop"
-)
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
@@ -271,7 +278,6 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	var dataTarget interface{} // used if the reqData in a subfield of the llrpReq
 
 	switch reqs[0].DeviceResourceName {
-
 	case ResourceReaderConfig:
 		data, err := getStrParam("Set"+ResourceReaderConfig, 0, ResourceReaderConfig)
 		if err != nil {
@@ -586,8 +592,7 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		return nil, errors.New("missing tcp protocol")
 	}
 
-	host := tcpInfo["host"]
-	port := tcpInfo["port"]
+	host, port := tcpInfo["host"], tcpInfo["port"]
 	if host == "" || port == "" {
 		return nil, errors.Errorf("tcp missing host or port (%q, %q)", host, port)
 	}
@@ -599,28 +604,52 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 
 func (d *Driver) addProvisionWatcher() error {
 	var provisionWatcher contract.ProvisionWatcher
-	data, err := ioutil.ReadFile("res/provisionwatcher.json")
+	data, err := ioutil.ReadFile(provisionWatcherFilename)
 	if err != nil {
-		d.lc.Error(err.Error())
 		return err
 	}
 
 	err = provisionWatcher.UnmarshalJSON(data)
 	if err != nil {
-		d.lc.Error(err.Error())
 		return err
 	}
 
 	if err := d.svc.AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
-		d.lc.Info(err.Error())
 		return err
 	}
 
 	return nil
 }
 
+// Discover performs a discovery of LLRP readers on the network and passes them to EdgeX to get provisioned
 func (d *Driver) Discover() {
-	d.lc.Info("*** Discover was called ***")
-	d.deviceCh <- autoDiscover()
-	d.lc.Info("scanning complete")
+	d.lc.Info("Discover was called.")
+
+	provisionOnce.Do(func() {
+		err := d.addProvisionWatcher()
+		if err != nil {
+			d.lc.Error(err.Error())
+			return
+		}
+	})
+
+	ctx := context.Background()
+	if driver.config.MaxDiscoverDurationSeconds > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(),
+			time.Duration(driver.config.MaxDiscoverDurationSeconds)*time.Second)
+		defer cancel()
+	}
+
+	d.discover(ctx)
+}
+
+func (d *Driver) discover(ctx context.Context) {
+	t1 := time.Now()
+	result := autoDiscover(ctx)
+	if ctx.Err() != nil {
+		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
+	}
+	d.deviceCh <- result
+	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Now().Sub(t1)))
 }
