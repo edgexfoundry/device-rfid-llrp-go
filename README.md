@@ -69,7 +69,7 @@ For more detailed info, see [Device Discovery](#Device-Discovery) and
 
 ## Device Discovery
 *Note: Device discovery is currently only compatible with IPv4 networks.
-If using an IPv6-only network, you will need to manually add your devices to EdgeX.*
+If using an IPv6-only network, you will need to [manually add your devices to EdgeX](#manually-adding-a-device).*
 
 This service has the functionality to probe the local network 
 in an effort to discover devices that support LLRP.
