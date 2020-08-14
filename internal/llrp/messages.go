@@ -272,6 +272,10 @@ func NewHdrOnlyMsg(typ MessageType) Message {
 // NewByteMessage uses a []byte payload to create a message.
 // The caller should not modify the slice until the message is sent.
 func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
+	if len(payload) == 0 {
+		return NewHdrOnlyMsg(typ), nil
+	}
+
 	// check this here, since len(data) could overflow a uint32
 	if int64(len(payload)) > int64(maxPayloadSz) {
 		return Message{}, errors.New("LLRP messages are limited to 4GiB (minus a 10 byte header)")

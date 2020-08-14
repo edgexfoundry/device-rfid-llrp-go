@@ -33,7 +33,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	NewProtocolDriver()
+	_ = Instance()
 
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")

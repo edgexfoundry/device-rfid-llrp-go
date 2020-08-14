@@ -254,11 +254,30 @@ func sendAndCheck(t *testing.T, c *Client, out Outgoing, in Incoming) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := c.SendFor(ctx, out, in); err != nil {
-		t.Errorf("%+v", err)
+	var sendErr error
+	if in != nil {
+		sendErr = c.SendFor(ctx, out, in)
+	} else {
+		outData, err := out.MarshalBinary()
+		if err != nil {
+			t.Errorf("%+v", err)
+			return
+		}
+
+		msg, err := NewByteMessage(out.Type(), outData)
+		if err != nil {
+			t.Errorf("%+v", err)
+			return
+		}
+
+		sendErr = c.SendNoWait(ctx, msg)
 	}
 
-	if testing.Verbose() {
+	if sendErr != nil {
+		t.Errorf("%+v", sendErr)
+	}
+
+	if in != nil && testing.Verbose() {
 		prettyPrint(t, in)
 	}
 }

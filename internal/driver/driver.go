@@ -58,6 +58,15 @@ var (
 
 type protocolMap = map[string]contract.ProtocolProperties
 
+// Driver manages a collection of devices that speak LLRP
+// and connects them to the EdgeX ecosystem.
+//
+// A driver must be initialized before use.
+// This is typically done by the Device Service SDK.
+// This package maintains a package-global variable
+// which it exports via driver.Instance.
+//
+// The Driver's exported methods are safe for concurrent use.
 type Driver struct {
 	lc       logger.LoggingClient
 	asyncCh  chan<- *dsModels.AsyncValues
@@ -73,7 +82,16 @@ type Driver struct {
 	svc ServiceWrapper
 }
 
-func NewProtocolDriver() dsModels.ProtocolDriver {
+// EdgeX's Device SDK takes an interface{}
+// and uses a runtime-check to determine that it implements ProtocolDriver,
+// at which point it will abruptly exit without a panic.
+// This restores type-safety by making it so we can't compile
+// unless we meet the runtime-required interface.
+var _ dsModels.ProtocolDriver = (*Driver)(nil)
+
+// Instance returns the package-global Driver instance, creating it if necessary.
+// It must be initialized before use via its Initialize method.
+func Instance() *Driver {
 	createOnce.Do(func() {
 		driver = &Driver{
 			activeDevices: make(map[string]*LLRPDevice),
@@ -95,7 +113,10 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
-	d.svc = &DeviceSDKService{service.RunningService()}
+	d.svc = &DeviceSDKService{
+		Service: service.RunningService(),
+		lc:      lc,
+	}
 
 	config, err := CreateDriverConfig(d.svc.DriverConfigs())
 	if err != nil && !errors.Is(err, ErrUnexpectedConfigItems) {
@@ -111,11 +132,23 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		d.lc.Warn("Unable to watch for configuration changes!", "error", err)
 	}
 
-	// startup all devices
-	for _, dev := range d.svc.Devices() {
-		if _, err := d.getDevice(dev.Name, dev.Protocols); err != nil {
-			d.lc.Error(err.Error())
+	registered := d.svc.Devices()
+	d.devicesMu.Lock()
+	defer d.devicesMu.Unlock()
+	for i := range registered {
+		device := &registered[i] // the Device struct is nearly 1kb, so this avoids copying it
+
+		addr, err := getAddr(device.Protocols)
+		if err != nil {
+			d.lc.Error("Unsupported protocol mapping.",
+				"error", err,
+				"protocols", fmt.Sprintf("%v", device.Protocols),
+				"deviceName", device.Name)
+			continue
 		}
+
+		d.lc.Info("Creating a new Reader connection.", "deviceName", device.Name)
+		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
 	}
 
 	return nil
@@ -209,7 +242,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 		return nil, errors.New("missing requests")
 	}
 
-	dev, err := d.getDevice(devName, p)
+	dev, _, err := d.getDevice(devName, p)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +309,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		return errors.New("missing requests")
 	}
 
-	dev, err := d.getDevice(devName, p)
+	dev, _, err := d.getDevice(devName, p)
 	if err != nil {
 		return err
 	}
@@ -442,10 +475,17 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	return nil
 }
 
-// Stop the protocol-specific DS code to shutdown gracefully, or
-// if the force parameter is 'true', immediately. The driver is responsible
-// for closing any in-use channels, including the channel used to send async
-// readings (if supported).
+// Stop the Driver, causing it to shutdown its active device connections
+// and no longer process commands or upstream reports.
+//
+// If force is false, the Driver attempts to gracefully shutdown active devices
+// by sending them a CloseConnection message and waiting a short time for their response.
+// If force is true, it immediately closes all active connections.
+// In neither case does it tell devices to stop reading.
+//
+// EdgeX says DeviceServices should close the async readings channel,
+// but tracing their code reveals they call close on the channel,
+// so doing so would cause a panic.
 func (d *Driver) Stop(force bool) error {
 	// Then Logging Client might not be initialized
 	if d.lc == nil {
@@ -474,7 +514,9 @@ func (d *Driver) Stop(force bool) error {
 
 	for _, dev := range d.activeDevices {
 		go func(dev *LLRPDevice) {
-			d.stopDevice(ctx, dev)
+			if err := dev.Stop(ctx); err != nil {
+				d.lc.Error("Error attempting client shutdown.", "error", err.Error())
+			}
 			if !force {
 				wg.Done()
 			}
@@ -485,34 +527,68 @@ func (d *Driver) Stop(force bool) error {
 	return nil
 }
 
-// AddDevice is a callback function that is invoked
-// when a new Device associated with this Device Service is added
+// AddDevice tells the driver attempt to actively manage a device.
+//
+// The Device Service SDK calls this when a new Device
+// associated with this Device Service is added,
+// so this assumes the device is already registered with EdgeX.
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
 	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
-
-	_, err := d.getDevice(deviceName, protocols)
+	_, _, err := d.getDevice(deviceName, protocols)
+	if err != nil {
+		d.lc.Error("Failed to add device.", "error", err, "deviceName", deviceName)
+	}
 	return err
 }
 
-// UpdateDevice is a callback function that is invoked
-// when a Device associated with this Device Service is updated
-func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
+// UpdateDevice updates a device managed by this Driver.
+//
+// The Device Service SDK calls it when a Device is updated,
+// so this assumes the device is already registered with EdgeX.
+//
+// If the device's operating state is DISABLED,
+// then if the Driver is not managing the device, nothing happens.
+// If it is managing the device, it disconnects from it.
+//
+// If the device's operating state is ENABLED,
+// if the Driver isn't currently managing a device with the given name,
+// it'll create a new one and attempt to maintain its connection.
+//
+// If the Driver has a device with this name, but the device's address changes,
+// this will shutdown any current connection associated with the named device,
+// update the address, and attempt to reconnect at the new address and port.
+// If the address is the same, nothing happens.
+func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) (err error) {
 	d.lc.Debug(fmt.Sprintf("Updating device: %s protocols: %v adminState: %v",
 		deviceName, protocols, adminState))
+	defer func() {
+		if err != nil {
+			d.lc.Error("Failed to update device.",
+				"error", err, "deviceName", deviceName,
+				"protocolMap", fmt.Sprintf("%v", protocols))
+		}
+	}()
 
-	dev, err := d.getDevice(deviceName, protocols)
-	if err != nil {
-		return err
-	}
-
-	addr, err := getAddr(protocols)
-	if err != nil {
-		return err
-	}
-
+	// This uses the shutdownGrace period because updating the address
+	// may require closing a current connection to an existing device.
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
+
+	var dev *LLRPDevice
+	var isNew bool
+	dev, isNew, err = d.getDevice(deviceName, protocols)
+	// No need to call update if the device was just created.
+	if !(err == nil && isNew) {
+		return err
+	}
+
+	var addr net.Addr
+	addr, err = getAddr(protocols)
+	if err != nil {
+		return err
+	}
+
 	return dev.UpdateAddr(ctx, addr)
 }
 
@@ -528,43 +604,46 @@ func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
 	return nil
 }
 
-// getOrCreate returns a Client, creating one if needed.
+// getDevice returns an LLRPDevice, creating one if needed.
 //
-// If a Client with this name already exists, it returns it.
-// Otherwise, calls the createNew function to get a new Client,
-// which it adds to the map and then returns.
-func (d *Driver) getDevice(name string, p protocolMap) (*LLRPDevice, error) {
+// If the Driver is already managing an LLRPDevice with this name,
+// then this call simply returns it.
+// Otherwise, it creates and returns a new LLRPDevice instance
+// after adding it to its map of managed devices.
+// If the new LLRPDevice is created as a result of this call,
+// the returned boolean `isNew` will be the true.
+func (d *Driver) getDevice(name string, p protocolMap) (dev *LLRPDevice, isNew bool, err error) {
 	// Try with just a read lock.
 	d.devicesMu.RLock()
 	c, ok := d.activeDevices[name]
 	d.devicesMu.RUnlock()
 	if ok {
-		return c, nil
+		return c, false, nil
 	}
 
 	addr, err := getAddr(p)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// It's important it holds the lock while creating a device.
 	// If two requests arrive at about the same time and target the same device,
 	// one will block waiting for the lock and the other will create/add it.
-	// When gaining the lock, we recheck the map
+	// When gaining the lock, we recheck the map.
 	// This way, only one device exists for any name,
 	// and all requests that target it use the same one.
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
 
-	dev, ok := d.activeDevices[name]
+	dev, ok = d.activeDevices[name]
 	if ok {
-		return dev, nil
+		return dev, false, nil
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
 	dev = d.NewLLRPDevice(name, addr)
 	d.activeDevices[name] = dev
-	return dev, nil
+	return dev, true, nil
 }
 
 // removeDevice deletes a device from the active devices map
@@ -575,18 +654,10 @@ func (d *Driver) removeDevice(ctx context.Context, deviceName string) {
 
 	if dev, ok := d.activeDevices[deviceName]; ok {
 		d.lc.Info("Stopping connection for device.", "device", deviceName)
-		go d.stopDevice(ctx, dev)
+		if err := dev.Stop(ctx); err != nil {
+			d.lc.Error("Error attempting client shutdown.", "error", err.Error())
+		}
 		delete(d.activeDevices, deviceName)
-	}
-}
-
-// stopDevice stops a device's reconnect loop,
-// closing any active connection it may currently have.
-// Any pending requests targeting that device may fail.
-// This doesn't remove it from the devices map.
-func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
-	if err := dev.Stop(ctx); err != nil {
-		d.lc.Error("Error attempting client shutdown.", "error", err.Error())
 	}
 }
 
@@ -594,6 +665,10 @@ func (d *Driver) stopDevice(ctx context.Context, dev *LLRPDevice) {
 //
 // It expects the map to have {"tcp": {"host": "<ip>", "port": "<port>"}}.
 func getAddr(protocols protocolMap) (net.Addr, error) {
+	if protocols == nil {
+		return nil, errors.New("protocol map is nil")
+	}
+
 	tcpInfo := protocols["tcp"]
 	if tcpInfo == nil {
 		return nil, errors.New("missing tcp protocol")

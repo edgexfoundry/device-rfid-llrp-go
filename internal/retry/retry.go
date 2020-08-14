@@ -30,7 +30,7 @@ var (
 	// Slow expects that failure conditions may take awhile to resolve.
 	Slow = ExpBackOff{
 		BackOff:  5 * time.Second,
-		Max:      5 * time.Minute,
+		Max:      30 * time.Minute,
 		Jitter:   true,
 		KeepErrs: 10,
 	}
