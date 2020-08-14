@@ -414,6 +414,6 @@ the first time you have deployed the service and EdgeX Consul is enabled.
   - To get around this behavior, you may delete the whole configuration group for this
     service within [EdgeX Consul][consul_devices].
     
-[](images/delete_consul.png)
+![](images/delete_consul.png)
 
 [consul_devices]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/
