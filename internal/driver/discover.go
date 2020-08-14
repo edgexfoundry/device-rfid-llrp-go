@@ -50,8 +50,16 @@ type workerParams struct {
 	ipCh      <-chan uint32
 	resultCh  chan<- *discoveryInfo
 	ctx       context.Context
-	timeout   time.Duration
-	scanPort  string
+
+	timeout    time.Duration
+	scanPort   string
+}
+
+type discoverParams struct {
+	subnets    []string
+	asyncLimit int
+	timeout    time.Duration
+	scanPort   string
 }
 
 // computeNetSz computes the total amount of valid IP addresses for a given subnet size
@@ -66,22 +74,15 @@ func computeNetSz(subnetSz int) uint32 {
 
 // autoDiscover probes all addresses in the configured network to attempt to discover any possible
 // RFID readers that support LLRP.
-func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
-	driver.configMu.RLock()
-	subnets := driver.config.DiscoverySubnets
-	asyncLimit := driver.config.ProbeAsyncLimit
-	timeout := time.Duration(driver.config.ProbeTimeoutSeconds) * time.Second
-	scanPort := driver.config.ScanPort
-	driver.configMu.RUnlock()
-
-	if subnets == nil || len(subnets) == 0 {
+func autoDiscover(ctx context.Context, params discoverParams) []dsModels.DiscoveredDevice {
+	if len(params.subnets) == 0 {
 		driver.lc.Warn("Discover was called, but no subnet information has been configured!")
 		return nil
 	}
 
 	ipnets := make([]*net.IPNet, 0, len(driver.config.DiscoverySubnets))
 	var estimatedProbes int
-	for _, cidr := range subnets {
+	for _, cidr := range params.subnets {
 		if cidr == "" {
 			driver.lc.Warn("Empty CIDR provided, unable to scan for LLRP readers.")
 			continue
@@ -107,6 +108,7 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 	// if the estimated amount of probes we are going to make is less than
 	// the async limit, we only need to set the worker count to the total number
 	// of probes to avoid spawning more workers than probes
+	asyncLimit := params.asyncLimit
 	if estimatedProbes < asyncLimit {
 		asyncLimit = estimatedProbes
 	}
@@ -121,8 +123,8 @@ func autoDiscover(ctx context.Context) []dsModels.DiscoveredDevice {
 		ipCh:      ipCh,
 		resultCh:  resultCh,
 		ctx:       ctx,
-		timeout:   timeout,
-		scanPort:  scanPort,
+		timeout: params.timeout,
+		scanPort: params.scanPort,
 	}
 
 	// start the workers before adding any ips so they are ready to process
@@ -217,6 +219,12 @@ func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]con
 // and needs to update its information to either a new address or set
 // its operating state to enabled.
 func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
+	shouldUpdate := false
+	if device.OperatingState == contract.Disabled {
+		device.OperatingState = contract.Enabled
+		shouldUpdate = true
+	}
+
 	tcpInfo := device.Protocols["tcp"]
 	if tcpInfo == nil ||
 		info.host != tcpInfo["host"] ||
@@ -232,30 +240,22 @@ func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
 		}
 		// make sure it is enabled
 		device.OperatingState = contract.Enabled
-		err := driver.svc.UpdateDevice(device)
-		if err != nil {
-			driver.lc.Error("There was an error updating the tcp address for an existing device.",
-				"deviceName", device.Name,
-				"error", err)
-		}
+		shouldUpdate = true
+	}
 
-		// return now as we already force set the operating state
+	if !shouldUpdate {
+		// the address is the same and device is already enabled, should not reach here
+		driver.lc.Warn("Re-discovered existing device at the same TCP address, nothing to do.")
+		return nil
+	}
+
+	if err := driver.svc.UpdateDevice(device); err != nil {
+		driver.lc.Error("There was an error updating the tcp address for an existing device.",
+			"deviceName", device.Name,
+			"error", err)
 		return err
 	}
 
-	// this code block will only run if the tcp address is the same
-	if device.OperatingState == contract.Disabled {
-		err := driver.svc.UpdateDeviceOperatingState(device.Name, contract.Enabled)
-		if err != nil {
-			driver.lc.Error("There was an error setting the device OperatingState to Enabled.",
-				"deviceName", device.Name,
-				"error", err)
-		}
-		return err
-	}
-
-	// the address is the same and device is already enabled, should not reach here
-	driver.lc.Warn("Re-discovered existing device at the same TCP address, nothing to do.")
 	return nil
 }
 
