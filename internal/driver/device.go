@@ -35,8 +35,8 @@ const (
 //
 // LLRPDevice attempts to maintain a connection to the Reader,
 // provides methods to retry message sends that fail due to closed connections,
-// and notifies EdgeX if it is a Reader connection appears lost.
-// It forwards ROAccessReports & ReaderEventNotifications to EdgeX,
+// and notifies EdgeX if a Reader connection appears lost.
+// It forwards ROAccessReports & ReaderEventNotifications to EdgeX.
 //
 // It is safe to use an LLRPDevice's methods concurrently and when disconnected.
 // If TrySend fails due to connection issues,
@@ -67,6 +67,9 @@ type LLRPDevice struct {
 	// so when we get the initial connect ReaderEventNotification,
 	// we use our own clock to calculate when that Reader moment was in UTC.
 	// We can then add this value to other Uptime parameters to convert them to UTC.
+	//
+	// This calculation does not account for leap seconds,
+	// but neither does Go's stdlib Time package.
 	readerStart time.Time
 	enabled     bool // used for managing EdgeX opstate; isn't updated immediately
 
@@ -150,7 +153,13 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 					if errors.Is(clientErr, llrp.ErrClientClosed) {
 						d.lc.Debug("LLRP Client connection closed normally.", "device", name)
 						clientErr = nil // This resets the backoff/retry policy.
-					} else {
+					} else if clientErr != nil {
+						// Connect promises to always return some non-nil err,
+						// but nothing about the language enforces that,
+						// so here's a nil check on the off-chance that changes.
+						// If that "contract" ever changes so that Connect returns nil,
+						// it's more sensible to ignore it.
+						// The only consequence is not printing the Debug message above.
 						d.lc.Error("Client disconnected unexpectedly.",
 							"error", clientErr.Error(), "device", name)
 					}
@@ -196,7 +205,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 }
 
 // TrySend works like the llrp.Client's SendFor method,
-// but reattempts sends a few times if they fails due to a closed reader.
+// but reattempts a send a few times if it fails due to a closed reader.
 // Additionally, it enforces our KeepAlive interval for timeout detection
 // upon SetReaderConfig messages.
 func (l *LLRPDevice) TrySend(ctx context.Context, request llrp.Outgoing, reply llrp.Incoming) error {

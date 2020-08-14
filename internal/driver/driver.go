@@ -109,7 +109,6 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		lc:      lc,
 	}
 
-
 	config, err := CreateDriverConfig(d.svc.DriverConfigs())
 	if err != nil && !errors.Is(err, ErrUnexpectedConfigItems) {
 		return errors.Wrap(err, "read driver configuration failed")
@@ -136,8 +135,6 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		d.lc.Info("Creating a new Reader connection.", "deviceName", device.Name)
 		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
 	}
-
-
 
 	return nil
 }
@@ -398,7 +395,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 // Stop the Driver, causing it to shutdown its active device connections
 // and no longer process commands or upstream reports.
 //
-// If force is false, the Driver sends attempts a graceful shutdown of active devices
+// If force is false, the Driver attempts to gracefully shutdown active devices
 // by sending them a CloseConnection message and waiting a short time for their response.
 // If force is true, it immediately closes all active connections.
 // In neither case does it tell devices to stop reading.
