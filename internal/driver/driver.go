@@ -731,8 +731,17 @@ func (d *Driver) Discover() {
 }
 
 func (d *Driver) discover(ctx context.Context) {
+	d.configMu.RLock()
+	params := discoverParams{
+		subnets:    d.config.DiscoverySubnets,
+		asyncLimit: d.config.ProbeAsyncLimit,
+		timeout:    time.Duration(d.config.ProbeTimeoutSeconds) * time.Second,
+		scanPort:   d.config.ScanPort,
+	}
+	d.configMu.RUnlock()
+
 	t1 := time.Now()
-	result := autoDiscover(ctx)
+	result := autoDiscover(ctx, params)
 	if ctx.Err() != nil {
 		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
 	}

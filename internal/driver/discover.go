@@ -51,8 +51,8 @@ type workerParams struct {
 	resultCh  chan<- *discoveryInfo
 	ctx       context.Context
 
-	timeout    time.Duration
-	scanPort   string
+	timeout  time.Duration
+	scanPort string
 }
 
 type discoverParams struct {
@@ -80,7 +80,7 @@ func autoDiscover(ctx context.Context, params discoverParams) []dsModels.Discove
 		return nil
 	}
 
-	ipnets := make([]*net.IPNet, 0, len(driver.config.DiscoverySubnets))
+	ipnets := make([]*net.IPNet, 0, len(params.subnets))
 	var estimatedProbes int
 	for _, cidr := range params.subnets {
 		if cidr == "" {
@@ -123,8 +123,8 @@ func autoDiscover(ctx context.Context, params discoverParams) []dsModels.Discove
 		ipCh:      ipCh,
 		resultCh:  resultCh,
 		ctx:       ctx,
-		timeout: params.timeout,
-		scanPort: params.scanPort,
+		timeout:   params.timeout,
+		scanPort:  params.scanPort,
 	}
 
 	// start the workers before adding any ips so they are ready to process
