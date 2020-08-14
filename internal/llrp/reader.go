@@ -708,11 +708,11 @@ func (c *Client) handleIncoming() error {
 		hdr, err := c.readHeader()
 		if err != nil {
 			if !receivedClosed {
-				return errors.Wrap(err, "failed to get next message")
+				return errors.WithMessage(err, "failed to get next message")
 			}
 
 			if !(errors.Is(err, io.EOF) || os.IsTimeout(err) || errors.Is(err, io.ErrClosedPipe)) {
-				return errors.Wrap(err, "timeout")
+				return errors.WithMessage(err, "unexpected error after reader closed")
 			}
 
 			// EOF/io.Timeout after CloseConnection should wait for reader to close
@@ -727,7 +727,6 @@ func (c *Client) handleIncoming() error {
 		}
 
 		err = c.passToHandler(hdr)
-
 		switch err {
 		case nil:
 		case io.EOF:

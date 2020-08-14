@@ -9,6 +9,7 @@ import (
 	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/pkg/errors"
 	"sync/atomic"
 )
 
@@ -90,4 +91,8 @@ func (s *MockSDKService) UpdateDeviceOperatingState(deviceName string, state str
 		return nil
 	}
 	return fmt.Errorf("device with name %s not found", deviceName)
+}
+
+func (s *MockSDKService) SetDeviceOpState(name string, state contract.OperatingState) error {
+	return errors.New("Method not implemented.")
 }

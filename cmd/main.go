@@ -12,6 +12,6 @@ import (
 )
 
 func main() {
-	sd := driver.NewProtocolDriver()
+	sd := driver.Instance()
 	startup.Bootstrap(driver.ServiceName, device_llrp.Version, sd)
 }
