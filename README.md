@@ -75,10 +75,15 @@ This service has the functionality to probe the local network
 in an effort to discover devices that support LLRP.
 
 This discovery also happens at a regular interval and can be configured via 
-[EdgeX Consul](http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/) 
+[EdgeX Consul][consul_discovery] 
 for existing installations, and [configuration.toml][config_toml] for default values.
 
-The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml](cmd/res/docker/configuration.toml) file.
+The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml][config_toml] file.
+
+_Note: Please read the [Notes on configuration.toml](#Notes-on-configuration.toml) for things to be 
+aware of when modifying this file._
+
+[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/
 ```toml
 [Driver]
 # NOTE: Items in the Driver section MUST be in quotes, even for numbers due to EdgeX limitation
@@ -170,6 +175,9 @@ is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-1
 ### Manually Adding a Device
 You can add devices directly via [EdgeX's APIs][add_device]
 or via the [toml configuration][config_toml], as in the following example:
+
+_Note: Please read the [Notes on configuration.toml](#Notes-on-configuration.toml) for things to be 
+aware of when modifying this file._
 
 ```
 [[DeviceList]]
@@ -395,3 +403,17 @@ The following are particularly useful:
 - `go doc llrp.GetFunctionalClient`
 
 [test_helper]: internal/llrp/test_helpers.go
+
+## Footnotes
+### Notes on configuration.toml
+- Modifying the `configuration.toml` file will require you to rebuild the docker image 
+and re-deploy using the new image
+- Any modifications made to the `configuration.toml` file will be ignored if this is not 
+the first time you have deployed the service and EdgeX Consul is enabled. 
+  - Consul will always overwrite any modifications to the toml.
+  - To get around this behavior, you may delete the whole configuration group for this
+    service within [EdgeX Consul][consul_devices].
+    
+[](images/delete_consul.png)
+
+[consul_devices]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/
