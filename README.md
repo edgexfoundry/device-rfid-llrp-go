@@ -80,7 +80,7 @@ for existing installations, and [configuration.toml][config_toml] for default va
 
 The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml][config_toml] file.
 
-_Note: Please read the [Notes on configuration.toml](#Notes-on-configuration.toml) for things to be 
+_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
 [consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/
@@ -176,7 +176,7 @@ is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-1
 You can add devices directly via [EdgeX's APIs][add_device]
 or via the [toml configuration][config_toml], as in the following example:
 
-_Note: Please read the [Notes on configuration.toml](#Notes-on-configuration.toml) for things to be 
+_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
 ```
