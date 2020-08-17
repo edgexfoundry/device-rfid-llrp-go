@@ -18,11 +18,21 @@ type edgexLLRPClientLogger struct {
 }
 
 func (l *edgexLLRPClientLogger) SendingMsg(h llrp.Header) {
-	l.lc.Info("Sending LLRP message", "type", h.Type().String(), "device", l.devName)
+	switch h.Type() {
+	case llrp.MsgKeepAliveAck:
+		l.lc.Debug("Sending LLRP message", "type", h.Type().String(), "device", l.devName)
+	default:
+		l.lc.Info("Sending LLRP message", "type", h.Type().String(), "device", l.devName)
+	}
 }
 
 func (l *edgexLLRPClientLogger) ReceivedMsg(h llrp.Header, ver llrp.VersionNum) {
-	l.lc.Info("Incoming LLRP message", "type", h.Type().String(), "device", l.devName)
+	switch h.Type() {
+	case llrp.MsgKeepAlive, llrp.MsgROAccessReport:
+		l.lc.Debug("Incoming LLRP message", "type", h.Type().String(), "device", l.devName)
+	default:
+		l.lc.Info("Incoming LLRP message", "type", h.Type().String(), "device", l.devName)
+	}
 
 	if ver != h.Version() {
 		l.lc.Warn("LLRP incoming message version mismatch",
