@@ -10,7 +10,7 @@
 		},
 		"StopTrigger": {
 			"Trigger": 1,
-			"DurationTriggerValue": 5000,
+			"DurationTriggerValue": 500,
 			"GPITriggerValue": null
 		}
 	},

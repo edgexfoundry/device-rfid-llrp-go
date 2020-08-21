@@ -71,7 +71,8 @@ type Driver struct {
 	lc       logger.LoggingClient
 	asyncCh  chan<- *dsModels.AsyncValues
 	deviceCh chan<- []dsModels.DiscoveredDevice
-	done     chan struct{}
+
+	done chan struct{}
 
 	activeDevices map[string]*LLRPDevice
 	devicesMu     sync.RWMutex
@@ -95,6 +96,7 @@ func Instance() *Driver {
 	createOnce.Do(func() {
 		driver = &Driver{
 			activeDevices: make(map[string]*LLRPDevice),
+			done:          make(chan struct{}),
 		}
 	})
 	return driver
