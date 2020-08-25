@@ -37,14 +37,17 @@ func TestMain(m *testing.M) {
 
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", false, "", "DEBUG")
-	driver.config = &driverConfiguration{
-		DiscoverySubnets:    []string{"127.0.0.1/32"},
-		ProbeAsyncLimit:     1000,
-		ProbeTimeoutSeconds: 1,
-		ScanPort:            "50923",
-	}
 
 	os.Exit(m.Run())
+}
+
+func makeParams() discoverParams {
+	return discoverParams{
+		subnets:    []string{"127.0.0.1/32"},
+		asyncLimit: 1000,
+		timeout:    1 * time.Second,
+		scanPort:   "59923",
+	}
 }
 
 // todo: add unit tests for re-discovering disabled devices, and device ip changes
@@ -53,6 +56,8 @@ func TestMain(m *testing.M) {
 // different known and unknown vendors and models. It also tests the difference between
 // mac based and epc based identification.
 func TestAutoDiscoverNaming(t *testing.T) {
+	params := makeParams()
+
 	tests := []struct {
 		name        string
 		description string
@@ -139,11 +144,6 @@ func TestAutoDiscoverNaming(t *testing.T) {
 		},
 	}
 
-	port, err := strconv.Atoi(driver.config.ScanPort)
-	if err != nil {
-		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", driver.config.ScanPort)
-	}
-
 	// create a fake rx sensitivity table to produce a more valid GetReaderCapabilitiesResponse
 	var i uint16
 	sensitivities := make([]llrp.ReceiveSensitivityTableEntry, 11)
@@ -154,10 +154,16 @@ func TestAutoDiscoverNaming(t *testing.T) {
 		})
 	}
 
+	scanPort, err := strconv.Atoi(params.scanPort)
+	if err != nil {
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", params.scanPort)
+	}
+
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			emu := llrp.NewTestEmulator(!testing.Verbose())
-			if err := emu.StartAsync(port); err != nil {
+			if err := emu.StartAsync(scanPort); err != nil {
 				t.Fatalf("unable to start emulator: %+v", err)
 			}
 
@@ -175,7 +181,7 @@ func TestAutoDiscoverNaming(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			discovered := autoDiscover(ctx)
+			discovered := autoDiscover(ctx, params)
 			if len(discovered) != 1 {
 				t.Errorf("expected 1 discovered device, however got: %d", len(discovered))
 			} else if discovered[0].Name != test.name {
@@ -195,17 +201,19 @@ func TestAutoDiscoverNaming(t *testing.T) {
 // 2. It discovers the emulator ok when it is running
 // 3. It does not re-discover the emulator when it is already registered with EdgeX
 func TestAutoDiscover(t *testing.T) {
+	params := makeParams()
+
 	// attempt to discover without emulator, expect none found
 	svc.clearDevices()
-	discovered := autoDiscover(context.Background())
+	discovered := autoDiscover(context.Background(), params)
 	if len(discovered) != 0 {
 		t.Fatalf("expected 0 discovered devices, however got: %d", len(discovered))
 	}
 
 	// attempt to discover WITH emulator, expect emulator to be found
-	port, err := strconv.Atoi(driver.config.ScanPort)
+	port, err := strconv.Atoi(params.scanPort)
 	if err != nil {
-		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", driver.config.ScanPort)
+		t.Fatalf("Failed to parse driver.config.ScanPort, unable to run discovery tests. value = %v", params.scanPort)
 	}
 	emu := llrp.NewTestEmulator(!testing.Verbose())
 	if err := emu.StartAsync(port); err != nil {
@@ -232,7 +240,7 @@ func TestAutoDiscover(t *testing.T) {
 	}
 	emu.SetResponse(llrp.MsgGetReaderCapabilities, &readerCaps)
 
-	discovered = autoDiscover(context.Background())
+	discovered = autoDiscover(context.Background(), params)
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
@@ -240,7 +248,7 @@ func TestAutoDiscover(t *testing.T) {
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
 	svc.resetAddedCount()
-	discovered = autoDiscover(context.Background())
+	discovered = autoDiscover(context.Background(), params)
 	if len(discovered) != 0 {
 		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
 	}
