@@ -54,7 +54,6 @@ func (s *DeviceSDKService) DriverConfigs() map[string]string {
 	return service.DriverConfigs()
 }
 
-
 func (s *DeviceSDKService) SetDeviceOpState(name string, state contract.OperatingState) error {
 	// workaround: the device-service-sdk's uses core-contracts for the API URLs,
 	// but the metadata service API for opstate updates changed between v1.1.0 and v1.2.0.
