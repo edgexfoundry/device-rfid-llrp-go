@@ -157,7 +157,7 @@ func getAndWrite(r *Client, mt MessageType, payload encoding.BinaryMarshaler, re
 		return err
 	}
 
-	expR, ok := mt.responseType()
+	expR, ok := mt.Converse()
 	if ok && expR != resultT {
 		return errors.Errorf("expected %v; got %v", expR, mt)
 	}

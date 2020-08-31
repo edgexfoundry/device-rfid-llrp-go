@@ -1,0 +1,31 @@
+{
+	"ResetToFactoryDefaults": false,
+	"ReaderEventNotificationSpec": {
+		"EventNotificationStates": [
+			{
+				"ReaderEventType": 4,
+				"NotificationEnabled": true
+			},
+			{
+				"ReaderEventType": 3,
+				"NotificationEnabled": true
+			},
+			{
+				"ReaderEventType": 8,
+				"NotificationEnabled": true
+			}
+		]
+	},
+	"AntennaProperties": null,
+	"AntennaConfigurations": null,
+	"ROReportSpec": null,
+	"AccessReportSpec": null,
+	"KeepAliveSpec": {
+		"Trigger": 1,
+		"Interval": 180000
+	},
+	"GPOWriteData": null,
+	"GPIPortCurrentStates": null,
+	"EventsAndReports": null,
+	"Custom": null
+}

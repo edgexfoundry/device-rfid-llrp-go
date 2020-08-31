@@ -283,7 +283,7 @@ func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 // Clients are created with a handler for KeepAlive (to send KeepAliveAck).
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
-	if !mt.isValid() {
+	if !mt.IsValid() {
 		panic(errors.Errorf("invalid message type for handler: %v", mt))
 	}
 

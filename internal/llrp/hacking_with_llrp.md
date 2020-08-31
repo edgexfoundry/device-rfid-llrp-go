@@ -258,3 +258,117 @@ There are two special cases:
 The generated parser code handles lists & fields for you.
 It determines how to parse the message based on the YAML definition.
 Types that begin with `[]` are interpreted as lists.
+
+
+## Problems with the Spec
+Portions of the LLRP specification are confusing, contradictory, or confounding.
+This is an incomplete list of things to watch out for.
+This isn't an "LLRP sucks" list; only a few are outright errors.
+Most of these are only issues for "general purpose" LLRP processing,
+but are fine when given context outside the scope of LLRP communication.
+
+### Problems with the Mode Table
+There are several inconsistencies in the `UFHC1G2` parameters,
+which is unfortunate, since they're the primarily LLRP controls for a Reader.
+There material differences between the abstract and binary parameter definitions,
+as well as inconsistencies between how `Capabilities` are presented by the Reader 
+and how the Client references those values in `Spec` parameters. 
+
+### Inconsistent ModeID/ModeIndex Definitions
+In the abstract definitions,
+the `C1G2RFControl` parameter (335) defines `ModeIndex` as `Unsigned Integer`
+and says "This is an index into the UHFC1G2RFModeTable";
+the "Formatting Conventions and Data Types" section of the spec
+states that `Unsigned Integer` takes values between 0 and 2^32-1,
+(as would a `uint32`), but the binary definition allocates it only 16 bits.
+The `UHFC1G2RFModeTableEntry` parameter (329) defines `Mode identifier`,
+also specified as an `Unsigned Integer`, with the text 
+"a Reader defined identifier that 
+the client may use to set the Gen2 operating parameters";
+its binary definition is allocated 32 bits.
+We assume that `ModeIndex` and `Mode identifier` are meant to reference the same thing,
+and further assume that Readers will simply limit their identifiers to 2^16-1. 
+An unfortunate consequence is that you must cast RFModeIDs from uint16 to uint32
+if taken directly from the UHF Mode Table and inserted into an RFControl parameter.
+
+### Inconsistent Tari Binary Definitions
+This is similar to the problem above.
+The `UHFC1G2RFModeTableEntry` parameter (329) defines 3 `Tari` values as `Integer`,
+restricted to 6250-25000 (an EPC limitation), which fits in a `uint16`;
+their binary definition allocates them each 32 bits. 
+The `C1G2RFControl` parameter (335) also defines `Tari` as `Integer` in 6250-25000 (or 0),
+and its binary allocates it 16 bits. 
+Since the limits are fine for that restriction (even assuming proper 2-complement),
+it's only an annoying consequence that the types are not directly compatible,
+and one must be cast to the other.
+
+### Inconsistent HopTableID Definitions
+In the abstract definitions,
+the `RFTransmitter` parameter (224) defines `HopTableID` as `Unsigned Short Integer`, 
+while the `FrequencyHopTable` parameter (147) defines it as `Integer`,
+but further specifies `Possible Values: 0-255`, 
+effectively restricting it to a `uint8`.
+
+The `RFTransmitter` binary definition gives the `HopTableID` 16 bits,
+consistent with its abstract definition.
+The `FrequencyHopTable` gives the `HopTableID` 8 bits,
+followed by an 8-bit `Reserved` section,
+presumably for the possibility to match the `RFTransmitter` in the future,
+though doing so would be backwards-incompatible 
+since the reserved bits come _after_ the `HopTableID`, 
+not before as they would if it were a (big-endian) `uint16`.
+_Technically_, because the abstract definition says its an `Integer`,
+it binary format must be encoded twos-complement, 
+and thus the `Possible Values: 0-255` requires 9 bits (one of which must always be 0),
+meaning the binary definition does not give enough space for all required values.
+
+Our parser uses `uint8` for the `FrequencyHopTable.HopTableID` 
+and `uint16` for the `RFTransmitter.HopTableID`, 
+which is always correct for legal values 
+(the Reader has no legal way to send a `HopTableID` > 127) 
+and probably matches the intent if a Reader tries to use `HopTableID`s 128-255.
+
+### Inconsistent Parameter Ordering
+Parameters in the abstract part of the spec 
+are sometimes listed in a different order than in the binary specification.
+
+### Inconsistent Parameter Naming 
+Parameters in the abstract spec sometimes have different names
+than those used in the binary spec.
+The most egregious example 
+
+### Inconsistent Parameter Naming 
+Most of the binary spec requires parameters appear in a specific order.
+Because many parameters are optional,
+a _correct_ parser would validate the parameter order.
+When multiple, optional parameters occur in the binary protocol in sequence,
+our parser allows them in any order, for the following reasons: 
+
+- It's more efficient and far easier to implement.
+- It has no effect on valid messages (i.e., it'd never be rejected).
+- An invalid message is _probably fine_ to accept with an "out of order" parameter;
+   if a Reader produces parameters out of order, it's more reasonable to be flexible. 
+
+Very occasionally, the parameter order does have special meaning:
+
+- The execution order of `AISpec`s, `RFSurveySpec`s, and `CustomSpec`s 
+    within an `ROSpec` is based on their definition order.
+- The abstract definition allows multiple events in the same `ReaderEventNotification`,
+    and states their order must match the order in which they occurred.
+    
+Our library does not permit specifying the order of parameters of different types;
+this is primarily to make it easier to work with Go 
+(heterogeneous slices are not permitted, 
+so they'd have to be abstracted behind an interface).
+
+For event ordering, this makes no difference: 
+despite the abstract requirement, 
+the binary spec _does_ enforce a particular ordering.
+
+Our implementation always serializes `ROSpec`s inner specs in this order:
+- each `AISpec`, in order
+- each `RFSurveySpec`, in order
+- each `CustomSpec`, in order
+- `LoopSpec` (valid only for LLRP version >=1.1)
+
+### 

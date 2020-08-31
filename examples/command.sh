@@ -88,7 +88,11 @@ put_file() {
         usage; exit
     fi
     
-    CMD_NAME="${1^}${2}"
+    if [[ "$1" == "put" ]]; then
+        CMD_NAME="${2}"
+    else
+        CMD_NAME="${1^}${2}"
+    fi
     TYPE=${2}
     FILE_PATH="${3}"
     
@@ -96,6 +100,14 @@ put_file() {
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
             --data '@'<(jq '.|{'"$TYPE"': @text}' "$FILE_PATH")
+}
+
+put() {
+    set -x
+    devices | jq '.[].commands[]|select(.name=="'"${2}"'")|.put.url' | \
+            sed -e "s/edgex-core-command/${HOST}/" | \
+            xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
+            --data "${3}" 
 }
 
 put_num() {
@@ -114,11 +126,15 @@ put_num() {
 }
 
 get() {
-    if [[ $# -ne 1 ]]; then
+    if [[ $# -gt 2 ]]; then
         usage; exit
     fi
     
-    CMD_NAME="Get${1}"
+    if [[ "$1" == "pull" ]]; then
+        CMD_NAME="${2}"
+    else
+        CMD_NAME="Get${1}"
+    fi
     
     devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.get.url' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
@@ -158,8 +174,14 @@ case "$1" in
     get)
         shift; get "$@"
         ;;
+    pull)
+        get "$@"
+        ;;
     set | add)
         put_file "$@"
+        ;;
+    put)
+        put "$@"
         ;;
     enable | start | stop | disable | delete)
         put_num "$@"

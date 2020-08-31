@@ -1755,7 +1755,7 @@ types:
     storage: uint16
     kind: 'external'
     description: >-
-      The AntennaID parameter is will inline to a uint16,
+      The AntennaID parameter will inline to a uint16,
       so defining this here is a convenient way
       to use it as a type for fields in the above definitions.
 
@@ -2278,6 +2278,16 @@ types:
     storage: uint8
     kind: enum
     max: 7
+    prefix: OnSelect
+    values:
+      - MSetUClear
+      - MSetUKeep
+      - MKeepUClear
+      - MFlipUKeep
+      - MClearUSet
+      - MClearUKeep
+      - MKeepUSet
+      - MKeepUFlip
 
   - name: SingActAwareState
     bits: 1

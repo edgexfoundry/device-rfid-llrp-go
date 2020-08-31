@@ -180,7 +180,7 @@ func closeSuccess(h *Header, rfid net.Conn) error {
 
 // dummyReply sends empty replies with the header's response type.
 func dummyReply(h *Header, rfid net.Conn) error {
-	reply := Header{id: h.id, version: h.version, typ: responseType[h.typ]}
+	reply := Header{id: h.id, version: h.version, typ: mirrorType[h.typ]}
 	hdr, err := reply.MarshalBinary()
 	if err != nil {
 		return err
@@ -207,7 +207,7 @@ func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 		reply := Header{
 			payloadLen: uint32(sz),
 			id:         h.id,
-			typ:        responseType[h.typ],
+			typ:        mirrorType[h.typ],
 			version:    h.version,
 		}
 
