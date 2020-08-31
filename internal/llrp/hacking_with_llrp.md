@@ -274,7 +274,30 @@ There material differences between the abstract and binary parameter definitions
 as well as inconsistencies between how `Capabilities` are presented by the Reader 
 and how the Client references those values in `Spec` parameters. 
 
-### Inconsistent ModeID/ModeIndex Definitions
+Parameters in the abstract spec sometimes have different names
+than those used in the binary spec.
+The most egregious example is in the `UHFC1G2RFModeTableEntry`.
+The abstract spec has `M value:` which represents `Modulation`
+(which should not be confused with `Forward link modulation`, 
+which appears just below it).
+The definition is split across two pages, 
+and the second one has `Spectral Mask Indicator`.
+The binary spec is also split across two pages:
+the first page references `Mod`, `FLM`, and `M`, 
+which the second page defines as follows: 
+- `M - Spectral Mask Indicator`
+- `Mod - M value / Modulation`
+- `FLM - Forward Link Modulation`
+
+To summarize:
+
+| Abstract Name | Binary Name | Meaning |
+| ------------- | ----------- | ------- |
+| M value       | Mod         | Backscatter Modulation  |
+| Spectral Mask | M           | Reader density          |
+| Forward Mod   | FLM         | Forward Link Modulation |
+
+#### Inconsistent ModeID/ModeIndex Definitions
 In the abstract definitions,
 the `C1G2RFControl` parameter (335) defines `ModeIndex` as `Unsigned Integer`
 and says "This is an index into the UHFC1G2RFModeTable";
@@ -291,7 +314,7 @@ and further assume that Readers will simply limit their identifiers to 2^16-1.
 An unfortunate consequence is that you must cast RFModeIDs from uint16 to uint32
 if taken directly from the UHF Mode Table and inserted into an RFControl parameter.
 
-### Inconsistent Tari Binary Definitions
+#### Inconsistent Tari Binary Definitions
 This is similar to the problem above.
 The `UHFC1G2RFModeTableEntry` parameter (329) defines 3 `Tari` values as `Integer`,
 restricted to 6250-25000 (an EPC limitation), which fits in a `uint16`;
@@ -302,7 +325,7 @@ Since the limits are fine for that restriction (even assuming proper 2-complemen
 it's only an annoying consequence that the types are not directly compatible,
 and one must be cast to the other.
 
-### Inconsistent HopTableID Definitions
+#### Inconsistent HopTableID Definitions
 In the abstract definitions,
 the `RFTransmitter` parameter (224) defines `HopTableID` as `Unsigned Short Integer`, 
 while the `FrequencyHopTable` parameter (147) defines it as `Integer`,
@@ -328,16 +351,10 @@ which is always correct for legal values
 (the Reader has no legal way to send a `HopTableID` > 127) 
 and probably matches the intent if a Reader tries to use `HopTableID`s 128-255.
 
-### Inconsistent Parameter Ordering
+
+### Notes on Parameter Ordering 
 Parameters in the abstract part of the spec 
 are sometimes listed in a different order than in the binary specification.
-
-### Inconsistent Parameter Naming 
-Parameters in the abstract spec sometimes have different names
-than those used in the binary spec.
-The most egregious example 
-
-### Inconsistent Parameter Naming 
 Most of the binary spec requires parameters appear in a specific order.
 Because many parameters are optional,
 a _correct_ parser would validate the parameter order.
@@ -371,4 +388,3 @@ Our implementation always serializes `ROSpec`s inner specs in this order:
 - each `CustomSpec`, in order
 - `LoopSpec` (valid only for LLRP version >=1.1)
 
-### 
