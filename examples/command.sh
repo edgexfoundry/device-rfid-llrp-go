@@ -39,7 +39,6 @@ usage() {
     echo "      $0 list devices"
     echo "      $0 get ReaderCapabilities"
     echo "      $0 set ReaderConfig path/to/config.json"
-    echo "      $0 set ReaderConfig <(jq -n '{KeepAliveSpec: {Trigger: 1, Interval: 1000}}')"
     echo "      $0 add ROSpec path/to/ROSpec.json"
     echo "      $0 enable ROSpec 1"
     echo "      $0 delete ROSpec 0"
@@ -116,7 +115,7 @@ put_num() {
     fi
     
     CMD_NAME="${1^}${2}"
-    TYPE=${2}
+    TYPE="${2}ID"
     NUM="${3}"
     
     devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.put.url' | \

@@ -1,0 +1,17 @@
+{
+	"AccessSpecID": 1,
+	"AirProtocolID": 1,
+	"AccessCommand": {
+		"C1G2TagSpec": {
+			"TagPattern1": {
+				"C1G2MemoryBank": 1,
+				"MatchFlag": true
+			}
+		},
+		"C1G2Read": {
+			"OpSpecID": 1,
+			"C1G2MemoryBank": 2,
+			"WordCount": 6
+		}
+	}
+}

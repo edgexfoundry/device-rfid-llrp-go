@@ -259,6 +259,31 @@ The generated parser code handles lists & fields for you.
 It determines how to parse the message based on the YAML definition.
 Types that begin with `[]` are interpreted as lists.
 
+## Notes on Memory Addressing 
+LLRP and the Gen2 protocol use multiple ways to reference bits, bytes, and addresses.
+They usually make sense in context, but can sometimes aren't clear to apply.
+The actual EPC, if present, starts at offset `0x20` of the EPC memory bank.
+If you've got a `[]byte` holding the full value of an EPC you'd like to match, 
+you can use something like this in an AccessSpec: 
+  
+```go
+epcData, _ := hex.DecodeString("3000abcdef00000000000001") // a []byte slice
+
+// For an exact match, we need a mask of 1s the same length as the data 
+mask := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+p := llrp.C1G2TargetTag{
+  C1G2MemoryBank: 1,        // the EPC memory bank is 1
+  MostSignificantBit: 0x20, // the first 32 bits are the CRC-16 and PC bits
+  MatchFlag: true,          // true means we want to include matches
+  TagDataNumBits: 96,       // this is a 96 bit EPC 
+  TagData: epcData,
+  TagMaskNumBits: 96,
+  TagMask: mask,
+}
+```
+
+You can also add 4 bytes to the beginning and set the mask bytes to 0x00,
+or get even more specific and set the PC bits to ensure you target only EPC-96s.
 
 ## Problems with the Spec
 Portions of the LLRP specification are confusing, contradictory, or confounding.
@@ -351,6 +376,35 @@ which is always correct for legal values
 (the Reader has no legal way to send a `HopTableID` > 127) 
 and probably matches the intent if a Reader tries to use `HopTableID`s 128-255.
 
+#### Problems with Backscatter Data Rate
+The LLRP spec defines one of the fields of the `UHFC1G2RFModeTableEntry` parameter (329)
+as `BDR Value: Integer. Backscatter data rate in bps. Possible Values: 40000-640000 bps`.
+
+The first problem with this is that the EPC Gen2 standard supports rates
+at least as low as `5000 bps` (`5 kbps`), so it suggests the field should be `BLF` instead.
+In fact, Impinj incorrectly uses the field for `BLF` in Hz instead of `BDR` in bps,
+but while that bug is annoying, it's easy to see how someone would make this mistake 
+(setting aside the fact that they had a heavy hand in writing both
+the LLRP spec and the Gen2 spec...).
+
+The confusion here is whether the field should consider backscatter encoding.
+At `FM0`, there's one carrier wave cycle per bit,
+so `BLF` in Hz (or kHz) equals `BDR` in bps (or kbps).
+However, Miller modes require multiple cycles per bit (2, 4, or 8),
+so `BDR = BLF / 2^M` where M is 0, 1, 2, 3 representing the various Miller modes.
+
+The second problem is that
+the EPC Gen2 standard doesn't _explicitly exclude_ `BLF`s below `40 kHz`,
+but rather tags must _support_ `BLF`s as low as `40 kHz` with a `DR` of 8.
+That implies `TRcal` is `200 μs`, but the standard permits it be as high as `225 μs`,
+which would yield a `BLF` of `35.56 kHz` and `BDR` of 4444 bps with Miller 8. 
+This may very well be my misreading, however, 
+as 5 kbps is often quoted in the literature as the floor for Gen2 data rates. 
+
+In any case, the LLRP standard does not permit such a value,
+suggesting they intended for manufacturers to advertise `BLF` instead. 
+Since the conversion between the two is simply a multiplication dependent on the encoding,
+either is sufficient (when combined with `DR`) to determine the `TRcal`.
 
 ### Notes on Parameter Ordering 
 Parameters in the abstract part of the spec 

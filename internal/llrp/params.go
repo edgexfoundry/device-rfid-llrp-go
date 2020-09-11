@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//go:generate python3 generate_param_code.py -i messages.yaml -t binary_test.go -m generated_marshal.go -u generated_unmarshal.go -e generated_encoder.go
+//go:generate python3 generate_param_code.py -i messages.yaml -s generated_structs.go -t binary_test.go -m generated_marshal.go -u generated_unmarshal.go -e generated_encoder.go
 //go:generate stringer -type=ParamType,ConnectionAttemptEventType,StatusCode,AirProtocolIDType
 
 package llrp
