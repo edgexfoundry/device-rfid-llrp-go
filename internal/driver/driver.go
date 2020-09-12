@@ -20,6 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -47,6 +48,8 @@ const (
 	ActionDisable  = "Disable"
 	ActionStart    = "Start"
 	ActionStop     = "Stop"
+	AttribVendor   = "vendor"
+	AttribSubtype  = "subtype"
 
 	provisionWatcherFilename = "res/provisionwatcher.json"
 )
@@ -354,21 +357,21 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	default:
 		// assume the resource requires sending a CustomMessage
 		customName := reqs[0].DeviceResourceName
-		vendor, err := getUintAttrib(0, "vendor")
+		vendor, err := getUintAttrib(0, AttribVendor)
 		if err != nil {
 			return err
 		}
 
-		if vendor > uint64(^uint32(0)) {
+		if vendor > uint64(math.MaxUint32) {
 			return errors.Errorf("resource %q vendor PEN %d exceeds uint32", customName, vendor)
 		}
 
-		subtype, err := getUintAttrib(0, "subtype")
+		subtype, err := getUintAttrib(0, AttribSubtype)
 		if err != nil {
 			return err
 		}
 
-		if subtype > uint64((1<<8)-1) {
+		if subtype > uint64(math.MaxUint8) {
 			return errors.Errorf("resource %q message subtype %d exceeds uint8", customName, subtype)
 		}
 

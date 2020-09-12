@@ -151,6 +151,7 @@ whereas in JSON, you'd use `Trigger: 1`.
 
 ## Navigating the Specification
 There are (sort of) two versions of LLRP:
+
 - [`1.0.1`][llrp_1_0_1] (aka version `1`) was published in 2007.
 - [`1.1`][llrp_1_1] (aka version `2`) was published in 2010.
 
@@ -170,6 +171,7 @@ it's not required reading to understand LLRP,
 but you do need to understand it to make the best use of all LLRP's parameters.
 
 The major chunks of the doc:
+
 - Chapters 1-4 are basic definitions & intro material.
 - Chapters 5 & 6 describe the general idea/goals/process of LLRP,
   and you should absolutely read them -- 
@@ -245,6 +247,7 @@ then length is the number of bytes to follow;
 if the list element type size is 2 bytes,
 then the next 2x that value bytes make up the list.
 There are two special cases: 
+
 - `string` fields always UTF-8 encoded, 
     and their size header gives the number of bytes in the string.
 - `bit` fields are MSB-aligned and padded to octet boundaries,
@@ -261,7 +264,7 @@ Types that begin with `[]` are interpreted as lists.
 
 ## Notes on Memory Addressing 
 LLRP and the Gen2 protocol use multiple ways to reference bits, bytes, and addresses.
-They usually make sense in context, but can sometimes aren't clear to apply.
+They usually make sense in context, but sometimes aren't clear to apply.
 The actual EPC, if present, starts at offset `0x20` of the EPC memory bank.
 If you've got a `[]byte` holding the full value of an EPC you'd like to match, 
 you can use something like this in an AccessSpec: 
@@ -294,8 +297,8 @@ but are fine when given context outside the scope of LLRP communication.
 
 ### Problems with the Mode Table
 There are several inconsistencies in the `UFHC1G2` parameters,
-which is unfortunate, since they're the primarily LLRP controls for a Reader.
-There material differences between the abstract and binary parameter definitions,
+which is unfortunate, since they're the primarily air protocol controls for a Reader.
+There are material differences between the abstract and binary parameter definitions,
 as well as inconsistencies between how `Capabilities` are presented by the Reader 
 and how the Client references those values in `Spec` parameters. 
 
@@ -310,6 +313,7 @@ and the second one has `Spectral Mask Indicator`.
 The binary spec is also split across two pages:
 the first page references `Mod`, `FLM`, and `M`, 
 which the second page defines as follows: 
+
 - `M - Spectral Mask Indicator`
 - `Mod - M value / Modulation`
 - `FLM - Forward Link Modulation`
@@ -366,7 +370,7 @@ though doing so would be backwards-incompatible
 since the reserved bits come _after_ the `HopTableID`, 
 not before as they would if it were a (big-endian) `uint16`.
 _Technically_, because the abstract definition says its an `Integer`,
-it binary format must be encoded twos-complement, 
+its binary format must be encoded twos-complement, 
 and thus the `Possible Values: 0-255` requires 9 bits (one of which must always be 0),
 meaning the binary definition does not give enough space for all required values.
 
@@ -404,7 +408,7 @@ as 5 kbps is often quoted in the literature as the floor for Gen2 data rates.
 In any case, the LLRP standard does not permit such a value,
 suggesting they intended for manufacturers to advertise `BLF` instead. 
 Since the conversion between the two is simply a multiplication dependent on the encoding,
-either is sufficient (when combined with `DR`) to determine the `TRcal`.
+either is sufficient when combined with `M` to determine the other. 
 
 ### Notes on Parameter Ordering 
 Parameters in the abstract part of the spec 
@@ -437,6 +441,7 @@ despite the abstract requirement,
 the binary spec _does_ enforce a particular ordering.
 
 Our implementation always serializes `ROSpec`s inner specs in this order:
+
 - each `AISpec`, in order
 - each `RFSurveySpec`, in order
 - each `CustomSpec`, in order
