@@ -194,33 +194,162 @@ aware of when modifying this file._
 [add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/1.2.0#/default/post_v1_device
 [config_toml]: cmd/res/configuration.toml
 
+## Device Profiles, Custom LLRP Messages, and Service Limitations
+For some use cases, you may want or need to supply your own `deviceProfile`,
+but most `LLRP` operations are available via the [included profile][basic_profile].
+The section below details how `deviceResources` and `deviceCommands`
+are mapped to `LLRP` Messages and Parameters, but first, 
+here's what you can and can't do with the default profile: 
+
+- Get the Reader's Capabilities. 
+- Get the Reader's Configuration. 
+- Set the Reader's Configuration, including custom parameters.
+- Add ROSpecs and AccessSpecs, including custom parameters.
+- Get the current collection of ROSpecs or AccessSpecs.
+- Enable, Start, Stop, Disable, and Delete ROSpecs.
+- Enable, Disable, and Delete AccessSpecs.
+- Receive ROAccessReports and ReaderEventNotifications
+    (the service always sends reports and notifications to EdgeX automatically).
+
+If a Reader returns a response with an `LLRPStatusCode` other than `Success`
+(including `ERROR_MESSAGE`, Message Type 100),
+then the service decodes any contained `ParameterError`s or `FieldError`s
+and returns them as an error with the `LLRPStatus`'s `ErrorDescription`.
+
+The only `LLRP` Message that you _can_ send with a custom profile 
+but _can't_ send with the default profile is the `CustomMessage` (Message Type 1023). 
+As noted above, you _can_ send `CustomParameter`s (Parameter Type 1023) 
+using the default profile when writing Configuration or ROSpecs/AccessSpecs.
+Other than that, you may find it useful to create a custom profile 
+to bundle multiple read requests, supplying default, 
+or mapping special names to `ROSpec`s.
+
+The following `LLRP` operations are _not_ supported at this time:
+- When requesting the Capabilities or Configuration, 
+    it is not possible to specify the `RequestedData` field
+    nor  to append `CustomParameter`s in the request;
+    this service always requests `All` data from the Reader.
+- There isn't a way to send `GetReport` (Message Type 60),
+    which means you should not configure `ROReportSpec`s with a NULL trigger.
+- There isn't a way to send `EnableEventsAndReports` (Message Type 64),
+    so you should not set `EventsAndReports` to `true` in the `ReaderConfiguration`.
+- The service handles connection management and version negotiation,
+  so you cannot explicitly send any of these:
+  - `CloseConnection` (Message Type 14)
+  - `KeepAliveAck` (Message Type 72)
+  - `GetSupportedVersion` (Message Type 46)
+  - `SetProtocolVersion` (Message Type 47)
+- It's not possible to send `ClientRequestOpResponse`,
+    so it's not useful to configure a `ClientRequestOpSpec`,
+    though we don't explicitly prevent you from doing so.
+    There's really no reasonable general-purpose way to support it
+    except through code, so if you need it, consider forking this repo
+    and adding the interaction by using our [LLRP Library][llrp_library].
+
+### Data Format
+EdgeX requires that `deviceResources` are representable as a basic type,
+a homogeneous array of a basic type, or a CBOR "binary" type.
+Because `LLRP` Messages and Parameters are [highly structured][llrp_diagram],
+this device service maps Specs, Configuration, Capabilities, and Notifications 
+to and from JSON-encoded string using `Go`'s `json` package 
+and the structures defined in our [LLRP Library][llrp_library].
+
+When a Parameter or Message includes arbitrary data
+(e.g., the contents of a tag's `EPC` memory bank or a `CustomParameter` payload),
+they're represented in `Go` as a `[]byte`, which `Go` marshals and unmarshals 
+as strings representing the base64-encoded data.
+
+For requests to read a `deviceResource` (i.e., a `GET` request), 
+the service determines which `LLRP` message to send based upon the resource name.
+It marshals the result to JSON and returns it as a string EdgeX `Reading`.
+`LLRP` constants are encoded according to the `LLRP` spec 
+(e.g., the `StopTriggerType` of an `AISpec` is returned as 0, 1, or 2).
+The service uses only the resource name and ignores any attributes it may have;
+custom LLRP parameter extensions are not supported for resources read requests, 
+nor is the LLRP `CustomMessage` (Message Type 1023).
+
+The following list details the resource names the service recognizes 
+and how it satisfies the read request:
+
+- `ReaderCapabilities` sends `GET_READER_CAPABILITIES` (Message Type 1)
+    with `RequestedData: All`.
+    It returns the resulting `GET_READER_CAPABILITIES_RESPONSE` (Message Type 12).
+- `ReaderConfig` sends `GET_READER_CONFIG` (Message Type 2) 
+    with `RequestedData: All`, and `AntennaID`, `GPIPort`, and `GPOPort` set to 0.
+    It returns the resulting `GET_READER_CONFIG_RESPONSE` (Message Type 12).
+- `ROSpec` sends `GET_ROSPECS` (Message Type 26)
+    and returns `GET_ROSPECS_RESPONSE` (Message Type 36).
+- `AccessSpec` sends `GET_ACCESSSPECS` (Message Type 44)
+    and returns `GET_ACCESSSPECS_RESPONSE` (Message Type 44).
+    
+You can configure `deviceCommands` in your device profile
+to read more than one resource at a time,
+in which case the device service attempts each of the above requests in series
+and returns the results of all of them.
+
+For `LLRP` messages that require only an `ROSpecID` or `AccessSpecID`,
+we define them as operations upon `uint32` `deviceResource`s with those names. 
+(note that EdgeX requires passing these as strings when calling `deviceCommand`s)
+To disambiguate the desired write operation,
+`deviceCommands` that use them must specify them as the first resource to `set`,
+and must include a "pseudo-resource" called `Action`,
+a string which must be one of "Enable", "Disable", "Start", "Stop", or "Delete".
+Note that it is not possible in `LLRP` to start or stop an `AccessSpec`,
+so those only apply to `ROSpec`s.
+Because we must use this pseudo-resource to know what Action to take,
+It is not possible to write more than one `deviceResource` at a time.
+
+To add an `ROSpec` or `AccessSpec`, or to set the `ReaderConfig`, 
+you can use `deviceCommands` that write a `deviceResource` of the same name 
+When you `PUT` a new instance of these resource types,
+the service attempts to unmarshal the resource's parameter string 
+according to its name into the appropriate 
+`LLRP` message structure defined in our [LLRP library][llrp_library].
+
+Unlike read requests, the service handles write requests on `deviceResources`
+with names other than those defined above.
+It assumes these resources are accessible via `CustomMessage` (Message Type 1023),
+and looks for `vendor` and `subtype` attributes on the resource,
+which it inserts into the relevant fields of the `LLRP` message.
+Although in `LLRP` these are a `uint32` and `uint8` (respectively), 
+note that EdgeX requires all attributes values are passed as strings. 
+Assuming these are present, the service interprets the parameter string 
+as a base64-encoded byte array, which it uses as the `payload` of the `CustomMessage`.
+
+You can see an example [device profile][custom_profile] 
+that defines a `deviceResource` to enable Impinj's custom extensions.
+
+[basic_profile]: cmd/res/llrp.device.profile.yaml
+[custom_profile]: cmd/res/llrp.impinj.profile.yaml
+[llrp_library]: internal/llrp/hacking_with_llrp.md
+[llrp_diagram]: internal/llrp/LLRPMsgStructure.pdf
+
 ## Connection Management
 After an LLRP device is added, either via discovery or directly through EdgeX,
-the driver works to maintain a connection to it.
-On start-up, it attempts to connect to it.
-If it fails to connect or detects that it's lost the connection,
-it'll attempt to reconnect repeatedly using exponential backoff with jitter,
-capped to a max of 5 mins between attempts.
+the driver works to maintain a connection to it and monitor its health.
+When it detects an unhealthy connection, it closes it and redials the Reader.
+If it fails to connect two times consecutively,
+it sets the device's `OperationState` to `DISABLED`,
+but continues to attempt to restore the connection indefinitely.
+It'll reattempt the connection using exponential backoff with jitter,
+capped to a max of 30 mins between attempts.
+If its IP address changes (either manually or via Discovery),
+the service attempts to connect to it at the new address.
 
-Because detecting that the connection has dropped requires packet failure,
-if more than 2 minutes pass without a successful transfer,
-it will reset the connection.
-As such, it's useful to configure a Reader 
-with a `KeepAliveSpec` with a period less than `120s`. 
-This ensures that a healthy connection will not timeout.
-You can confirm things are working by unplugging a connected reader.
-You should see reconnection attempts logged at the `DEBUG` level
-coming from the device service.
-Note that it can take up to two minutes before the dropped connection is detected.
+The device service sets the device to `DISABLED` in EdgeX 
+as soon as it thinks it's disabled, but exactly how long this takes
+depends on the conditions leading to failure.
+Nevertheless, a disconnected device should appear `DISABLED` within about 2 minutes. 
 
-These values are not currently configurable,
-but they are easy to change before building
-within [this code](internal/driver/device.go).
-Future work will automatically set up a KeepAlive spec on connection.
+The device service sets a `60s` timeout when reading from OS's TCP connection.
+To ensures that a healthy connection will not timeout,
+it configures Readers to send `KeepAlive` messages every `30s`.
+Because it uses this to monitor the connection health,
+it overrides the `KeepAliveSpec` in `SetReaderConfig` requests with its own.
 
-## LLRP Information and JSON Syntax
-You can learn more about our LLRP library in the 
-[documentation here](internal/llrp/hacking_with_llrp.md).
+These timeout values are not configurable,
+but they are easy to change when building the service 
+by changing [this code](internal/driver/device.go).
 
 ## Example Scripts
 There are a couple of example scripts here

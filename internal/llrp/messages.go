@@ -28,25 +28,62 @@ const (
 	maxPayloadSz = uint32(1<<32 - 1 - HeaderSz) // max size for a payload
 )
 
-// responseType maps certain message types to their response type.
-var responseType = map[MessageType]MessageType{
-	MsgGetSupportedVersion:   MsgGetSupportedVersionResponse,
-	MsgSetProtocolVersion:    MsgSetProtocolVersionResponse,
-	MsgGetReaderCapabilities: MsgGetReaderCapabilitiesResponse,
-	MsgSetReaderConfig:       MsgSetReaderConfigResponse,
-	MsgCloseConnection:       MsgCloseConnectionResponse,
-	MsgCustomMessage:         MsgCustomMessage,
+// mirrorType maps a MessageType to its mirror type:
+// i.e., Request Type <-> Response Type.
+var mirrorType = map[MessageType]MessageType{
+	MsgAddAccessSpec:                 MsgAddAccessSpecResponse,
+	MsgAddAccessSpecResponse:         MsgAddAccessSpec,
+	MsgAddROSpec:                     MsgAddROSpecResponse,
+	MsgAddROSpecResponse:             MsgAddROSpec,
+	MsgClientRequestOp:               MsgClientRequestOpResponse,
+	MsgClientRequestOpResponse:       MsgClientRequestOp,
+	MsgCloseConnection:               MsgCloseConnectionResponse,
+	MsgCloseConnectionResponse:       MsgCloseConnection,
+	MsgCustomMessage:                 MsgCustomMessage,
+	MsgDeleteAccessSpec:              MsgDeleteAccessSpecResponse,
+	MsgDeleteAccessSpecResponse:      MsgDeleteAccessSpec,
+	MsgDeleteROSpec:                  MsgDeleteROSpecResponse,
+	MsgDeleteROSpecResponse:          MsgDeleteROSpec,
+	MsgDisableAccessSpec:             MsgDisableAccessSpecResponse,
+	MsgDisableAccessSpecResponse:     MsgDisableAccessSpec,
+	MsgDisableROSpec:                 MsgDisableROSpecResponse,
+	MsgDisableROSpecResponse:         MsgDisableROSpec,
+	MsgEnableAccessSpec:              MsgEnableAccessSpecResponse,
+	MsgEnableAccessSpecResponse:      MsgEnableAccessSpec,
+	MsgEnableROSpec:                  MsgEnableROSpecResponse,
+	MsgEnableROSpecResponse:          MsgEnableROSpec,
+	MsgGetAccessSpecs:                MsgGetAccessSpecsResponse,
+	MsgGetAccessSpecsResponse:        MsgGetAccessSpecs,
+	MsgGetReaderCapabilities:         MsgGetReaderCapabilitiesResponse,
+	MsgGetReaderCapabilitiesResponse: MsgGetReaderCapabilities,
+	MsgGetReaderConfig:               MsgGetReaderConfigResponse,
+	MsgGetReaderConfigResponse:       MsgGetReaderConfig,
+	MsgGetSupportedVersion:           MsgGetSupportedVersionResponse,
+	MsgGetSupportedVersionResponse:   MsgGetSupportedVersion,
+	MsgKeepAlive:                     MsgKeepAliveAck,
+	MsgKeepAliveAck:                  MsgKeepAlive,
+	MsgSetProtocolVersion:            MsgSetProtocolVersionResponse,
+	MsgSetProtocolVersionResponse:    MsgSetProtocolVersion,
+	MsgSetReaderConfig:               MsgSetReaderConfigResponse,
+	MsgSetReaderConfigResponse:       MsgSetReaderConfig,
+	MsgStartROSpec:                   MsgStartROSpecResponse,
+	MsgStartROSpecResponse:           MsgStartROSpec,
+	MsgStopROSpec:                    MsgStopROSpecResponse,
+	MsgStopROSpecResponse:            MsgStopROSpec,
 }
 
-// isValid returns true if the messageType is within the permitted messageType space.
-func (mt MessageType) isValid() bool {
+// IsValid returns true if the messageType is within the permitted messageType space.
+func (mt MessageType) IsValid() bool {
 	return minMsgType <= mt && mt <= maxMsgType && !(msgResvStart <= mt && mt <= msgResvEnd)
 }
 
-// responseType returns the messageType of a response to a request of this type,
-// or the zero value and false if there is not a known response type.
-func (mt MessageType) responseType() (MessageType, bool) {
-	t, ok := responseType[mt]
+// Converse returns the MessageType associated with this one,
+// or the zero value and false if there is not a converse type.
+//
+// For example, the Converse of MsgGetAccessSpecs is MsgGetAccessSpecsResponse,
+// and vice versa, but MsgROAccessReport has no converse.
+func (mt MessageType) Converse() (MessageType, bool) {
+	t, ok := mirrorType[mt]
 	return t, ok
 }
 
@@ -199,7 +236,7 @@ func (m Message) Close() error {
 // isResponseTo returns nil if reqType's expected response type matches m's type.
 // If it doesn't it returns an error with information about the mismatch.
 func (m Message) isResponseTo(reqType MessageType) error {
-	expectedRespType, ok := reqType.responseType()
+	expectedRespType, ok := reqType.Converse()
 	if !ok {
 		return errors.Errorf("unknown request type %d", reqType)
 	}
@@ -371,10 +408,15 @@ func (ros *ROSpec) Delete() *DeleteROSpec {
 	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
 }
 
-// GetUnmarshaler returns a BinaryUnmarshaler for the message type.
+type Encodable interface {
+	Incoming
+	Outgoing
+}
+
+// NewInstance returns an Encodable for the message type.
 // If the message type is unknown, it returns nil.
-func (mt MessageType) GetUnmarshaler() encoding.BinaryUnmarshaler {
-	var u encoding.BinaryUnmarshaler
+func (mt MessageType) NewInstance() Encodable {
+	var u Encodable
 	switch mt {
 	case MsgGetSupportedVersion:
 		u = &GetSupportedVersion{}

@@ -193,6 +193,10 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 					if err := d.svc.SetDeviceOpState(name, contract.Disabled); err != nil {
 						d.lc.Error("Failed to set device operating state to Disabled.",
 							"device", name, "error", err.Error())
+						// This is not likely, but might as well try again next round.
+						l.deviceMu.Lock()
+						l.enabled = true
+						l.deviceMu.Unlock()
 					}
 				}
 

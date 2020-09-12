@@ -7,6 +7,7 @@ package driver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
@@ -19,6 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -46,6 +48,8 @@ const (
 	ActionDisable  = "Disable"
 	ActionStart    = "Start"
 	ActionStop     = "Stop"
+	AttribVendor   = "vendor"
+	AttribSubtype  = "subtype"
 
 	provisionWatcherFilename = "res/provisionwatcher.json"
 )
@@ -258,6 +262,8 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 		var llrpResp llrp.Incoming
 
 		switch reqs[i].DeviceResourceName {
+		default:
+			return nil, errors.Errorf("unknown resource type: %q", reqs[i].DeviceResourceName)
 		case ResourceReaderConfig:
 			llrpReq = &llrp.GetReaderConfig{}
 			llrpResp = &llrp.GetReaderConfigResponse{}
@@ -311,44 +317,32 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		return errors.New("missing requests")
 	}
 
+	if len(reqs) != len(params) {
+		return errors.Errorf("mismatched command requests and parameters: %d != %d", len(reqs), len(params))
+	}
+
 	dev, _, err := d.getDevice(devName, p)
 	if err != nil {
 		return err
 	}
 
-	getParam := func(name string, idx int, key string) (*dsModels.CommandValue, error) {
-		if idx > len(params) {
-			return nil, errors.Errorf("%s needs at least %d parameters, but got %d",
-				name, idx, len(params))
+	getAttrib := func(idx int, key string) (string, error) {
+		m := reqs[idx].Attributes
+		val := m[key]
+		if val == "" {
+			return "", errors.Errorf("missing custom parameter attribute: %s", key)
 		}
-
-		cv := params[idx]
-		if cv == nil {
-			return nil, errors.Errorf("%s requires parameter %s", name, key)
-		}
-
-		if cv.DeviceResourceName != key {
-			return nil, errors.Errorf("%s expected parameter %d: %s, but got %s",
-				name, idx, key, cv.DeviceResourceName)
-		}
-
-		return cv, nil
+		return val, nil
 	}
 
-	getStrParam := func(name string, idx int, key string) (string, error) {
-		if cv, err := getParam(name, idx, key); err != nil {
-			return "", err
-		} else {
-			return cv.StringValue()
-		}
-	}
-
-	getUint32Param := func(name string, idx int, key string) (uint32, error) {
-		if cv, err := getParam(name, idx, key); err != nil {
+	getUintAttrib := func(req int, key string) (uint64, error) {
+		v, err := getAttrib(req, key)
+		if err != nil {
 			return 0, err
-		} else {
-			return cv.Uint32Value()
 		}
+		var u uint64
+		u, err = strconv.ParseUint(v, 10, 64)
+		return u, errors.Wrapf(err, "unable to parse attribute %q with val %q as uint", key, v)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
@@ -360,8 +354,46 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	var dataTarget interface{} // used if the reqData in a subfield of the llrpReq
 
 	switch reqs[0].DeviceResourceName {
+	default:
+		// assume the resource requires sending a CustomMessage
+		customName := reqs[0].DeviceResourceName
+		vendor, err := getUintAttrib(0, AttribVendor)
+		if err != nil {
+			return err
+		}
+
+		if vendor > uint64(math.MaxUint32) {
+			return errors.Errorf("resource %q vendor PEN %d exceeds uint32", customName, vendor)
+		}
+
+		subtype, err := getUintAttrib(0, AttribSubtype)
+		if err != nil {
+			return err
+		}
+
+		if subtype > uint64(math.MaxUint8) {
+			return errors.Errorf("resource %q message subtype %d exceeds uint8", customName, subtype)
+		}
+
+		b64payload, err := params[0].StringValue()
+		if err != nil {
+			return err
+		}
+
+		valData, err := base64.StdEncoding.DecodeString(b64payload)
+		if err != nil {
+			return errors.Errorf("unable to base64 decode attribute value for %q", customName)
+		}
+
+		llrpReq = &llrp.CustomMessage{
+			VendorID:       uint32(vendor),
+			MessageSubtype: uint8(subtype),
+			Data:           valData,
+		}
+		llrpResp = &llrp.CustomMessage{}
+
 	case ResourceReaderConfig:
-		data, err := getStrParam("Set"+ResourceReaderConfig, 0, ResourceReaderConfig)
+		data, err := params[0].StringValue()
 		if err != nil {
 			return err
 		}
@@ -370,28 +402,33 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		llrpReq = &llrp.SetReaderConfig{}
 		llrpResp = &llrp.SetReaderConfigResponse{}
 	case ResourceROSpec:
-		data, err := getStrParam("Add"+ResourceROSpec, 0, ResourceROSpec)
+		data, err := params[0].StringValue()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "unable to get ROSpec parameter")
 		}
 
 		reqData = []byte(data)
-
 		addSpec := llrp.AddROSpec{}
 		dataTarget = &addSpec.ROSpec // the incoming data is an ROSpec, not AddROSpec
 		llrpReq = &addSpec           // but we want to send AddROSpec, not just ROSpec
 		llrpResp = &llrp.AddROSpecResponse{}
+
 	case ResourceROSpecID:
 		if len(params) != 2 {
 			return errors.Errorf("expected 2 resources for ROSpecID op, but got %d", len(params))
 		}
 
-		action, err := getStrParam(ResourceROSpec, 1, ResourceAction)
-		if err != nil {
-			return err
+		if params[1].DeviceResourceName != ResourceAction {
+			return errors.Errorf("expected Action resource with ROSpecID, but got %q",
+				params[1].DeviceResourceName)
 		}
 
-		roID, err := getUint32Param(action+ResourceROSpec, 0, ResourceROSpecID)
+		roID, err := params[0].Uint32Value()
+		if err != nil {
+			return errors.Wrap(err, "failed to get access spec ID")
+		}
+
+		action, err := params[1].StringValue()
 		if err != nil {
 			return err
 		}
@@ -421,9 +458,17 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 			return errors.Errorf("expected 2 resources for AccessSpecID op, but got %d", len(reqs))
 		}
 
-		action := reqs[1].DeviceResourceName
+		if params[1].DeviceResourceName != ResourceAction {
+			return errors.Errorf("expected Action resource with AccessSpecID, but got %q",
+				params[1].DeviceResourceName)
+		}
 
-		asID, err := getUint32Param(action+ResourceAccessSpecID, 0, ResourceAccessSpecID)
+		asID, err := params[0].Uint32Value()
+		if err != nil {
+			return errors.Wrap(err, "failed to get access spec ID")
+		}
+
+		action, err := params[1].StringValue()
 		if err != nil {
 			return err
 		}

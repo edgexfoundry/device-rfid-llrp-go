@@ -1,21 +1,37 @@
-name: "Device.LLRP.Profile"
-manufacturer: "Intel"
-model: "RFID Reader"
+name: "Impinj.LLRP.Profile"
+manufacturer: "Impinj"
 labels:
   - "LLRP"
   - "RFID"
-description: "A generic device profile for readers that communicate over LLRP"
+  - "Impinj"
+description: "A device profile with added Impinj support."
 
 deviceResources:
+  - name: "ImpinjCustomExtensionMessage"
+    properties:
+      value: { type: "String", readWrite: "RW" }
+      units: { defaultValue: "base64" }
+    attributes:
+      vendor: "25882"
+      subtype: "21"
+
+  - name: "ImpinjSaveSettingsMessage"
+    properties:
+      value: { type: "String", readWrite: "W" }
+      units: { defaultValue: "base64" }
+    attributes:
+      vendor: "25882"
+      subtype: "23"
+
   - name: "ReaderCapabilities"
     description: "The capabilities of a reader"
     properties:
       value: { type: "String", readWrite: "R" }
 
   - name: "ReaderConfig"
-    description: "Current configuration info of a reader"
+    description: "A Reader's configuration"
     properties:
-      value: { type: "String", readWrite: "RW" }
+      value: { type: "String", readWrite: "R" }
 
   - name: "ROSpecID"
     description: "Client-generated Reader Operation Specification Identifier"
@@ -28,46 +44,29 @@ deviceResources:
       value: { type: "uint32", readWrite: "W", defaultValue: "1" }
 
   - name: "ROSpec"
-    description: >-
-      An ROSpec is a "Reader Operation Specification", i.e.,
-      a declarative description of when and how
-      a reader should turn on its antennas and report data.
-      It's passed via EdgeX as a string-encoded JSON struct.
     properties:
       value: { type: "String", readWrite: "RW" }
 
   - name: "AccessSpec"
-    description: ""
     properties:
       value: { type: "String", readWrite: "RW" }
 
-  - name: "ROAccessReport"
-    description: >-
-      An ROAccessReport is the main report type in LLRP.
-      They contain the TagReportData or RFSurveyReportData,
-      as well as any Custom parameter data.
-    properties:
-      value: { type: "String", readWrite: "R" }  # not actually readable; it's async
-
-  - name: "ReaderEventNotification"
-    description: >-
-      Readers generate Reader Event Notifications for a variety of events,
-      including changes in connectivity, antenna additions/removals,
-      GPIO state changes, new report data, and exception events.
-      Some event notifications are configurable.
-    properties:
-      value: { type: "String", readWrite: "R" } # not actually readable; it's async
-
   - name: "Action"
-    description: >-
-      EdgeX's Device Service SDK only distinguishes between "GET" and "PUT",
-      and all PUT parameters must be defined deviceResources.
-      Since we won't have, e.g., information about the HTTP path used in a request,
-      this resource exists only to distinguish actions to take on other resources.
     properties:
       value: { "type": "String", readWrite: "W" }
 
+  - name: "ROAccessReport"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
+  - name: "ReaderEventNotification"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
 deviceCommands:
+  - name: enableImpinjExt
+    set: [ { deviceResource: "ImpinjCustomExtensionMessage", parameter: "AAAAAA==" } ]
+
   - name: capabilities
     get: [ { deviceResource: "ReaderCapabilities" } ]
 
@@ -79,51 +78,55 @@ deviceCommands:
     get: [ { deviceResource: "ROSpec" } ]
     set: [ { deviceResource: "ROSpec" } ]
 
-  - name: accessSpec
-    get: [ { deviceResource: "AccessSpec" } ]
-    set: [ { deviceResource: "AccessSpec" } ]
-
   - name: enableROSpec
     set:
       - { deviceResource: "ROSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Enable" }
-
   - name: startROSpec
     set:
       - { deviceResource: "ROSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Start" }
-
   - name: stopROSpec
     set:
       - { deviceResource: "ROSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Stop" }
-
   - name: disableROSpec
     set:
       - { deviceResource: "ROSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Disable" }
-
   - name: deleteROSpec
     set:
       - { deviceResource: "ROSpecID" }
       - { deviceResource: "Action", parameter: "Delete" }
 
+  - name: accessSpec
+    get: [ { deviceResource: "AccessSpec" } ]
+    set: [ { deviceResource: "AccessSpec" } ]
   - name: enableAccessSpec
     set:
-      - { deviceResource: "AccessSpecID", parameter: "0" }
+      - { deviceResource: "AccessSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Enable" }
-
   - name: disableAccessSpec
     set:
-      - { deviceResource: "AccessSpecID", parameter: "0" }
+      - { deviceResource: "AccessSpecID", parameter: 0 }
       - { deviceResource: "Action", parameter: "Disable" }
-
   - name: deleteAccessSpec
     set:
       - { deviceResource: "AccessSpecID" }
       - { deviceResource: "Action", parameter: "Delete" }
 
 coreCommands:
+  - name: ImpinjEnableCustomExt
+    put:
+      path: "/api/v1/device/{deviceId}/enableImpinjExt"
+      parameterNames: [ ]
+      responses:
+        - code: "200"
+          description: "Vendor extensions enabled."
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
   - name: GetReaderCapabilities
     get:
       path: "/api/v1/device/{deviceId}/capabilities"

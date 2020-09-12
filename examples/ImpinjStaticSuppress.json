@@ -1,0 +1,139 @@
+{
+	"ROSpecID": 1,
+	"Priority": 0,
+	"ROSpecCurrentState": 0,
+	"ROBoundarySpec": {
+		"StartTrigger": {
+			"Trigger": 1,
+			"PeriodicTrigger": null,
+			"GPITrigger": null
+		},
+		"StopTrigger": {
+			"Trigger": 0
+		}
+	},
+	"AISpecs": [
+		{
+			"AntennaIDs": [
+				2
+			],
+			"StopTrigger": {
+				"Trigger": 1,
+				"DurationTriggerValue": 10
+			},
+			"InventoryParameterSpecs": [
+				{
+					"InventoryParameterSpecID": 1,
+					"AirProtocolID": 1,
+					"AntennaConfigurations": [
+						{
+							"AntennaID": 2,
+							"RFTransmitter": {
+								"HopTableID": 1,
+								"TransmitPowerIndex": 81
+							},
+							"C1G2InventoryCommand": {
+								"Filters": [
+									{
+										"TagInventoryMask": {
+											"MemoryBank": 1,
+											"TagMaskNumBits": 96,
+											"TagMask": "AAAAAAAAAAAAAAAA"
+										},
+										"UnawareFilterAction": 4
+									}
+								],
+								"RFControl": {
+									"RFModeID": 0
+								},
+								"SingulationControl": {
+									"Session": 2,
+									"TagPopulation": 16,
+									"TagTransitTime": 10000
+								},
+								"Custom": [
+									{
+										"VendorID": 25882,
+										"Subtype": 23,
+										"Data": "AAU="
+									}
+								]
+							}
+						}
+					],
+					"Custom": null
+				}
+			],
+			"Custom": null
+		},
+		{
+			"AntennaIDs": [
+				2
+			],
+			"StopTrigger": {
+				"Trigger": 0
+			},
+			"InventoryParameterSpecs": [
+				{
+					"InventoryParameterSpecID": 1,
+					"AirProtocolID": 1,
+					"AntennaConfigurations": [
+						{
+							"AntennaID": 2,
+							"RFTransmitter": {
+								"HopTableID": 1,
+								"TransmitPowerIndex": 81
+							},
+							"C1G2InventoryCommand": {
+								"RFControl": {
+									"RFModeID": 0
+								},
+								"SingulationControl": {
+									"Session": 2,
+									"TagPopulation": 16,
+									"TagTransitTime": 10000
+								},
+								"Custom": [
+									{
+										"VendorID": 25882,
+										"Subtype": 23,
+										"Data": "AAM="
+									}
+								]
+							}
+						}
+					],
+					"Custom": null
+				}
+			],
+			"Custom": null
+		}
+	],
+	"ROReportSpec": {
+		"Trigger": 1,
+		"N": 1,
+		"TagReportContentSelector": {
+			"EnableROSpecID": false,
+			"EnableSpecIndex": false,
+			"EnableInventoryParamSpecID": true,
+			"EnableAntennaID": true,
+			"EnableChannelIndex": true,
+			"EnablePeakRSSI": true,
+			"EnableFirstSeenTimestamp": true,
+			"EnableLastSeenTimestamp": true,
+			"EnableTagSeenCount": true,
+			"EnableAccessSpecID": false,
+			"C1G2EPCMemorySelectors": {
+				"CRCEnabled": false,
+				"PCBitsEnabled": false
+			}
+		},
+		"Custom": [
+			{
+				"VendorID": 25882,
+				"Subtype": 50,
+				"Data": "A/8ADgAAZRoAAAA0AAE="
+			}
+		]
+	}
+}

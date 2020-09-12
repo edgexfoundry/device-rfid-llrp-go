@@ -151,6 +151,7 @@ whereas in JSON, you'd use `Trigger: 1`.
 
 ## Navigating the Specification
 There are (sort of) two versions of LLRP:
+
 - [`1.0.1`][llrp_1_0_1] (aka version `1`) was published in 2007.
 - [`1.1`][llrp_1_1] (aka version `2`) was published in 2010.
 
@@ -170,6 +171,7 @@ it's not required reading to understand LLRP,
 but you do need to understand it to make the best use of all LLRP's parameters.
 
 The major chunks of the doc:
+
 - Chapters 1-4 are basic definitions & intro material.
 - Chapters 5 & 6 describe the general idea/goals/process of LLRP,
   and you should absolutely read them -- 
@@ -245,6 +247,7 @@ then length is the number of bytes to follow;
 if the list element type size is 2 bytes,
 then the next 2x that value bytes make up the list.
 There are two special cases: 
+
 - `string` fields always UTF-8 encoded, 
     and their size header gives the number of bytes in the string.
 - `bit` fields are MSB-aligned and padded to octet boundaries,
@@ -258,3 +261,189 @@ There are two special cases:
 The generated parser code handles lists & fields for you.
 It determines how to parse the message based on the YAML definition.
 Types that begin with `[]` are interpreted as lists.
+
+## Notes on Memory Addressing 
+LLRP and the Gen2 protocol use multiple ways to reference bits, bytes, and addresses.
+They usually make sense in context, but sometimes aren't clear to apply.
+The actual EPC, if present, starts at offset `0x20` of the EPC memory bank.
+If you've got a `[]byte` holding the full value of an EPC you'd like to match, 
+you can use something like this in an AccessSpec: 
+  
+```go
+epcData, _ := hex.DecodeString("3000abcdef00000000000001") // a []byte slice
+
+// For an exact match, we need a mask of 1s the same length as the data 
+mask := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+p := llrp.C1G2TargetTag{
+  C1G2MemoryBank: 1,        // the EPC memory bank is 1
+  MostSignificantBit: 0x20, // the first 32 bits are the CRC-16 and PC bits
+  MatchFlag: true,          // true means we want to include matches
+  TagDataNumBits: 96,       // this is a 96 bit EPC 
+  TagData: epcData,
+  TagMaskNumBits: 96,
+  TagMask: mask,
+}
+```
+
+You can also add 4 bytes to the beginning and set the mask bytes to 0x00,
+or get even more specific and set the PC bits to ensure you target only EPC-96s.
+
+## Problems with the Spec
+Portions of the LLRP specification are confusing, contradictory, or confounding.
+This is an incomplete list of things to watch out for.
+This isn't an "LLRP sucks" list; only a few are outright errors.
+Most of these are only issues for "general purpose" LLRP processing,
+but are fine when given context outside the scope of LLRP communication.
+
+### Problems with the Mode Table
+There are several inconsistencies in the `UFHC1G2` parameters,
+which is unfortunate, since they're the primarily air protocol controls for a Reader.
+There are material differences between the abstract and binary parameter definitions,
+as well as inconsistencies between how `Capabilities` are presented by the Reader 
+and how the Client references those values in `Spec` parameters. 
+
+Parameters in the abstract spec sometimes have different names
+than those used in the binary spec.
+The most egregious example is in the `UHFC1G2RFModeTableEntry`.
+The abstract spec has `M value:` which represents `Modulation`
+(which should not be confused with `Forward link modulation`, 
+which appears just below it).
+The definition is split across two pages, 
+and the second one has `Spectral Mask Indicator`.
+The binary spec is also split across two pages:
+the first page references `Mod`, `FLM`, and `M`, 
+which the second page defines as follows: 
+
+- `M - Spectral Mask Indicator`
+- `Mod - M value / Modulation`
+- `FLM - Forward Link Modulation`
+
+To summarize:
+
+| Abstract Name | Binary Name | Meaning |
+| ------------- | ----------- | ------- |
+| M value       | Mod         | Backscatter Modulation  |
+| Spectral Mask | M           | Reader density          |
+| Forward Mod   | FLM         | Forward Link Modulation |
+
+#### Inconsistent ModeID/ModeIndex Definitions
+In the abstract definitions,
+the `C1G2RFControl` parameter (335) defines `ModeIndex` as `Unsigned Integer`
+and says "This is an index into the UHFC1G2RFModeTable";
+the "Formatting Conventions and Data Types" section of the spec
+states that `Unsigned Integer` takes values between 0 and 2^32-1,
+(as would a `uint32`), but the binary definition allocates it only 16 bits.
+The `UHFC1G2RFModeTableEntry` parameter (329) defines `Mode identifier`,
+also specified as an `Unsigned Integer`, with the text 
+"a Reader defined identifier that 
+the client may use to set the Gen2 operating parameters";
+its binary definition is allocated 32 bits.
+We assume that `ModeIndex` and `Mode identifier` are meant to reference the same thing,
+and further assume that Readers will simply limit their identifiers to 2^16-1. 
+An unfortunate consequence is that you must cast RFModeIDs from uint16 to uint32
+if taken directly from the UHF Mode Table and inserted into an RFControl parameter.
+
+#### Inconsistent Tari Binary Definitions
+This is similar to the problem above.
+The `UHFC1G2RFModeTableEntry` parameter (329) defines 3 `Tari` values as `Integer`,
+restricted to 6250-25000 (an EPC limitation), which fits in a `uint16`;
+their binary definition allocates them each 32 bits. 
+The `C1G2RFControl` parameter (335) also defines `Tari` as `Integer` in 6250-25000 (or 0),
+and its binary allocates it 16 bits. 
+Since the limits are fine for that restriction (even assuming proper 2-complement),
+it's only an annoying consequence that the types are not directly compatible,
+and one must be cast to the other.
+
+#### Inconsistent HopTableID Definitions
+In the abstract definitions,
+the `RFTransmitter` parameter (224) defines `HopTableID` as `Unsigned Short Integer`, 
+while the `FrequencyHopTable` parameter (147) defines it as `Integer`,
+but further specifies `Possible Values: 0-255`, 
+effectively restricting it to a `uint8`.
+
+The `RFTransmitter` binary definition gives the `HopTableID` 16 bits,
+consistent with its abstract definition.
+The `FrequencyHopTable` gives the `HopTableID` 8 bits,
+followed by an 8-bit `Reserved` section,
+presumably for the possibility to match the `RFTransmitter` in the future,
+though doing so would be backwards-incompatible 
+since the reserved bits come _after_ the `HopTableID`, 
+not before as they would if it were a (big-endian) `uint16`.
+_Technically_, because the abstract definition says it's an `Integer`,
+its binary format must be encoded twos-complement, 
+and thus the `Possible Values: 0-255` requires 9 bits (one of which must always be 0),
+meaning the binary definition does not give enough space for all required values.
+
+Our parser uses `uint8` for the `FrequencyHopTable.HopTableID` 
+and `uint16` for the `RFTransmitter.HopTableID`, 
+which is always correct for legal values 
+(the Reader has no legal way to send a `HopTableID` > 127) 
+and probably matches the intent if a Reader tries to use `HopTableID`s 128-255.
+
+#### Problems with Backscatter Data Rate
+The LLRP spec defines one of the fields of the `UHFC1G2RFModeTableEntry` parameter (329)
+as `BDR Value: Integer. Backscatter data rate in bps. Possible Values: 40000-640000 bps`.
+
+The first problem with this is that the EPC Gen2 standard supports rates
+at least as low as `5000 bps` (`5 kbps`), so it suggests the field should be `BLF` instead.
+In fact, Impinj incorrectly uses the field for `BLF` in Hz instead of `BDR` in bps,
+but while that bug is annoying, it's easy to see how someone would make this mistake 
+(setting aside the fact that they had a heavy hand in writing both
+the LLRP spec and the Gen2 spec...).
+
+The confusion here is whether the field should consider backscatter encoding.
+At `FM0`, there's one carrier wave cycle per bit,
+so `BLF` in Hz (or kHz) equals `BDR` in bps (or kbps).
+However, Miller modes require multiple cycles per bit (2, 4, or 8),
+so `BDR = BLF / 2^M` where M is 0, 1, 2, 3 representing the various Miller modes.
+
+The second problem is that
+the EPC Gen2 standard doesn't _explicitly exclude_ `BLF`s below `40 kHz`,
+but rather tags must _support_ `BLF`s as low as `40 kHz` with a `DR` of 8.
+That implies `TRcal` is `200 μs`, but the standard permits it be as high as `225 μs`,
+which would yield a `BLF` of `35.56 kHz` and `BDR` of 4444 bps with Miller 8. 
+This may very well be my misreading, however, 
+as 5 kbps is often quoted in the literature as the floor for Gen2 data rates. 
+
+In any case, the LLRP standard does not permit such a value,
+suggesting they intended for manufacturers to advertise `BLF` instead. 
+Since the conversion between the two is simply a multiplication dependent on the encoding,
+either is sufficient when combined with `M` to determine the other. 
+
+### Notes on Parameter Ordering 
+Parameters in the abstract part of the spec 
+are sometimes listed in a different order than in the binary specification.
+Most of the binary spec requires parameters appear in a specific order.
+Because many parameters are optional,
+a _correct_ parser would validate the parameter order.
+When multiple, optional parameters occur in the binary protocol in sequence,
+our parser allows them in any order, for the following reasons: 
+
+- It's more efficient and far easier to implement.
+- It has no effect on valid messages (i.e., it'd never be rejected).
+- An invalid message is _probably fine_ to accept with an "out of order" parameter;
+   if a Reader produces parameters out of order, it's more reasonable to be flexible. 
+
+Very occasionally, the parameter order does have special meaning:
+
+- The execution order of `AISpec`s, `RFSurveySpec`s, and `CustomSpec`s 
+    within an `ROSpec` is based on their definition order.
+- The abstract definition allows multiple events in the same `ReaderEventNotification`,
+    and states their order must match the order in which they occurred.
+    
+Our library does not permit specifying the order of parameters of different types;
+this is primarily to make it easier to work with Go 
+(heterogeneous slices are not permitted, 
+so they'd have to be abstracted behind an interface).
+
+For event ordering, this makes no difference: 
+despite the abstract requirement, 
+the binary spec _does_ enforce a particular ordering.
+
+Our implementation always serializes `ROSpec`s inner specs in this order:
+
+- each `AISpec`, in order
+- each `RFSurveySpec`, in order
+- each `CustomSpec`, in order
+- `LoopSpec` (valid only for LLRP version >=1.1)
+

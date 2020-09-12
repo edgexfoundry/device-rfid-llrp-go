@@ -551,9 +551,9 @@ parameters:
         type: TagObservationTriggerType
       - type: uint8
         padding: true
-      - name: NumberofTags
+      - name: NumberOfTags
         type: uint16
-      - name: NumberofAttempts
+      - name: NumberOfAttempts
         type: uint16
       - name: T
         type: Millisecs16
@@ -1356,6 +1356,12 @@ parameters:
   - name: C1G2Filter
     type_id: 331
     description: >-
+      Influences C1G2 Select commands sent before an Inventory round
+      which can force tags' session flags into specific states.
+      Note that as in the Gen2 standard,
+      Truncate may only be set (action 2) in the final Filter
+      and can only apply to the EPC memory bank.
+
       If the Reader supports tag-inventory-aware singulation,
       you can set the AwareFilterAction.
       If not, you can use the UnawareFilterAction.
@@ -1375,6 +1381,19 @@ parameters:
         description: UnawareFilterAction to take if the Reader doesn't support inventory-aware singulation.
 
   - name: C1G2TagInventoryMask
+    description: >-
+      Mask data for the C1G2 Select command.
+
+      LLRP uses a uint16 for the TagMask length,
+      probably so that bit arrays are encoded consistently.
+      Despite this, the Gen2 Select command uses an 8-bit mask,
+      so if your mask is longer than 8 bits,
+      the Reader will either send more than one Select command,
+      filter the data post-singulation, or do the wrong thing.
+
+      For more predictable results with an unknown Reader,
+      consider breaking >8 bit masks into two filters.
+
     type_id: 332
     fields:
       - name: MemoryBank
@@ -1445,11 +1464,11 @@ parameters:
   - name: C1G2TagInventoryStateAwareSingulationAction
     type_id: 337
     fields:
-      - type: SingActAwareState
-        name: InventoryState
+      - type: SessionState
+        name: SessionState
         partial: true
-      - type: bool
-        name: Selected
+      - type: SLState
+        name: SLState
         bit: 1
 
 
@@ -1755,7 +1774,7 @@ types:
     storage: uint16
     kind: 'external'
     description: >-
-      The AntennaID parameter is will inline to a uint16,
+      The AntennaID parameter will inline to a uint16,
       so defining this here is a convenient way
       to use it as a type for fields in the above definitions.
 
@@ -2039,8 +2058,8 @@ types:
       - NTagObservations
       - NoNewAfterT
       - NAttempts
-      - NUniqueObservations
-      - NoUniqueAfterT
+      - NUniqueObservations  # v1.1 only
+      - NoUniqueAfterT       # v1.1 only
 
   - name: SpectralMaskType
     storage: uint8
@@ -2278,15 +2297,34 @@ types:
     storage: uint8
     kind: enum
     max: 7
+    prefix: OnSelect
+    values:
+      - MSetUClear
+      - MSetUKeep
+      - MKeepUClear
+      - MFlipUKeep
+      - MClearUSet
+      - MClearUKeep
+      - MKeepUSet
+      - MKeepUFlip
 
-  - name: SingActAwareState
+  - name: SessionState
     bits: 1
     storage: uint8
     kind: enum
-    prefix: SingActAwareState
+    prefix: SessionState
     values:
       - A
       - B
+
+  - name: SLState
+    bits: 1
+    storage: uint8
+    kind: enum
+    prefix: SLState
+    values:
+      - Asserted
+      - Deasserted
 
   - name: C1G2TagInventoryStateUnawareFilterActionType
     storage: uint8

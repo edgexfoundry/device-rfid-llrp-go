@@ -1,0 +1,493 @@
+{
+  "LLRPStatus": {
+    "Status": 0,
+    "ErrorDescription": "",
+    "FieldError": null,
+    "ParameterError": null
+  },
+  "Identification": {
+    "IDType": 0,
+    "ReaderID": "ABYl//8RJdY="
+  },
+  "AntennaProperties": [
+    {
+      "AntennaConnected": false,
+      "AntennaID": 1,
+      "AntennaGain": 0
+    },
+    {
+      "AntennaConnected": true,
+      "AntennaID": 2,
+      "AntennaGain": 0
+    },
+    {
+      "AntennaConnected": false,
+      "AntennaID": 3,
+      "AntennaGain": 0
+    },
+    {
+      "AntennaConnected": false,
+      "AntennaID": 4,
+      "AntennaGain": 0
+    }
+  ],
+  "AntennaConfigurations": [
+    {
+      "AntennaID": 1,
+      "RFReceiver": 1,
+      "RFTransmitter": {
+        "HopTableID": 1,
+        "ChannelIndex": 0,
+        "TransmitPowerIndex": 81
+      },
+      "C1G2InventoryCommand": {
+        "TagInventoryStateAware": false,
+        "Filters": null,
+        "RFControl": {
+          "RFModeID": 1000,
+          "Tari": 0
+        },
+        "SingulationControl": {
+          "Session": 1,
+          "TagPopulation": 32,
+          "TagTransitTime": 0,
+          "InvAwareAction": null
+        },
+        "Custom": [
+          {
+            "VendorID": 25882,
+            "Subtype": 23,
+            "Data": "AAA="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 26,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 27,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 28,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 69,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1554,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1582,
+            "Data": "AAAAAAA="
+          }
+        ]
+      },
+      "Custom": null
+    },
+    {
+      "AntennaID": 2,
+      "RFReceiver": 1,
+      "RFTransmitter": {
+        "HopTableID": 1,
+        "ChannelIndex": 0,
+        "TransmitPowerIndex": 81
+      },
+      "C1G2InventoryCommand": {
+        "TagInventoryStateAware": false,
+        "Filters": null,
+        "RFControl": {
+          "RFModeID": 1000,
+          "Tari": 0
+        },
+        "SingulationControl": {
+          "Session": 1,
+          "TagPopulation": 32,
+          "TagTransitTime": 0,
+          "InvAwareAction": null
+        },
+        "Custom": [
+          {
+            "VendorID": 25882,
+            "Subtype": 23,
+            "Data": "AAA="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 26,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 27,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 28,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 69,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1554,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1582,
+            "Data": "AAAAAAA="
+          }
+        ]
+      },
+      "Custom": null
+    },
+    {
+      "AntennaID": 3,
+      "RFReceiver": 1,
+      "RFTransmitter": {
+        "HopTableID": 1,
+        "ChannelIndex": 0,
+        "TransmitPowerIndex": 81
+      },
+      "C1G2InventoryCommand": {
+        "TagInventoryStateAware": false,
+        "Filters": null,
+        "RFControl": {
+          "RFModeID": 1000,
+          "Tari": 0
+        },
+        "SingulationControl": {
+          "Session": 1,
+          "TagPopulation": 32,
+          "TagTransitTime": 0,
+          "InvAwareAction": null
+        },
+        "Custom": [
+          {
+            "VendorID": 25882,
+            "Subtype": 23,
+            "Data": "AAA="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 26,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 27,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 28,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 69,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1554,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1582,
+            "Data": "AAAAAAA="
+          }
+        ]
+      },
+      "Custom": null
+    },
+    {
+      "AntennaID": 4,
+      "RFReceiver": 1,
+      "RFTransmitter": {
+        "HopTableID": 1,
+        "ChannelIndex": 0,
+        "TransmitPowerIndex": 81
+      },
+      "C1G2InventoryCommand": {
+        "TagInventoryStateAware": false,
+        "Filters": null,
+        "RFControl": {
+          "RFModeID": 1000,
+          "Tari": 0
+        },
+        "SingulationControl": {
+          "Session": 1,
+          "TagPopulation": 32,
+          "TagTransitTime": 0,
+          "InvAwareAction": null
+        },
+        "Custom": [
+          {
+            "VendorID": 25882,
+            "Subtype": 23,
+            "Data": "AAA="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 26,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 27,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 28,
+            "Data": "AAAAAAAA"
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 69,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1554,
+            "Data": "gA=="
+          },
+          {
+            "VendorID": 25882,
+            "Subtype": 1582,
+            "Data": "AAAAAAA="
+          }
+        ]
+      },
+      "Custom": null
+    }
+  ],
+  "ReaderEventNotificationSpec": {
+    "EventNotificationStates": [
+      {
+        "ReaderEventType": 0,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 1,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 2,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 3,
+        "NotificationEnabled": true
+      },
+      {
+        "ReaderEventType": 4,
+        "NotificationEnabled": true
+      },
+      {
+        "ReaderEventType": 5,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 6,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 7,
+        "NotificationEnabled": false
+      },
+      {
+        "ReaderEventType": 8,
+        "NotificationEnabled": true
+      }
+    ]
+  },
+  "ROReportSpec": {
+    "Trigger": 2,
+    "N": 1,
+    "TagReportContentSelector": {
+      "EnableROSpecID": false,
+      "EnableSpecIndex": false,
+      "EnableInventoryParamSpecID": false,
+      "EnableAntennaID": true,
+      "EnableChannelIndex": false,
+      "EnablePeakRSSI": true,
+      "EnableFirstSeenTimestamp": true,
+      "EnableLastSeenTimestamp": false,
+      "EnableTagSeenCount": false,
+      "EnableAccessSpecID": false,
+      "C1G2EPCMemorySelector": {
+        "CRCEnabled": false,
+        "PCBitsEnabled": false,
+        "XPCBitsEnabled": false
+      },
+      "Custom": null
+    },
+    "Custom": [
+      {
+        "VendorID": 25882,
+        "Subtype": 50,
+        "Data": "A/8ADgAAZRoAAAAzAAAD/wAOAABlGgAAADQAAAP/AA4AAGUaAAAANQAAA/8ADgAAZRoAAAA2AAAD/wAOAABlGgAAAEEAAAP/AA4AAGUaAAAAQwAAA/8ADgAAZRoAAABIAAA="
+      }
+    ]
+  },
+  "AccessReportSpec": 1,
+  "LLRPConfigurationStateValue": 947464803,
+  "KeepAliveSpec": {
+    "Trigger": 1,
+    "Interval": 30000
+  },
+  "GPIPortCurrentStates": [
+    {
+      "Port": 1,
+      "Enabled": false,
+      "State": 0
+    },
+    {
+      "Port": 2,
+      "Enabled": false,
+      "State": 0
+    },
+    {
+      "Port": 3,
+      "Enabled": false,
+      "State": 0
+    },
+    {
+      "Port": 4,
+      "Enabled": false,
+      "State": 0
+    }
+  ],
+  "GPOWriteData": [
+    {
+      "Port": 1,
+      "Data": false
+    },
+    {
+      "Port": 2,
+      "Data": false
+    },
+    {
+      "Port": 3,
+      "Data": false
+    },
+    {
+      "Port": 4,
+      "Data": false
+    }
+  ],
+  "EventsAndReports": false,
+  "Custom": [
+    {
+      "VendorID": 25882,
+      "Subtype": 22,
+      "Data": "AAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 36,
+      "Data": "AAEAAAAU"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 36,
+      "Data": "AAIAAAAU"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 36,
+      "Data": "AAMAAAAU"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 36,
+      "Data": "AAQAAAAU"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 37,
+      "Data": "ACQ="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 38,
+      "Data": "AAAAAA=="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 39,
+      "Data": "AAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 40,
+      "Data": "A/8ADgAAZRoAAAApAAED/wAOAABlGgAAAD8AAAP/AA4AAGUaAAAAQgAA"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 60,
+      "Data": null
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 64,
+      "Data": "AAEAAAAAAAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 64,
+      "Data": "AAIAAAAAAAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 64,
+      "Data": "AAMAAAAAAAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 64,
+      "Data": "AAQAAAAAAAA="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 1524,
+      "Data": "A/8ADQAAZRoAAAYoAA=="
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 1538,
+      "Data": "AAEAAAAA"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 1538,
+      "Data": "AAIAAAAA"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 1538,
+      "Data": "AAMAAAAA"
+    },
+    {
+      "VendorID": 25882,
+      "Subtype": 1538,
+      "Data": "AAQAAAAA"
+    }
+  ]
+}
