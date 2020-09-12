@@ -369,7 +369,7 @@ presumably for the possibility to match the `RFTransmitter` in the future,
 though doing so would be backwards-incompatible 
 since the reserved bits come _after_ the `HopTableID`, 
 not before as they would if it were a (big-endian) `uint16`.
-_Technically_, because the abstract definition says its an `Integer`,
+_Technically_, because the abstract definition says it's an `Integer`,
 its binary format must be encoded twos-complement, 
 and thus the `Possible Values: 0-255` requires 9 bits (one of which must always be 0),
 meaning the binary definition does not give enough space for all required values.
