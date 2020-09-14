@@ -7,18 +7,18 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -61,13 +61,38 @@ func init() {
 		"watches reports until timeout or interrupt; forever if =0, never if <0")
 }
 
+// logger wraps the standard logger and provides some other common methods.
+type logger struct {
+	infolg *stdlog.Logger
+	errlg  *stdlog.Logger
+}
+
+var log = logger{
+	infolg: stdlog.New(os.Stdout, " [INFO] ", stdlog.Lmicroseconds),
+	errlg:  stdlog.New(os.Stderr, "[ERROR] ", stdlog.Lmicroseconds),
+}
+
+func (log logger) Info(msg string) {
+	log.infolg.Println(msg)
+}
+
+func (log logger) Infof(msg string, args ...interface{}) {
+	log.infolg.Printf(msg, args...)
+}
+
+func (log logger) Errorf(msg string, args ...interface{}) {
+	log.errlg.Printf(msg, args...)
+}
+
+// check logs an error and exits if the input is a non-nil error
+// other than one indicating a normal client shutdown.
 func check(err error) {
 	if err == nil {
 		return
 	}
 
 	if errors.Is(err, llrp.ErrClientClosed) {
-		log.Info(err)
+		log.Infof("%v", err)
 		return
 	}
 
@@ -75,10 +100,12 @@ func check(err error) {
 	os.Exit(1)
 }
 
+// checkf checks the result of a function that returns an error.
 func checkf(f func() error) {
 	check(f())
 }
 
+// logErr logs the input if it's anything other than nil.
 func logErr(err error) {
 	if err == nil {
 		return
@@ -87,6 +114,7 @@ func logErr(err error) {
 	log.Errorf("%v", err)
 }
 
+// checkFlags validates the input flags.
 func checkFlags() error {
 	flag.Parse()
 	if rfidAddr == "" {
@@ -100,6 +128,8 @@ func checkFlags() error {
 	return nil
 }
 
+// main loads LLRP messages from JSON files and sends them to a Reader,
+// then watches the connection for ROAccessReports, which it prints to stdout.
 func main() {
 	checkf(checkFlags)
 
@@ -111,8 +141,9 @@ func main() {
 	defer rconn.Close()
 
 	sig := newSignaler()
+	ri := newReadInfo()
 
-	c := getClient()
+	c := getClient(ri)
 	go func() { logErr(c.Connect(rconn)) }()
 
 	ctx := sig.watch(context.Background())
@@ -122,13 +153,13 @@ func main() {
 	}
 
 	if confPath != "" {
-		// check(sendConf(ctx, c, confPath))
+		check(sendConf(ctx, c, confPath))
 	}
 
 	if accessSpecPath != "" {
-		// check(sendAccess(ctx, c, accessSpecPath))
+		check(sendAccess(ctx, c, accessSpecPath))
 	} else {
-		// check(deleteAccess(ctx, c, 0))
+		check(deleteAccess(ctx, c, 0))
 	}
 
 	startTime := time.Now()
@@ -143,25 +174,25 @@ func main() {
 
 	elapsed := time.Since(startTime)
 
-	for epc, td := range unique {
-		if len(td.readTimes) > 1 {
-			prev := td.readTimes[0]
-			for i := range td.readTimes {
-				prev, td.readTimes[i] = td.readTimes[i], (td.readTimes[i]-prev)/1000
-			}
+	for epc, td := range ri.unique {
+		log.Infof("%s | cnt %02d | avg rssi %02.2f dBm | avg time btw reads %02.2f ms",
+			epc, td.count, td.rssis.Mean(), td.times.Mean())
+
+		if td.tid.MaskDesigner != 0 {
+			log.Infof("    MDID %#03x | Mdl %#03x | SN %#02x | XTID %t",
+				td.tid.MaskDesigner,
+				td.tid.TagModelNumber,
+				td.tid.Serial,
+				td.tid.HasXTID)
 		}
-		log.Infof("%s | cnt %d | MDID %#03x | Mdl %#03x | SN %#02x | XTID %t | times %d",
-			epc,
-			td.count,
-			td.tid.MaskDesigner,
-			td.tid.TagModelNumber,
-			td.tid.Serial,
-			td.tid.HasXTID,
-			td.readTimes)
+
+		if len(td.times.mm.values) > 0 {
+			// log.Infof("    recent read intervals %04d", td.times.mm.values)
+		}
 	}
 
-	log.Infof("%d tags | %d reads in %v | rate: %f/s",
-		len(unique), nReads, elapsed, float64(nReads)/elapsed.Seconds())
+	log.Infof("%d total tags | %d total reads in %v | rate: %.2f tags/s | avg rssi over all tags %02.2f dBm",
+		len(ri.unique), ri.nReads, elapsed, float64(ri.nReads)/elapsed.Seconds(), ri.allRssis.Mean())
 }
 
 type signaler struct {
@@ -321,10 +352,10 @@ func stop(ctx context.Context, c *llrp.Client, spec *llrp.ROSpec) error {
 	return fe.err
 }
 
-func getClient() *llrp.Client {
+func getClient(ri *readInfo) *llrp.Client {
 	opts := []llrp.ClientOpt{
 		llrp.WithTimeout(3600 * time.Second),
-		llrp.WithMessageHandler(llrp.MsgROAccessReport, llrp.MessageHandlerFunc(handleROAR)),
+		llrp.WithMessageHandler(llrp.MsgROAccessReport, llrp.MessageHandlerFunc(ri.handleROAR)),
 		llrp.WithMessageHandler(llrp.MsgReaderEventNotification, llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
 			log.Info("Reader Event")
 			ren := llrp.ReaderEventNotification{}
@@ -426,25 +457,91 @@ func closeConn(ctx context.Context, c *llrp.Client) error {
 	return nil
 }
 
-type tagData struct {
-	readTimes []uint64
-	count     uint
-	tid       TIDClassE2
+type movingMean struct {
+	values []int64
+	total  int64
+	index  int
 }
 
-var (
-	nReads    uint
-	unique    = map[string]tagData{}
-	atomicTID = uint32(0)
-	mask      = []byte{
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+const defMaxValues = 50
+
+func (mm *movingMean) add(i int64) {
+	if cap(mm.values) == 0 {
+		mm.values = make([]int64, 0, defMaxValues)
 	}
 
-	bufTID = TIDClassE2{}
-)
+	if (i < 0 && (-1<<63)-i > mm.total) || (mm.total > (1<<63-1)-i && i > 0) {
+		log.Errorf("overflow: %d + %d: %d, %d, %d",
+			mm.total, i, mm.total+i, (-1<<63)-i, (1<<63-1)-i)
+	}
+
+	mm.total += i
+	if len(mm.values) < cap(mm.values) {
+		mm.values = append(mm.values, i)
+		return
+	}
+
+	mm.total -= mm.values[mm.index]
+	mm.values[mm.index] = i
+	mm.index++
+	if mm.index >= cap(mm.values) {
+		mm.index = 0
+	}
+}
+
+func (mm *movingMean) Mean() float64 {
+	if len(mm.values) == 0 {
+		return 0
+	}
+
+	return float64(mm.total) / float64(len(mm.values))
+}
+
+type intervalMean struct {
+	last int64
+	mm   movingMean
+}
+
+func (iv *intervalMean) addInterval(i int64) {
+	if cap(iv.mm.values) == 0 {
+		iv.mm.values = make([]int64, 0, defMaxValues)
+	} else if i < iv.last {
+		return
+	} else {
+		iv.mm.add(i - iv.last)
+	}
+	iv.last = i
+}
+
+func (iv *intervalMean) Mean() float64 {
+	if len(iv.mm.values) == 0 {
+		return float64(iv.last)
+	}
+
+	return float64(iv.mm.total) / float64(len(iv.mm.values))
+}
+
+type tagData struct {
+	times intervalMean
+	rssis movingMean
+	tid   TIDClassE2
+	count uint
+}
+
+// These aren't protected with sync primitives because
+// they're decoded in a message handler,
+// which blocks new reads until it completes.
+type readInfo struct {
+	nReads   uint
+	unique   map[string]tagData
+	allRssis movingMean
+}
+
+func newReadInfo() *readInfo {
+	return &readInfo{
+		unique: map[string]tagData{},
+	}
+}
 
 type TIDClassE2 struct {
 	Serial           uint64
@@ -471,7 +568,7 @@ func decodeTIDClassE2(words []uint16) (tid TIDClassE2, ok bool) {
 	return
 }
 
-func handleROAR(c *llrp.Client, msg llrp.Message) {
+func (ri *readInfo) handleROAR(_ *llrp.Client, msg llrp.Message) {
 	report := llrp.ROAccessReport{}
 	if err := msg.UnmarshalTo(&report); err != nil {
 		logErr(err)
@@ -481,15 +578,16 @@ func handleROAR(c *llrp.Client, msg llrp.Message) {
 	rpt := strings.Builder{}
 	for _, tagReport := range report.TagReportData {
 
+		var epc string
 		if tagReport.EPC96.EPC != nil {
+			epc = hex.EncodeToString(tagReport.EPC96.EPC)
 			fmt.Fprintf(&rpt, "% 02x", tagReport.EPC96.EPC)
 		} else {
+			epc = hex.EncodeToString(tagReport.EPCData.EPC)
 			fmt.Fprintf(&rpt, "% 02x", tagReport.EPCData.EPC)
 		}
 
-		epc := rpt.String()
-		td, readBefore := unique[epc]
-		readBefore = true
+		td := ri.unique[epc]
 
 		if tagReport.ROSpecID != nil {
 			fmt.Fprintf(&rpt, " | id %02d", *tagReport.ROSpecID)
@@ -513,6 +611,8 @@ func handleROAR(c *llrp.Client, msg llrp.Message) {
 
 		if tagReport.PeakRSSI != nil {
 			fmt.Fprintf(&rpt, " | rssi %02d", *tagReport.PeakRSSI)
+			td.rssis.add(int64(*tagReport.PeakRSSI))
+			ri.allRssis.add(int64(*tagReport.PeakRSSI))
 		}
 
 		if tagReport.FirstSeenUTC != nil {
@@ -523,15 +623,15 @@ func handleROAR(c *llrp.Client, msg llrp.Message) {
 		if tagReport.LastSeenUTC != nil {
 			fmt.Fprintf(&rpt, " | last %s",
 				time.Unix(0, int64(*tagReport.LastSeenUTC*1000)).Format(time.StampMicro))
-			td.readTimes = append(td.readTimes, uint64(*tagReport.LastSeenUTC))
+			td.times.addInterval(int64(*tagReport.LastSeenUTC) / 1000)
 		}
 
 		if tagReport.TagSeenCount != nil {
-			nReads += uint(*tagReport.TagSeenCount)
+			ri.nReads += uint(*tagReport.TagSeenCount)
 			fmt.Fprintf(&rpt, " | cnt %02d", *tagReport.TagSeenCount)
 			td.count += uint(*tagReport.TagSeenCount)
 		} else {
-			nReads++
+			ri.nReads++
 			td.count++
 		}
 
@@ -566,74 +666,40 @@ func handleROAR(c *llrp.Client, msg llrp.Message) {
 
 		if tagReport.C1G2ReadOpSpecResult != nil {
 			r := *tagReport.C1G2ReadOpSpecResult
-			fmt.Fprintf(&rpt, " | read %d: %#x", r.OpSpecID, r.Data)
+			fmt.Fprintf(&rpt, " | read %d, result %d: %s",
+				r.OpSpecID, r.C1G2ReadOpSpecResultType, wordsToHex(r.Data))
 			td.tid, _ = decodeTIDClassE2(r.Data)
-		} else if !readBefore {
-			var epcMatch []byte
-			var nBits uint16
-			if tagReport.EPC96.EPC != nil {
-				epcMatch = make([]byte, len(tagReport.EPC96.EPC))
-				copy(epcMatch, tagReport.EPC96.EPC)
-				nBits = 96
-			} else {
-				epcMatch = make([]byte, len(tagReport.EPCData.EPC))
-				copy(epcMatch, tagReport.EPC96.EPC)
-				nBits = tagReport.EPCData.EPCNumBits
-			}
-
-			go func(epcMatch []byte, nBits uint16) {
-				id := atomic.AddUint32(&atomicTID, 1)
-				as := llrp.AddAccessSpec{
-					AccessSpec: llrp.AccessSpec{
-						AccessSpecID:  id,
-						AirProtocolID: 1,
-						Trigger: llrp.AccessSpecStopTrigger{
-							Trigger:             llrp.AccessSpecStopTriggerOperationCount,
-							OperationCountValue: 1,
-						},
-						AccessCommand: llrp.AccessCommand{
-							C1G2TagSpec: llrp.C1G2TagSpec{
-								TagPattern1: llrp.C1G2TargetTag{
-									C1G2MemoryBank:     1,
-									MatchFlag:          true,
-									MostSignificantBit: 0x20,
-									TagMaskNumBits:     nBits,
-									TagMask:            mask[:1+((nBits-1)>>3)],
-									TagDataNumBits:     nBits,
-									TagData:            epcMatch,
-								},
-							},
-							C1G2Read: &llrp.C1G2Read{
-								OpSpecID:       uint16(id),
-								C1G2MemoryBank: 2,
-								WordAddress:    0,
-								WordCount:      6,
-							},
-						},
-					},
-				}
-
-				if err := send(context.Background(), c, &as, &llrp.AddAccessSpecResponse{}); err != nil {
-					logErr(err)
-					return
-				}
-
-				logErr(send(context.Background(), c,
-					&llrp.EnableAccessSpec{AccessSpecID: id},
-					&llrp.EnableAccessSpecResponse{}))
-			}(epcMatch, nBits)
 		}
 
-		unique[epc] = td
+		ri.unique[epc] = td
 		log.Info(rpt.String())
 		rpt.Reset()
 	}
 }
 
+const hexChars = "0123456789abcdef"
+
+// wordsToHex converts a word slice to a hex string.
+func wordsToHex(src []uint16) string {
+	dst := make([]byte, len(src)*4)
+
+	i := 0
+	for _, word := range src {
+		dst[i+0] = hexChars[(word>>0xC)&0xF]
+		dst[i+1] = hexChars[(word>>0x8)&0xF]
+		dst[i+2] = hexChars[(word>>0x4)&0xF]
+		dst[i+3] = hexChars[(word>>0x0)&0xF]
+		i += 4
+	}
+
+	return string(dst)
+}
+
+// prettyPrint marshals the interface to JSON with indentation and logs it.
 func prettyPrint(v interface{}) {
-	if pretty, err := json.MarshalIndent(v, "", "\t"); err != nil {
+	if pretty, err := json.MarshalIndent(v, "  ", "  "); err != nil {
 		log.Errorf("can't pretty print %+v: %+v", v, err)
 	} else {
-		log.Infof("%s", pretty)
+		log.Infof("%T:\n  %s", v, pretty)
 	}
 }
