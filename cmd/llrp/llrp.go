@@ -185,10 +185,6 @@ func main() {
 				td.tid.Serial,
 				td.tid.HasXTID)
 		}
-
-		if len(td.times.mm.values) > 0 {
-			// log.Infof("    recent read intervals %04d", td.times.mm.values)
-		}
 	}
 
 	log.Infof("%d total tags | %d total reads in %v | rate: %.2f tags/s | avg rssi over all tags %02.2f dBm",
