@@ -72,16 +72,34 @@ var log = logger{
 	errlg:  stdlog.New(os.Stderr, "[ERROR] ", stdlog.Lmicroseconds),
 }
 
-func (log logger) Info(msg string) {
-	log.infolg.Println(msg)
+func (l logger) Info(msg string) {
+	l.infolg.Println(msg)
 }
 
-func (log logger) Infof(msg string, args ...interface{}) {
-	log.infolg.Printf(msg, args...)
+func (l logger) Infof(msg string, args ...interface{}) {
+	l.infolg.Printf(msg, args...)
 }
 
-func (log logger) Errorf(msg string, args ...interface{}) {
-	log.errlg.Printf(msg, args...)
+func (l logger) Errorf(msg string, args ...interface{}) {
+	l.errlg.Printf(msg, args...)
+}
+
+// Implement the Client logger interface, but only log Handler panics
+
+func (l logger) ReceivedMsg(_ llrp.Header, _ llrp.VersionNum) {
+}
+
+func (l logger) SendingMsg(_ llrp.Header) {
+}
+
+func (l logger) MsgHandled(_ llrp.Header) {
+}
+
+func (l logger) MsgUnhandled(_ llrp.Header) {
+}
+
+func (l logger) HandlerPanic(header llrp.Header, err error) {
+	l.errlg.Printf("handler panic on %+v: %+v", header, err)
 }
 
 // check logs an error and exits if the input is a non-nil error
@@ -361,7 +379,7 @@ func getClient(ri *readInfo) *llrp.Client {
 			}
 			prettyPrint(ren.ReaderEventNotificationData)
 		})),
-		llrp.WithLogger(nil),
+		llrp.WithLogger(log),
 	}
 
 	return llrp.NewClient(opts...)
@@ -524,9 +542,12 @@ type tagData struct {
 	count uint
 }
 
-// These aren't protected with sync primitives because
-// they're decoded in a message handler,
-// which blocks new reads until it completes.
+// readInfo tracks tags that were singulated.
+//
+// These fields aren't protected with sync primitives because
+// they're only used in a single message handler of a single llrp.Client
+// (which blocks new reads until it completes)
+// or after the connection is closed.
 type readInfo struct {
 	nReads   uint
 	unique   map[string]tagData
@@ -539,6 +560,9 @@ func newReadInfo() *readInfo {
 	}
 }
 
+// TIDClassE2 represents the EPCglobal Class ID information
+// a tag might store in its TID bank.
+// If it does, then the TID memory begins with 0xE2.
 type TIDClassE2 struct {
 	Serial           uint64
 	TagModelNumber   uint16 // only 12 bits
