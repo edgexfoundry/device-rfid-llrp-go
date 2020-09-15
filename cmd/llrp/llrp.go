@@ -102,34 +102,33 @@ func (l logger) HandlerPanic(header llrp.Header, err error) {
 	l.errlg.Printf("handler panic on %+v: %+v", header, err)
 }
 
-// check logs an error and exits if the input is a non-nil error
-// other than one indicating a normal client shutdown.
-func check(err error) {
+// logErr logs the input and returns true if it's a non-nil error
+// other than one indicating a normal client shutdown;
+// otherwise, it does nothing and returns false.
+func logErr(err error) (ok bool) {
 	if err == nil {
 		return
 	}
 
 	if errors.Is(err, llrp.ErrClientClosed) {
-		log.Infof("%v", err)
 		return
 	}
 
 	log.Errorf("%v", err)
-	os.Exit(1)
+	return true
+}
+
+// check logs an error and exits if the input is a non-nil error
+// other than one indicating a normal client shutdown.
+func check(err error) {
+	if logErr(err) {
+		os.Exit(1)
+	}
 }
 
 // checkf checks the result of a function that returns an error.
 func checkf(f func() error) {
 	check(f())
-}
-
-// logErr logs the input if it's anything other than nil.
-func logErr(err error) {
-	if err == nil {
-		return
-	}
-
-	log.Errorf("%v", err)
 }
 
 // checkFlags validates the input flags.
