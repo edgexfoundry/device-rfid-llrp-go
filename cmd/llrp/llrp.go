@@ -192,8 +192,8 @@ func main() {
 	elapsed := time.Since(startTime)
 
 	for epc, td := range ri.unique {
-		log.Infof("%s | cnt %02d | avg rssi %02.2f dBm | avg time btw reads %02.2f ms",
-			epc, td.count, td.rssis.Mean(), td.times.Mean())
+		log.Infof("%s | cnt %02d | avg rssi % 7.2f dBm | avg time btw reads %02.2f ms | % 6.2f%% of reads",
+			epc, td.count, td.rssis.Mean(), td.times.Mean(), 100*float64(td.count)/float64(ri.nReads))
 
 		if td.tid.MaskDesigner != 0 {
 			log.Infof("    MDID %#03x | Mdl %#03x | SN %#02x | XTID %t",

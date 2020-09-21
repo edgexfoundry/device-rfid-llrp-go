@@ -1204,8 +1204,8 @@ func (p *TagObservationTrigger) getHeader() paramHeader {
 }
 func (p *TagObservationTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger), 0x00,
-		byte(p.NumberofTags >> 8), byte(p.NumberofTags),
-		byte(p.NumberofAttempts >> 8), byte(p.NumberofAttempts),
+		byte(p.NumberOfTags >> 8), byte(p.NumberOfTags),
+		byte(p.NumberOfAttempts >> 8), byte(p.NumberOfAttempts),
 		byte(p.T >> 8), byte(p.T),
 		byte(p.Timeout >> 24), byte(p.Timeout >> 16), byte(p.Timeout >> 8), byte(p.Timeout)}); err != nil {
 		return errors.Wrap(err, "failed to write fields for ParamTagObservationTrigger")
