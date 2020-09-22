@@ -2486,8 +2486,8 @@ func (p *TagObservationTrigger) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	p.Trigger = TagObservationTriggerType(data[0])
-	p.NumberofTags = binary.BigEndian.Uint16(data[2:])
-	p.NumberofAttempts = binary.BigEndian.Uint16(data[4:])
+	p.NumberOfTags = binary.BigEndian.Uint16(data[2:])
+	p.NumberOfAttempts = binary.BigEndian.Uint16(data[4:])
 	p.T = binary.BigEndian.Uint16(data[6:])
 	p.Timeout = binary.BigEndian.Uint32(data[8:])
 	return nil

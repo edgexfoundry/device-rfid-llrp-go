@@ -1386,13 +1386,13 @@ parameters:
 
       LLRP uses a uint16 for the TagMask length,
       probably so that bit arrays are encoded consistently.
-      Despite this, the Gen2 Select command uses an 8-bit mask,
-      so if your mask is longer than 8 bits,
+      Despite this, the Gen2 Select command uses an 8-bit mask length,
+      so if your mask is longer than that,
       the Reader will either send more than one Select command,
       filter the data post-singulation, or do the wrong thing.
 
       For more predictable results with an unknown Reader,
-      consider breaking >8 bit masks into two filters.
+      consider breaking long masks into two filters.
 
     type_id: 332
     fields:
@@ -2297,7 +2297,7 @@ types:
     storage: uint8
     kind: enum
     max: 7
-    prefix: OnSelect
+    prefix: AwareSelect
     values:
       - MSetUClear
       - MSetUKeep
@@ -2329,7 +2329,15 @@ types:
   - name: C1G2TagInventoryStateUnawareFilterActionType
     storage: uint8
     kind: enum
+    prefix: UnawareSelect
     max: 5
+    values:
+      - MSetUClear
+      - MSetUKeep
+      - MKeepUClear
+      - MClearUSet
+      - MClearUKeep
+      - MKeepUSet
 
   - name: C1G2SingulationSession
     storage: uint8

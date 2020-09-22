@@ -416,14 +416,14 @@ const (
 type C1G2TagInventoryStateAwareFilterActionType uint8
 
 const (
-	OnSelectMSetUClear  = C1G2TagInventoryStateAwareFilterActionType(0)
-	OnSelectMSetUKeep   = C1G2TagInventoryStateAwareFilterActionType(1)
-	OnSelectMKeepUClear = C1G2TagInventoryStateAwareFilterActionType(2)
-	OnSelectMFlipUKeep  = C1G2TagInventoryStateAwareFilterActionType(3)
-	OnSelectMClearUSet  = C1G2TagInventoryStateAwareFilterActionType(4)
-	OnSelectMClearUKeep = C1G2TagInventoryStateAwareFilterActionType(5)
-	OnSelectMKeepUSet   = C1G2TagInventoryStateAwareFilterActionType(6)
-	OnSelectMKeepUFlip  = C1G2TagInventoryStateAwareFilterActionType(7)
+	AwareSelectMSetUClear  = C1G2TagInventoryStateAwareFilterActionType(0)
+	AwareSelectMSetUKeep   = C1G2TagInventoryStateAwareFilterActionType(1)
+	AwareSelectMKeepUClear = C1G2TagInventoryStateAwareFilterActionType(2)
+	AwareSelectMFlipUKeep  = C1G2TagInventoryStateAwareFilterActionType(3)
+	AwareSelectMClearUSet  = C1G2TagInventoryStateAwareFilterActionType(4)
+	AwareSelectMClearUKeep = C1G2TagInventoryStateAwareFilterActionType(5)
+	AwareSelectMKeepUSet   = C1G2TagInventoryStateAwareFilterActionType(6)
+	AwareSelectMKeepUFlip  = C1G2TagInventoryStateAwareFilterActionType(7)
 )
 
 type SessionState uint8
@@ -441,6 +441,16 @@ const (
 )
 
 type C1G2TagInventoryStateUnawareFilterActionType uint8
+
+const (
+	UnawareSelectMSetUClear  = C1G2TagInventoryStateUnawareFilterActionType(0)
+	UnawareSelectMSetUKeep   = C1G2TagInventoryStateUnawareFilterActionType(1)
+	UnawareSelectMKeepUClear = C1G2TagInventoryStateUnawareFilterActionType(2)
+	UnawareSelectMClearUSet  = C1G2TagInventoryStateUnawareFilterActionType(3)
+	UnawareSelectMClearUKeep = C1G2TagInventoryStateUnawareFilterActionType(4)
+	UnawareSelectMKeepUSet   = C1G2TagInventoryStateUnawareFilterActionType(5)
+)
+
 type C1G2SingulationSession = uint8
 type C1G2RecommissionFlags uint8
 
@@ -1422,8 +1432,8 @@ type AISpecStopTrigger struct {
 // TagObservationTrigger is Parameter 185, TagObservationTrigger.
 type TagObservationTrigger struct {
 	Trigger          TagObservationTriggerType
-	NumberofTags     uint16
-	NumberofAttempts uint16
+	NumberOfTags     uint16
+	NumberOfAttempts uint16
 	T                Millisecs16
 	Timeout          Millisecs32
 }
@@ -1869,6 +1879,10 @@ type C1G2InventoryCommand struct {
 
 // C1G2Filter is Parameter 331, C1G2Filter.
 //
+// Influences C1G2 Select commands sent before an Inventory round which can force tags'
+// session flags into specific states. Note that as in the Gen2 standard, Truncate may
+// only be set (action 2) in the final Filter and can only apply to the EPC memory bank.
+//
 // If the Reader supports tag-inventory-aware singulation, you can set the
 // AwareFilterAction. If not, you can use the UnawareFilterAction.
 type C1G2Filter struct {
@@ -1879,6 +1893,16 @@ type C1G2Filter struct {
 }
 
 // C1G2TagInventoryMask is Parameter 332, C1G2TagInventoryMask.
+//
+// Mask data for the C1G2 Select command.
+//
+// LLRP uses a uint16 for the TagMask length, probably so that bit arrays are encoded
+// consistently. Despite this, the Gen2 Select command uses an 8-bit mask length, so if
+// your mask is longer than that, the Reader will either send more than one Select
+// command, filter the data post-singulation, or do the wrong thing.
+//
+// For more predictable results with an unknown Reader, consider breaking long masks into
+// two filters.
 type C1G2TagInventoryMask struct {
 	MemoryBank         C1G2MemoryBankType
 	MostSignificantBit uint16
