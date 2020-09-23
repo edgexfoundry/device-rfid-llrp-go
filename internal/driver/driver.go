@@ -151,7 +151,6 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		d.lc.Warn("Unable to watch for configuration changes!", "error", err)
 	}
 
-	service.RunningService().Devices()
 	registered := d.svc.Devices()
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
