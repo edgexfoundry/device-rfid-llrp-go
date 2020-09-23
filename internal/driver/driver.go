@@ -24,7 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -752,16 +752,16 @@ func (d *Driver) addProvisionWatchers() error {
 
 	var errs []error
 	for _, file := range files {
-		filename := path.Join(provisionWatcherFolder, file.Name())
+		filename := filepath.Join(provisionWatcherFolder, file.Name())
 		var watcher contract.ProvisionWatcher
 		data, err := ioutil.ReadFile(filename)
 		if err != nil {
-			errs = append(errs, errors.Wrap(err, "error reading file: "+filename))
+			errs = append(errs, errors.Wrap(err, "error reading file "+filename))
 			continue
 		}
 
 		if err := watcher.UnmarshalJSON(data); err != nil {
-			errs = append(errs, errors.Wrap(err, "error unmarshalling provision watcher: "+filename))
+			errs = append(errs, errors.Wrap(err, "error unmarshalling provision watcher "+filename))
 			continue
 		}
 
@@ -769,13 +769,13 @@ func (d *Driver) addProvisionWatchers() error {
 			continue // provision watcher already exists
 		}
 
-		d.lc.Info("Adding provision watcher", "name", watcher.Name)
+		d.lc.Info("Adding provision watcher.", "name", watcher.Name)
 		id, err := d.svc.AddProvisionWatcher(watcher)
 		if err != nil {
-			errs = append(errs, errors.Wrap(err, "error adding provision watcher: "+watcher.Name))
+			errs = append(errs, errors.Wrap(err, "error adding provision watcher "+watcher.Name))
 			continue
 		}
-		d.lc.Info("Successfully added provision watcher", "name", watcher.Name, "id", id)
+		d.lc.Info("Successfully added provision watcher.", "name", watcher.Name, "id", id)
 	}
 
 	if errs != nil {
