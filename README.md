@@ -3,40 +3,6 @@
 ## Overview
 LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
 
-## Installation and Execution ##
-
-#### Prerequisites ####
-
- - Go language
- - GNU Make
- - Docker
- - Docker-compose
- 
-##### Build #####
-```bash
-$ make build
-```
-
-##### Build Docker image #####
-```bash
-$ make docker
-```
-
-##### Docker-compose run with other Edgex services (Geneva Release) #####
-```bash
-$ make run
-```
-
-##### Docker-compose stop #####
-```bash
-$ make stop
-```
-
-##### Format #####
-```bash
-$ make fmt
-```
-
 ## First Run
 **Build and deploy**
 ```bash
