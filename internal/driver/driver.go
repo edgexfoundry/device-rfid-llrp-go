@@ -770,10 +770,12 @@ func (d *Driver) addProvisionWatchers() error {
 		}
 
 		d.lc.Info("Adding provision watcher", "name", watcher.Name)
-		if _, err := d.svc.AddProvisionWatcher(watcher); err != nil {
+		id, err := d.svc.AddProvisionWatcher(watcher)
+		if err != nil {
 			errs = append(errs, errors.Wrap(err, "error adding provision watcher: "+watcher.Name))
 			continue
 		}
+		d.lc.Info("Successfully added provision watcher", "name", watcher.Name, "id", id)
 	}
 
 	if errs != nil {
