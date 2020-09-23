@@ -16,6 +16,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"math/bits"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -490,8 +491,9 @@ func newDiscoveredDevice(info *discoveryInfo) dsModels.DiscoveredDevice {
 		Name: info.deviceName,
 		Protocols: map[string]contract.ProtocolProperties{
 			"tcp": {
-				"host": info.host,
-				"port": info.port,
+				"host":      info.host,
+				"port":      info.port,
+				"vendorPEN": strconv.FormatUint(uint64(info.vendor), 10),
 			},
 		},
 		Description: "LLRP RFID Reader",

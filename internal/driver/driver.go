@@ -24,7 +24,9 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -51,7 +53,7 @@ const (
 	AttribVendor   = "vendor"
 	AttribSubtype  = "subtype"
 
-	provisionWatcherFilename = "res/provisionwatcher.json"
+	provisionWatcherFolder = "res/provision_watchers"
 )
 
 var (
@@ -85,6 +87,17 @@ type Driver struct {
 	configMu sync.RWMutex
 
 	svc ServiceWrapper
+}
+
+type MultiErr []error
+
+func (me MultiErr) Error() string {
+	strs := make([]string, len(me))
+	for i, s := range me {
+		strs[i] = s.Error()
+	}
+
+	return strings.Join(strs, "; ")
 }
 
 // EdgeX's Device SDK takes an interface{}
@@ -138,6 +151,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		d.lc.Warn("Unable to watch for configuration changes!", "error", err)
 	}
 
+	service.RunningService().Devices()
 	registered := d.svc.Devices()
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
@@ -731,22 +745,41 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
-func (d *Driver) addProvisionWatcher() error {
-	var provisionWatcher contract.ProvisionWatcher
-	data, err := ioutil.ReadFile(provisionWatcherFilename)
+func (d *Driver) addProvisionWatchers() error {
+	files, err := ioutil.ReadDir(provisionWatcherFolder)
 	if err != nil {
 		return err
 	}
 
-	err = provisionWatcher.UnmarshalJSON(data)
-	if err != nil {
-		return err
+	var errs []error
+	for _, file := range files {
+		filename := path.Join(provisionWatcherFolder, file.Name())
+		var watcher contract.ProvisionWatcher
+		data, err := ioutil.ReadFile(filename)
+		if err != nil {
+			errs = append(errs, errors.Wrap(err, "error reading file: "+filename))
+			continue
+		}
+
+		if err := watcher.UnmarshalJSON(data); err != nil {
+			errs = append(errs, errors.Wrap(err, "error unmarshalling provision watcher: "+filename))
+			continue
+		}
+
+		if _, err := d.svc.GetProvisionWatcherByName(watcher.Name); err == nil {
+			continue // provision watcher already exists
+		}
+
+		d.lc.Info("Adding provision watcher", "name", watcher.Name)
+		if _, err := d.svc.AddProvisionWatcher(watcher); err != nil {
+			errs = append(errs, errors.Wrap(err, "error adding provision watcher: "+watcher.Name))
+			continue
+		}
 	}
 
-	if err := d.svc.AddOrUpdateProvisionWatcher(provisionWatcher); err != nil {
-		return err
+	if errs != nil {
+		return MultiErr(errs)
 	}
-
 	return nil
 }
 
@@ -759,7 +792,7 @@ func (d *Driver) Discover() {
 	d.configMu.RUnlock()
 
 	provisionOnce.Do(func() {
-		err := d.addProvisionWatcher()
+		err := d.addProvisionWatchers()
 		if err != nil {
 			d.lc.Error(err.Error())
 			return

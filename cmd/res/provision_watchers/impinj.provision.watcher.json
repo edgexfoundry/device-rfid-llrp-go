@@ -1,0 +1,14 @@
+{
+  "name": "llrp-impinj-provision-watcher",
+  "identifiers": {
+    "vendorPEN": "25882"
+  },
+  "blockingidentifiers": {},
+  "profile": {
+    "name": "Impinj.LLRP.Profile"
+  },
+  "service": {
+    "name": "edgex-device-llrp"
+  },
+  "adminState": "UNLOCKED"
+}
