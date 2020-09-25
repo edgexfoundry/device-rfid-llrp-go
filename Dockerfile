@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE=golang:1.14-alpine
+ARG BASE=golang:1.15-alpine
 FROM ${BASE} AS builder
 
 ARG ALPINE_PKG_BASE="build-base git openssh-client"
@@ -48,4 +48,5 @@ COPY --from=builder /go/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
       copyright='Copyright (c) 2020: Intel Corporation'
 
-ENTRYPOINT ["/device-llrp","-cp=consul://edgex-core-consul:8500","-registry","-confdir=/res/docker"]
+ENTRYPOINT ["/device-llrp-go"]
+CMD ["--cp=consul://edgex-core-consul:8500","--registry","--confdir=/res"]

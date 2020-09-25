@@ -1,34 +1,33 @@
 GO = CGO_ENABLED=0 GO111MODULE=on go
 
-MICROSERVICES=cmd/device-llrp
+MICROSERVICES=cmd/device-llrp-go
 DOCKERS=docker_device_llrp_go
 
-COMPOSE_FILE=docker-compose-geneva-redis-no-secty.yml
-DOCKER_COMPOSE=docker-compose -f $(COMPOSE_FILE)
-
-.PHONY: $(MICROSERVICES) $(DOCKERS) iterate test clean down rm-volumes stop tail run up deploy fmt list-subnets list-subnets-all kill stop-container auto-configure discover
+.PHONY: $(MICROSERVICES) $(DOCKERS) build test clean update run fmt list-subnets list-subnets-all auto-configure discover
 
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 GIT_SHA=$(shell git rev-parse HEAD)
 
 GOFLAGS=-ldflags "-X github.impcloud.net/RSP-Inventory-Suite/device-llrp-go.Version=$(VERSION)"
 
-# default tail lines
-n = 100
-
-trap_ctrl_c = trap 'exit 0' INT;
 consul_url = http://localhost:8500
 
 build: $(MICROSERVICES)
 
-cmd/device-llrp:
+cmd/device-llrp-go:
 	$(GO) build $(GOFLAGS) -o $@ ./cmd
 
 test:
-	$(GO) test $(args) ./... -coverprofile=coverage.out
+	go test -coverprofile=coverage.out ./...
+	go vet ./...
+	./bin/test-attribution.sh
+	./bin/test-go-mod-tidy.sh
 
 clean:
 	rm -f $(MICROSERVICES)
+
+update:
+	$(GO) mod download
 
 docker: $(DOCKERS)
 
@@ -43,38 +42,8 @@ docker_device_llrp_go:
 		-t edgexfoundry/docker-device-llrp-go:$(VERSION)-dev \
 		.
 
-run: cmd/device-llrp
+run: cmd/device-llrp-go
 	cd ./cmd && ./device-llrp -cp=consul://localhost:8500 -confdir=res
-
-up:
-	$(DOCKER_COMPOSE) up
-
-deploy:
-	$(DOCKER_COMPOSE) up -d
-
-kill:
-	docker kill $(shell docker ps -qf name=llrp) || true
-
-stop-container:
-	docker stop $(shell docker ps -qf name=llrp) || true
-
-iterate: fmt
-	$(MAKE) -j docker stop-container
-	$(MAKE) deploy tail
-
-stop:
-	$(DOCKER_COMPOSE) stop
-
-down:
-	$(DOCKER_COMPOSE) down
-
-tail:
-	$(trap_ctrl_c) docker logs -f --tail $(n) $(shell docker ps -qf name=llrp)
-
-rm-volumes:
-	for x in $$(docker volume ls -q | grep 'device-llrp'); do \
-  		docker volume rm $$x; \
-	done
 
 fmt:
 	go fmt ./...

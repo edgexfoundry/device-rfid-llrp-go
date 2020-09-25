@@ -18,7 +18,7 @@
 
 .idea/
 vendor/
-cmd/device-llrp
+cmd/device-llrp-go
 glide.lock
 go.sum
 
