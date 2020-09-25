@@ -1448,7 +1448,7 @@ func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 		TransmitPowerLevels: []TransmitPowerLevelTableEntry{
 			{
 				Index:              32768,
-				TransmitPowerValue: uint16(32768),
+				TransmitPowerValue: int16(-1),
 			},
 		},
 		FrequencyInformation: FrequencyInformation{
@@ -1489,7 +1489,7 @@ func TestUHFBandCapabilities_roundTrip(t *testing.T) {
 func TestTransmitPowerLevelTableEntry_roundTrip(t *testing.T) {
 	p := TransmitPowerLevelTableEntry{
 		Index:              32768,
-		TransmitPowerValue: uint16(32768),
+		TransmitPowerValue: int16(-1),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {

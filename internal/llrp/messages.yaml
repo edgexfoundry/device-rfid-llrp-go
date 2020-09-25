@@ -1799,10 +1799,10 @@ types:
       In LLRP, it's used for fractional dBi antenna gain values.
 
   - name: MillibelMilliwatt
-    storage: uint16
+    storage: int16
     description: >-
       MillibelMilliwatt is dBm*100, i.e. 0.01dBm or 1 millibel milliwatt.
-      In LLRP, it's used primarily for fractional dBm transmit power values.
+      In LLRP, it's used for fractional dBm transmit power values.
 
   - name: Decibel
     storage: uint16

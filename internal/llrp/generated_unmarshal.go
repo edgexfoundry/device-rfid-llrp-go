@@ -1977,7 +1977,7 @@ func (p *TransmitPowerLevelTableEntry) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	p.Index = binary.BigEndian.Uint16(data)
-	p.TransmitPowerValue = binary.BigEndian.Uint16(data[2:])
+	p.TransmitPowerValue = MillibelMilliwatt(binary.BigEndian.Uint16(data[2:]))
 	return nil
 }
 
