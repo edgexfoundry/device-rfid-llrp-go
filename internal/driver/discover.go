@@ -16,6 +16,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"math/bits"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -486,12 +487,22 @@ func newDiscoveredDevice(info *discoveryInfo) dsModels.DiscoveredDevice {
 		}
 	}
 
+	// Note that we are adding vendorPEN to the protocol properties in order to
+	// allow the provision watchers to be able to match against that info. Currently
+	// that is the only thing the provision watchers use for matching against.
+	//
+	// We would prefer to put the vendorPEN, and possibly model and fw version
+	// in a separate "protocol", possibly named "metadata", however there is a bug in the
+	// current logic that does not allow this.
+	//
+	// see: https://github.com/edgexfoundry/device-sdk-go/issues/598
 	return dsModels.DiscoveredDevice{
 		Name: info.deviceName,
 		Protocols: map[string]contract.ProtocolProperties{
 			"tcp": {
-				"host": info.host,
-				"port": info.port,
+				"host":      info.host,
+				"port":      info.port,
+				"vendorPEN": strconv.FormatUint(uint64(info.vendor), 10),
 			},
 		},
 		Description: "LLRP RFID Reader",

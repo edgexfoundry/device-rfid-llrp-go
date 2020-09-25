@@ -166,6 +166,11 @@ func TestAutoDiscoverNaming(t *testing.T) {
 			if err := emu.StartAsync(scanPort); err != nil {
 				t.Fatalf("unable to start emulator: %+v", err)
 			}
+			defer func() {
+				if err := emu.Shutdown(); err != nil {
+					t.Errorf("error shutting down test emulator: %s", err.Error())
+				}
+			}()
 
 			readerConfig := llrp.GetReaderConfigResponse{
 				Identification: &test.identity,
@@ -183,13 +188,18 @@ func TestAutoDiscoverNaming(t *testing.T) {
 
 			discovered := autoDiscover(ctx, params)
 			if len(discovered) != 1 {
-				t.Errorf("expected 1 discovered device, however got: %d", len(discovered))
-			} else if discovered[0].Name != test.name {
-				t.Errorf("expected discovered device's name to be %s, but was: %s", test.name, discovered[0].Name)
+				t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 			}
 
-			if err := emu.Shutdown(); err != nil {
-				t.Errorf("error shutting down test emulator: %s", err.Error())
+			if discovered[0].Name != test.name {
+				t.Errorf("expected discovered device's name to be %s, but was: %s", test.name, discovered[0].Name)
+			}
+			pen, ok := discovered[0].Protocols["tcp"]["vendorPEN"]
+			if !ok {
+				t.Fatalf("Missing vendorPEN field in tcp protocol. ProtocolMap: %+v", discovered[0].Protocols)
+			}
+			if pen != strconv.FormatUint(uint64(test.caps.DeviceManufacturer), 10) {
+				t.Errorf("expected vendorPEN to be %v, but was: %s", test.caps.DeviceManufacturer, pen)
 			}
 		})
 	}

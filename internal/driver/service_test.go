@@ -63,11 +63,6 @@ func (s *MockSDKService) AddDevice(device contract.Device) (id string, err error
 	return device.Id, nil
 }
 
-func (s *MockSDKService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
-	// todo: implement mock
-	return nil
-}
-
 func (s *MockSDKService) DriverConfigs() map[string]string {
 	return s.Config
 }
@@ -93,6 +88,14 @@ func (s *MockSDKService) UpdateDeviceOperatingState(deviceName string, state str
 	return fmt.Errorf("device with name %s not found", deviceName)
 }
 
-func (s *MockSDKService) SetDeviceOpState(name string, state contract.OperatingState) error {
+func (s *MockSDKService) SetDeviceOpState(_ string, _ contract.OperatingState) error {
 	return errors.New("Method not implemented.")
+}
+
+func (s *MockSDKService) GetProvisionWatcherByName(_ string) (contract.ProvisionWatcher, error) {
+	return contract.ProvisionWatcher{}, errors.New("Method not implemented.")
+}
+
+func (s *MockSDKService) AddProvisionWatcher(_ contract.ProvisionWatcher) (id string, err error) {
+	return "", errors.New("Method not implemented.")
 }

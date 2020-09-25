@@ -6,7 +6,6 @@
 package driver
 
 import (
-	"fmt"
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
@@ -20,33 +19,19 @@ type ServiceWrapper interface {
 	GetDeviceByName(name string) (contract.Device, error)
 	UpdateDevice(device contract.Device) error
 	UpdateDeviceOperatingState(deviceName string, state string) error
+	GetProvisionWatcherByName(name string) (contract.ProvisionWatcher, error)
+	AddProvisionWatcher(watcher contract.ProvisionWatcher) (id string, err error)
 
 	// Pass-through
 	DriverConfigs() map[string]string
 
 	// Custom functionality or macros
-	AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error
-
 	SetDeviceOpState(name string, state contract.OperatingState) error
 }
 
 type DeviceSDKService struct {
 	*service.Service
 	lc logger.LoggingClient
-}
-
-func (s *DeviceSDKService) AddOrUpdateProvisionWatcher(watcher contract.ProvisionWatcher) error {
-	existing, err := s.GetProvisionWatcherByName(watcher.Name)
-
-	if err != nil {
-		s.lc.Info(fmt.Sprintf("Adding provision watcher: %s", watcher.Name))
-		_, err = s.AddProvisionWatcher(watcher)
-	} else {
-		s.lc.Info(fmt.Sprintf("Updating provision watcher: %s", existing.Name))
-		err = s.UpdateProvisionWatcher(existing)
-	}
-
-	return err
 }
 
 // DriverConfigs retrieves the driver specific configuration
