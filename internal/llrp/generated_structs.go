@@ -16,19 +16,23 @@ type DecibelMilliwatt16 = int16
 type DecibelMilliwatt8 = int8
 
 // MillibelIsotropic is dBi*100, i.e., 0.01dBi (decibel relative isotropic). In LLRP, it's
-// used for fractional dBi antenna gain values.
-type MillibelIsotropic = uint16
+// used to represent antenna gain values. It's scaled by 100 to allow accurate
+// representation at sub-dBm precision.
+type MillibelIsotropic = int16
 
 // MillibelMilliwatt is dBm*100, i.e. 0.01dBm or 1 millibel milliwatt. In LLRP, it's used
-// primarily for fractional dBm transmit power values.
-type MillibelMilliwatt = uint16
+// to represent transmit power values. It's scaled by 100 to allow accurate representation
+// at sub-dBm precision.
+type MillibelMilliwatt = int16
 
 // Decibel is 1/10 of a bel, which is the either the log10 of the ratio of a power
 // quantity relative a reference, or 2*log10 of the ratio of an amplitude quantity
 // relative a reference field.
 //
-// In LLRP, it's used primarily for receive sensitivity values relative the device maximum
-// sensitivity.
+// In LLRP, it's used for receive sensitivity values relative the device maximum
+// sensitivity. Although in general dBm values may be negative, LLRP restricts the
+// ReceiveSensitivityTable's values to 0 to 128, though they require them to be
+// transmitted using 16 bits.
 type Decibel = uint16
 
 // Microsecs64 is a 64-bit number of microseconds.
