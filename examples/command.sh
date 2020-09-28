@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-#
-#
-# Copyright (C) 2020 Intel Corporation
-#
-# SPDX-License-Identifier: Apache-2.0
-#
 
 # command.sh - simple script to interact with EdgeX's core-command
 #   to see and manipulate ROs, reader config, and reader capabilities.

@@ -1,10 +1,3 @@
-#
-#
-# Copyright (C) 2020 Intel Corporation
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-
 # This example uses the standalone cmd/llrp executable
 # to connect to an Impinj Reader, send it Custom messages,
 # singulating for 5s, and reading the TID of each tag.
