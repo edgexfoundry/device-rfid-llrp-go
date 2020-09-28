@@ -2986,7 +2986,7 @@ func (p *AntennaProperties) UnmarshalBinary(data []byte) error {
 	}
 	p.AntennaConnected = data[0]>>7 != 0
 	p.AntennaID = AntennaID(binary.BigEndian.Uint16(data[1:]))
-	p.AntennaGain = binary.BigEndian.Uint16(data[3:])
+	p.AntennaGain = MillibelIsotropic(binary.BigEndian.Uint16(data[3:]))
 	return nil
 }
 

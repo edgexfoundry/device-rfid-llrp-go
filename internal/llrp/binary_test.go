@@ -2043,7 +2043,7 @@ func TestAntennaProperties_roundTrip(t *testing.T) {
 	p := AntennaProperties{
 		AntennaConnected: true,
 		AntennaID:        1,
-		AntennaGain:      uint16(32768),
+		AntennaGain:      int16(-1),
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
