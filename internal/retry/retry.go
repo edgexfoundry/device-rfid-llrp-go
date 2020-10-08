@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"math"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -34,6 +35,9 @@ var (
 		Jitter:   true,
 		KeepErrs: 10,
 	}
+
+	ErrRetriesExceeded     = errors.New("retries exceeded")
+	ErrWaitExceedsDeadline = errors.New("waiting would exceed the Deadline")
 )
 
 // Forever can be used as a number of retries to retry forever.
@@ -49,7 +53,7 @@ type Func func(ctx context.Context) (bool, error)
 // FError records errors accumulated during each execution of f.
 // FError is only returned if every f() attempt fails or retries are canceled.
 //
-// FError.Latest records the most recent error returned by f(),
+// FError.mainErr records the most recent error returned by f(),
 // which may be the result of context.Error().
 //
 // If len(FError.Others) > 0, each error it holds is non-nil;
@@ -57,12 +61,47 @@ type Func func(ctx context.Context) (bool, error)
 // if retries are canceled or if the capacity is limited by the retry mechanism.
 // In the latter case, they may be in a different order then f() attempts.
 type FError struct {
-	Latest error
-	Others []error
+	MainErr   error
+	Others    []error
+	max, last int
 }
 
-// Error returns a string describing the first error encountered during Retry;
-// it appends any errors encountered during attempts to the message,
+// newFError returns an *FError that defaults to ErrRetriesExceeded.
+func newFError(err error, maxErrs int) *FError {
+	return &FError{
+		MainErr: ErrRetriesExceeded,
+		Others:  []error{err},
+		last:    0,
+		max:     maxErrs,
+	}
+}
+
+// addErr adds newErr to the list of Others, possibly pushing out others.
+// If e.max == 0, this has no impact.
+func (e *FError) addErr(newErr error) {
+	if e.max == 0 {
+		return
+	}
+
+	if len(e.Others) < e.max {
+		e.Others = append(e.Others, newErr)
+		return
+	}
+
+	e.Others[e.last] = newErr
+	e.last++
+	if e.last >= len(e.Others) {
+		e.last = 0
+	}
+}
+
+// Unwrap returns the MainErr for this FError.
+func (e *FError) Unwrap() error {
+	return e.MainErr
+}
+
+// Error returns a string describing the MainError the caused FError,
+// followed by any saved errors encountered during each Retry attempt,
 // separated by newlines and indented by one tab.
 func (e *FError) Error() string {
 	if e == nil {
@@ -70,60 +109,82 @@ func (e *FError) Error() string {
 	}
 
 	if len(e.Others) == 0 {
-		return e.Latest.Error()
+		return e.MainErr.Error()
 	}
 
 	errs := make([]string, len(e.Others))
-	for i, e := range e.Others {
-		errs[i] = fmt.Sprintf("attempt %d: %v", i+1, e)
-		for errors.Cause(e) != e {
-			e = errors.Cause(e)
-			if e == nil {
+	eIdx := e.last
+	for i := range e.Others {
+		err := e.Others[eIdx]
+		eIdx++
+		if eIdx >= len(e.Others) {
+			eIdx = 0
+		}
+
+		errs[i] = fmt.Sprintf("attempt %d: %v", i+1, err)
+		for errors.Unwrap(err) != err {
+			err = errors.Unwrap(err)
+			if err == nil {
 				break
 			}
-			errs[i] += fmt.Sprintf("\n\t\tdue to: %v", e)
+			errs[i] += fmt.Sprintf("\n\t\tdue to: %v", err)
 		}
 	}
+
 	return fmt.Sprintf("%s after %d attempts:\n\t%s",
-		e.Latest.Error(), len(errs), strings.Join(errs, "\n\t"))
+		e.MainErr.Error(), len(errs), strings.Join(errs, "\n\t"))
 }
 
-// As tests whether this FError matches the target.
+// Is tests whether FError matches a target.
 //
-// If target is a **FError, As sets it and returns true.
+// If the target is not an *FError,
+// this returns true if MainErr matches the target,
+// or if _all_ the Other errors in FError match the target,
+// as determined by errors.Is(e.Others[i], target).
 //
-// If not, then tests As on _all_ of the sub Errors,
-// and only returns true if _all_ of those return true.
-// In that case, target is set to the final error in Errors.
-//
-// If any of the sub errors fail to match the target, this returns false.
-func (e *FError) As(target interface{}) bool {
-	if e == nil {
-		return false
-	}
+// If the target is an *FError, this compares their MainErr and Others errors.
+// It returns true if errors.Is(e.MainErr, target.MainErr) is true,
+// they have the same number of errors in Others,
+// and errors.Is(e.Others[i], target.Others[i]) is true for all i.
+func (e *FError) Is(target error) bool {
+	fe, ok := target.(*FError)
 
-	if re, ok := target.(*FError); ok {
-		*re = *e
+	// If target is not an FError, either MainErr or Others must match.
+	if !ok {
+		// If MainErr matches target, it's a match.
+		if errors.Is(e.MainErr, target) {
+			return true
+		}
+
+		// Otherwise, _all_ Others must match.
+		for _, err := range e.Others {
+			if !errors.Is(err, target) {
+				return false
+			}
+		}
+
 		return true
 	}
 
-	if len(e.Others) == 0 {
+	// Since target is an FError, directly compare MainErr & Others.
+	if !errors.Is(e.MainErr, fe.MainErr) || len(e.Others) != len(fe.Others) {
 		return false
 	}
 
-	for _, err := range e.Others {
-		if !errors.As(err, target) {
+	for i := range e.Others {
+		if !errors.Is(e.Others[i], fe.Others[i]) {
 			return false
 		}
 	}
-
 	return true
 }
 
 // ExpBackOff is used to call a function multiple times,
-// waiting an exponentially increasing amount of time between attempts,
+// waiting an exponentially increasing amount of time between attempts.
 //
-// Between attempts, Retry waits a multiple of BackOff.
+// ExpBackOff holds parameters for use in its Retry method.
+// Between attempts, Retry waits a multiple of BackOff,
+// where the multiple is
 // The multiple is based on the number of attempts and the value of jitter.
 //
 // If Jitter is true, then
@@ -153,7 +214,7 @@ type ExpBackOff struct {
 // If the program receives SIGINT or SIGKILL, the retries are canceled;
 // use RetryWithCtx if you wish to control this behavior.
 //
-// If Retry returns non-nil, it is of type *retry.Error.
+// If Retry returns non-nil, it is of type *FError.
 func (ebo ExpBackOff) Retry(retries int, f func() error) error {
 	return ebo.RetrySome(retries, func() (bool, error) { return true, f() })
 }
@@ -166,7 +227,7 @@ func (ebo ExpBackOff) Retry(retries int, f func() error) error {
 //
 // This last condition can be controlled by using RetryWithCtx instead.
 //
-// Errors received from f are wrapped in *retry.Error.
+// Errors received from f are wrapped in *FError.
 func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err error)) error {
 	run := func(_ context.Context) (bool, error) {
 		return f()
@@ -193,8 +254,9 @@ func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err err
 	return ebo.RetryWithCtx(ctx, retries, run)
 }
 
-// RetryWithCtx works like f, but allows a custom context,
-// which is passed to f unmodified.
+// RetryWithCtx works like RetrySome, but allows a custom context,
+// which may be used to cancel during waits between attempts.
+// The context is passed to f unmodified.
 //
 // Regardless of the return values of f, if the context is canceled,
 // Retry will not continue calling f;
@@ -212,30 +274,11 @@ func (ebo ExpBackOff) RetrySome(retries int, f func() (recoverable bool, err err
 // As a result, at the beginning of f's execution,
 // it's unlikely (though possible) that ctx is canceled or past its deadline.
 func (ebo ExpBackOff) RetryWithCtx(ctx context.Context, retries int, f Func) error {
-	return Try(ctx, retries, ebo.KeepErrs, ebo.BackOff, ebo.Max, ebo.Jitter, f)
-}
-
-func addErr(attempt, maxErrs int, fErr *FError, newErr error) {
-	if fErr.Latest != nil {
-		if len(fErr.Others) < maxErrs {
-			fErr.Others = append(fErr.Others, newErr)
-		} else if maxErrs > 0 {
-			idx := attempt % len(fErr.Others)
-			fErr.Others[idx] = fErr.Latest
-		}
+	// Check if the context is already expired.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return &FError{MainErr: ctxErr}
 	}
 
-	fErr.Latest = newErr
-}
-
-// Try attempts f up to retries times until it returns false or nil,
-// delaying by a multiple of backOff between attempts, up to the max delay.
-//
-// If the return is non-nil, it is of type *retry.Error.
-//
-// See ExpBackOff and the package instances of ExpBackOff for more information
-// and an easier-to-use API.
-func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, jitter bool, f Func) error {
 	// if f is successful, avoid all the other work
 	cont, err := f(ctx)
 	if err == nil {
@@ -243,37 +286,48 @@ func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, 
 	}
 
 	// the retry error to collect f's errors; we'll return this if f never returns non-nil
-	re := &FError{Latest: err}
+	// re := &FError{Latest: err}
+	re := newFError(err, ebo.KeepErrs)
 	if !cont {
+		re.MainErr = ErrRetriesExceeded
 		return re
 	}
 
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		addErr(0, maxErrs, re, ctx.Err())
-		return re
+	if ebo.Max <= 0 {
+		ebo.Max = math.MaxInt64
 	}
 
-	wait := backOff
-	delay := time.NewTimer(wait)
-	defer func() {
-		if !delay.Stop() {
-			<-delay.C
-		}
-	}()
+	if ebo.BackOff <= 0 {
+		ebo.BackOff = 1
+	}
+
+	// Create a timer, but immediately stop it (and drain it if necessary).
+	// Go Timers have a bit of an annoying API,
+	// and they require a lot of care to prevent resource leaks and deadlock.
+	delay := time.NewTimer(ebo.BackOff)
+	if !delay.Stop() {
+		<-delay.C
+	}
 
 	deadline, hasDeadline := ctx.Deadline()
 
 	// start at 1 since we've already tried once
 	for attempt := 1; retries == Forever || attempt < retries; attempt++ {
+		wait := ebo.nextWait(attempt)
 		if hasDeadline && time.Now().Add(wait).After(deadline) {
-			addErr(attempt, maxErrs, re, errors.New("waiting would exceed Deadline"))
+			re.MainErr = ErrWaitExceedsDeadline
 			return re
 		}
+
+		delay.Reset(wait)
 
 		// wait for next attempt
 		select {
 		case <-ctx.Done():
-			addErr(attempt, maxErrs, re, ctx.Err())
+			re.MainErr = ctx.Err()
+			if !delay.Stop() {
+				<-delay.C
+			}
 			return re
 		case <-delay.C:
 		}
@@ -284,29 +338,44 @@ func Try(ctx context.Context, retries, maxErrs int, backOff, max time.Duration, 
 			return nil
 		}
 
-		addErr(attempt, maxErrs, re, err)
 		if !cont {
+			re.MainErr = err
 			return re
 		}
 
-		if jitter {
-			n := int64(1 << attempt)
-			if n <= 2 { // handles overflow as a side benefit
-				n = 2
-			}
-			wait = backOff * time.Duration(rand.Int63n(n))
-		} else {
-			wait = backOff * (1 << attempt)
-		}
-
-		// handle overflow and max
-		if wait <= 0 || (max > 0 && wait > max) {
-			wait = max
-		}
-
-		delay.Reset(wait)
+		re.addErr(err)
 	}
 
-	addErr(0, maxErrs, re, errors.New("retries exceeded"))
+	re.MainErr = ErrRetriesExceeded
 	return re
+}
+
+func (ebo ExpBackOff) nextWait(attempt int) time.Duration {
+	if attempt == 0 {
+		return 0
+	}
+
+	var wait time.Duration
+
+	if ebo.Jitter {
+		// Choose a random value in [1, pow(2, attempts)-1]
+		// and multiply it by the BackOff value.
+		n := attempt
+		if attempt >= 64 || attempt < 0 {
+			n = 63
+		}
+
+		wait = ebo.BackOff * time.Duration(1+rand.Int63n(int64(1<<n)-1))
+	} else if 0 < attempt && attempt <= 63 {
+		wait = ebo.BackOff * ((1 << attempt) - 1)
+	} else {
+		wait = ebo.Max
+	}
+
+	// Handle overflow, and cutoff at the max value.
+	if !(0 < wait && wait <= ebo.Max) {
+		wait = ebo.Max
+	}
+
+	return wait
 }
