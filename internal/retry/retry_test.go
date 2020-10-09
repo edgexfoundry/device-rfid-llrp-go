@@ -276,90 +276,113 @@ func TestExpBackOff_RetryWithCtx_deadline(t *testing.T) {
 	}
 }
 
-func TestExpBackOff_nextWait(t *testing.T) {
-	checkEBO := func(jitter bool, attempt, bko, max, exp int) (ok bool) {
-		bko &= 0x7fff_ffff_ffff_ffff
-		max &= 0x7fff_ffff_ffff_ffff
-
-		ebo := ExpBackOff{
-			BackOff: time.Duration(bko),
-			Max:     time.Duration(max),
-			Jitter:  jitter,
-		}
-
-		w := ebo.nextWait(attempt)
-
-		if attempt == 0 {
-			if w != 0 {
-				t.Errorf("ebo %+v: expected 0, got %d", ebo, w)
-				return false
-			}
-			return true
-		}
-
-		if jitter {
-			if w > time.Duration(exp) {
-				t.Errorf("ebo %+v: expected %d, got %d", ebo, exp, w)
-				return false
-			}
-			return true
-		}
-
-		if time.Duration(exp) != w {
-			t.Errorf("ebo %+v: expected %d, got %d", ebo, exp, w)
-			return false
-		}
-
-		return true
+func checkEBO(t *testing.T, jitter bool, attempt, bko, max, exp int) (ok bool) {
+	t.Helper()
+	ebo := ExpBackOff{
+		BackOff: time.Duration(bko),
+		Max:     time.Duration(max),
+		Jitter:  jitter,
 	}
 
+	w := ebo.nextWait(attempt)
+	ok = true
+
+	if w < 0 {
+		t.Errorf("ebo %+v: got negative duration: %d", ebo, w)
+		ok = false
+	}
+
+	if attempt == 0 && w != 0 {
+		t.Errorf("ebo %+v: expected 0, got %d", ebo, w)
+		ok = false
+	}
+
+	if jitter {
+		if time.Duration(exp) < w/2 {
+			t.Errorf("ebo %+v: expected <= %d, got %d", ebo, exp, w/2)
+			ok = false
+		}
+	} else if time.Duration(exp) != w {
+		t.Errorf("ebo %+v: expected %d, got %d", ebo, exp, w)
+		ok = false
+	}
+
+	return ok
+}
+
+func TestExpBackOff_nextWait(t *testing.T) {
 	for _, tc := range []struct{ attempt, bko, max, exp int }{
+		{-1, 1, 50, 0},
+		{-2, 1, 50, 0},
 		{0, 1, 50, 0},
 		{1, 1, 50, 1},
-		{2, 1, 50, 3},
-		{3, 1, 50, 7},
-		{4, 1, 50, 15},
-		{5, 1, 50, 31},
-		{6, 1, 50, 50},
-		{-1, 1, 50, 50},
-		{-2, 1, 50, 50},
+		{2, 1, 50, 2},
+		{3, 1, 50, 4},
+		{4, 1, 50, 8},
+		{5, 1, 50, 16},
+		{6, 1, 50, 32},
+		{7, 1, 50, 50},
+		{8, 1, 50, 50},
+		{61, 1, 50, 50},
+		{62, 1, 50, 50},
+		{63, 1, 50, 50},
+		{64, 1, 50, 50},
+		{65, 1, 50, 50},
 
-		// backoff of 2
-		{0, 2, 50, 0},
-		{1, 2, 50, 2},
-		{2, 2, 50, 6},
-		{3, 2, 50, 14},
-		{4, 2, 50, 30},
-		{5, 2, 50, 50},
-		{6, 2, 50, 50},
-		{-1, 2, 50, 50},
-		{-2, 2, 50, 50},
+		// backoff of 3
+		{-1, 3, 50, 0},
+		{-2, 3, 50, 0},
+		{0, 3, 50, 0},
+		{1, 3, 50, 3},
+		{2, 3, 50, 6},
+		{3, 3, 50, 12},
+		{4, 3, 50, 24},
+		{5, 3, 50, 48},
+		{6, 3, 50, 50},
 
-		// backoff of 0 always give max (except for attempt 0)
+		// backoff of 0 always gives 0 or max
+		{-1, 0, 100, 0},
+		{-2, 0, 100, 0},
 		{0, 0, 100, 0},
 		{1, 0, 100, 100},
 		{2, 0, 100, 100},
 		{3, 0, 100, 100},
 		{4, 0, 100, 100},
-		{-1, 0, 100, 100},
-		{-2, 0, 100, 100},
+		{61, 0, 100, 100},
+		{63, 0, 100, 100},
+		{66, 0, 100, 100},
+
+		// if max is 0, then so should be all results
+		{-1, 0, 0, 0},
+		{-2, 3, 0, 0},
+		{0, 10, 0, 0},
+		{1, 20, 0, 0},
+		{2, 30, 0, 0},
+		{32, 30, 0, 0},
+		{64, 130, 0, 0},
 
 		// backoff huge
+		{-1, (1 << 63) - 1, 50, 0},
+		{-2, (1 << 63) - 1, 50, 0},
 		{0, (1 << 63) - 1, 50, 0},
 		{1, (1 << 63) - 1, 50, 50},
 		{2, (1 << 63) - 1, 50, 50},
 		{3, (1 << 63) - 1, 50, 50},
-		{-1, (1 << 63) - 1, 50, 50},
-		{-2, (1 << 63) - 1, 50, 50},
 	} {
-		checkEBO(false, tc.attempt, tc.bko, tc.max, tc.exp)
-		checkEBO(true, tc.attempt, tc.bko, tc.max, tc.exp)
+		if !checkEBO(t, false, tc.attempt, tc.bko, tc.max, tc.exp) {
+			t.Logf("	%v", tc)
+		}
+		if !checkEBO(t, true, tc.attempt, tc.bko, tc.max, tc.exp) {
+			t.Logf("	%v", tc)
+		}
 	}
 
-	if err := quick.Check(func(attempt, backoff, max int) bool {
+	if err := quick.Check(func(backoff, max int) bool {
+		backoff &= 0x7fff_ffff_ffff_ffff
+		max &= 0x7fff_ffff_ffff_ffff
 		exp := max & 0x7fff_ffff_ffff_ffff
-		t1 := checkEBO(false, attempt, backoff, max, exp)
-		t2 := checkEBO(true, attempt, backoff, max, exp)
+		t1 := checkEBO(t, false, 100, backoff, max, exp)
+		t2 := checkEBO(t, true, 100, backoff, max, exp)
 		return t1 && t2
 	}, nil); err != nil {
 		t.Error(err)

@@ -21,6 +21,8 @@ import (
 
 var (
 	// Quick expects that failure conditions resolve quickly.
+	// The first 10 attempts accumulate about a minute of total wait time,
+	// after which each attempt occurs ~30 seconds after the previous.
 	Quick = ExpBackOff{
 		BackOff:  50 * time.Millisecond,
 		Max:      30 * time.Second,
@@ -29,6 +31,8 @@ var (
 	}
 
 	// Slow expects that failure conditions may take awhile to resolve.
+	// The first 10 attempts accumulate about an hour of total wait time,
+	// after which each subsequent event occurs ~30 minutes after the previous.
 	Slow = ExpBackOff{
 		BackOff:  5 * time.Second,
 		Max:      30 * time.Minute,
@@ -36,7 +40,12 @@ var (
 		KeepErrs: 10,
 	}
 
-	ErrRetriesExceeded     = errors.New("retries exceeded")
+	// ErrRetriesExceeded is returned as the MainErr of an FError
+	// when a Retry operation fails more times than permitted.
+	ErrRetriesExceeded = errors.New("retries exceeded")
+
+	// ErrWaitExceedsDeadline is returned if the wait time before the next attempt
+	// exceeds a Deadline present on a context.Context associated with the operation.
 	ErrWaitExceedsDeadline = errors.New("waiting would exceed the Deadline")
 )
 
@@ -50,11 +59,54 @@ const Forever = -1
 // or false if the error will never recover on its own.
 type Func func(ctx context.Context) (bool, error)
 
+// ExpBackOff is used to call a function multiple times,
+// waiting an exponentially increasing amount of time between attempts.
+//
+// ExpBackOff holds parameters for use in its Retry method.
+// Between attempts, Retry waits multiple of the BackOff duration,
+// where the multiple increases exponentially with the number of attempts.
+// The delay between attempts will never exceed Max.
+//
+// If Jitter is false, the multiple is simply increasing powers of 2.
+// If Jitter is true, the multiple is a pseudo-random integer
+// selected with equal probability from an interval twice the non-Jitter size,
+// so that the expected value of both is the same.
+//
+// Concretely, if BackOff is 1s, the expected delay between attempt n and n+1 is
+// 1s, 2s, 4s, 16s, etc., and the total wait up to attempt n is 1s, 3s, 7s, 15s, etc.
+// With Jitter, these are the exact wait times (up to the OS-precision, of course),
+// whereas with Jitter, these are the mean wait times.
+// Changing the BackOff duration scales these linearly:
+// a BackOff of 3s yields expected waits of 3s, 6s, 12s, etc.
+//
+// If KeepErrs is <=0, a failed Retry returns an *FError with only the MainError.
+// If it's >0, it limits the maximum number of Other errors *FError records.
+//
+// Since the zero value has a Max duration of 0,
+// it retries the function as fast as possible.
+// The global package variables can be used for common Retry behavior,
+// otherwise create a new ExpBackOff with values appropriate for your use.
+type ExpBackOff struct {
+	BackOff  time.Duration
+	Max      time.Duration
+	KeepErrs int
+	Jitter   bool
+}
+
 // FError records errors accumulated during each execution of f.
 // FError is only returned if every f() attempt fails or retries are canceled.
 //
-// FError.mainErr records the most recent error returned by f(),
-// which may be the result of context.Error().
+// If a call to one of the Retry methods results in a successful call of f(),
+// any errors accumulated during the operation are discarded.
+// Since it cannot be known whether or not f() will eventually be successful,
+// this structure provides some history of those errors
+// along with some stdlib-compatible methods for reviewing those errors.
+//
+// FError.MainErr records the main reason the Retry operation failed.
+// This may be ErrRetriesExceeded, ErrWaitExceedsDeadline,
+// the non-nil return value from calling Err() on a user-supplied context.Context,
+// or a non-nil error returned by f() itself.
+// Calls to FError.Unwrap return this value.
 //
 // If len(FError.Others) > 0, each error it holds is non-nil;
 // however, it may contain fewer errors than the maximum number of attempts,
@@ -63,6 +115,7 @@ type Func func(ctx context.Context) (bool, error)
 type FError struct {
 	MainErr   error
 	Others    []error
+	Attempts  int
 	max, last int
 }
 
@@ -76,9 +129,14 @@ func newFError(err error, maxErrs int) *FError {
 	}
 }
 
-// addErr adds newErr to the list of Others, possibly pushing out others.
-// If e.max == 0, this has no impact.
+// addErr adds newErr to the list of Others, possibly pushing out older errors.
+// It increments its count of the total number of attempts,
+// saturating it if addition would otherwise overflow.
 func (e *FError) addErr(newErr error) {
+	if e.Attempts+1 > 0 {
+		e.Attempts++
+	}
+
 	if e.max == 0 {
 		return
 	}
@@ -115,13 +173,13 @@ func (e *FError) Error() string {
 	errs := make([]string, len(e.Others))
 	eIdx := e.last
 	for i := range e.Others {
-		err := e.Others[eIdx]
 		eIdx++
 		if eIdx >= len(e.Others) {
 			eIdx = 0
 		}
 
-		errs[i] = fmt.Sprintf("attempt %d: %v", i+1, err)
+		err := e.Others[eIdx]
+		errs[i] = fmt.Sprintf("attempt %d: %v", e.Attempts-i, err)
 		for errors.Unwrap(err) != err {
 			err = errors.Unwrap(err)
 			if err == nil {
@@ -177,36 +235,6 @@ func (e *FError) Is(target error) bool {
 		}
 	}
 	return true
-}
-
-// ExpBackOff is used to call a function multiple times,
-// waiting an exponentially increasing amount of time between attempts.
-//
-// ExpBackOff holds parameters for use in its Retry method.
-// Between attempts, Retry waits a multiple of BackOff,
-// where the multiple is
-// The multiple is based on the number of attempts and the value of jitter.
-//
-// If Jitter is true, then
-// the multiple is a random int in [0, 1<<attempts);
-// the expected delay between attempt n and n+1 is 0.5*BackOff*(pow(2, n)-1).
-//
-// If Jitter is false, then
-// the multiple is just 1 << attempts;
-// the exact delay between attempt n and n+1 is BackOff*(pow(2, n)-1).
-//
-// In either case, delay will never exceed Max.
-//
-// If KeepErrs is <=0, it only records the most recent error.
-// If it's >0, it limits the maximum number of errors to record.
-//
-// The zero value retries the function as fast as possible
-// and only records the most recent error.
-type ExpBackOff struct {
-	BackOff  time.Duration
-	Max      time.Duration
-	Jitter   bool
-	KeepErrs int
 }
 
 // Retry attempts f up to retries number of times until it returns nil.
@@ -350,30 +378,38 @@ func (ebo ExpBackOff) RetryWithCtx(ctx context.Context, retries int, f Func) err
 	return re
 }
 
-func (ebo ExpBackOff) nextWait(attempt int) time.Duration {
-	if attempt == 0 {
+// nextWait returns the Duration that should occur between attempt n and n+1;
+// that is, the parameter attempts represents the number of previously failed attempts.
+//
+// For all values <= 0, this returns 0.
+//
+// Otherwise, it's the min of the Max and some multiple of the BackOff,
+// where the multiple is either simply 2^(attempts-1) (when Jitter is false)
+// or it's a random value with expected value of 2^(attempts-1) (when Jitter is true).
+// Note that if Jitter is true, it is valid for the returned duration to be 0.
+func (ebo ExpBackOff) nextWait(attempts int) time.Duration {
+	if attempts <= 0 || ebo.Max == 0 {
 		return 0
+	}
+
+	if ebo.BackOff == 0 || attempts >= 63 {
+		return ebo.Max
 	}
 
 	var wait time.Duration
 
 	if ebo.Jitter {
-		// Choose a random value in [1, pow(2, attempts)-1]
-		// and multiply it by the BackOff value.
-		n := attempt
-		if attempt >= 64 || attempt < 0 {
-			n = 63
+		// Choose a random value in [0, 2^attempt) with uniform probability.
+		// The expected value is (1/2)*2^attempt = 2^(attempt-1).
+		s := time.Duration(rand.Int63n(1 << attempts))
+		if s > 0 && ebo.BackOff > ebo.Max/s {
+			wait = ebo.Max
+		} else {
+			wait = ebo.BackOff * s
 		}
-
-		wait = ebo.BackOff * time.Duration(1+rand.Int63n(int64(1<<n)-1))
-	} else if 0 < attempt && attempt <= 63 {
-		wait = ebo.BackOff * ((1 << attempt) - 1)
+	} else if ebo.BackOff <= ebo.Max/(1<<(attempts-1)) {
+		wait = ebo.BackOff * (1 << (attempts - 1))
 	} else {
-		wait = ebo.Max
-	}
-
-	// Handle overflow, and cutoff at the max value.
-	if !(0 < wait && wait <= ebo.Max) {
 		wait = ebo.Max
 	}
 

@@ -368,10 +368,14 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 
 		if renData.ConnectionAttemptEvent != nil &&
 			llrp.ConnectionAttemptEventType(*renData.ConnectionAttemptEvent) == llrp.ConnSuccess {
-			go l.onConnect(svc)
+			go func() {
+				// Don't send the event until after processing a possible OpState change.
+				l.onConnect(svc)
+				l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
+			}()
+		} else {
+			go l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
 		}
-
-		go l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
 	})
 }
 
