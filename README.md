@@ -513,13 +513,13 @@ The following are particularly useful:
 [test_helper]: internal/llrp/test_helpers.go
 
 ## Snap Development and Testing
-Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building the snap package for this Device LLRP Service
+Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building snap package for this Device LLRP Service
 ### Build Device LLRP Snap Packages
-Execut following commands from the root directory. Else, build will error out with `source not found` error message
+Execut following commands from the root directory, else build will error out with `source not found` error message
 - `snapcraft clean`
 - `snapcraft`
 
-On successful build `*.snap` (package name format -`snapName_versionNumber_architecture.snap`, eg - `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`) package will be created under the root directory
+On successful build, `*.snap` package (package name format -`snapName_versionNumber_architecture.snap`, eg - `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`) will be created under the root directory
 
 Always delete the old snap package before rebuilding.
 ### Install Device LLRP Snap Packages
@@ -539,6 +539,8 @@ At initialization, Device LLRP Service registeres itself with consul. Make sure 
 - `snap list`
 ##### Check Service Status
 - `systemctl status snap.edgex-device-llrp.device-llrp-go.service`
+##### Stop Service
+- `sudo snap stop edgex-device-llrp`
 ##### Remove Snap Package
 - `sudo snap remove edgex-device-llrp`
 ##### Check System log
