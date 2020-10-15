@@ -1,5 +1,18 @@
 # Device LLRP Go
 [![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
+
+## Table of contents
+
+* [Overview](#overview)
+* [First Run](#first-run)
+* [Device Discovery](#device-discovery)
+* [Device Profiles, Custom LLRP Messages, and Service Limitations](#device-profiles-custom-llrp-messages-and-service-limitations)
+* [Connection Management](connection-management)
+* [Example Scripts](example-scripts)
+* [Testing](testing)
+* [Snap Development and Testing](snap-development-and-testing)
+* [Footnotes](footnotes)
+
 ## Overview
 LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
 
@@ -498,6 +511,33 @@ The following are particularly useful:
 - `go doc llrp.GetFunctionalClient`
 
 [test_helper]: internal/llrp/test_helpers.go
+
+## Snap Development and Testing
+- Snap directory consists of the `snapcraft.yaml` file with initialization file `install` for building the snap package for tis Device LLRP Service
+### Build Device LLRP Snap Packages
+- Execut following commands from the root directory. Else, build will error out with `source not found` error message
+- `snapcraft clean`
+- `snapcraft`
+- On successful build `*.snap` (package name format -`snapName_versionNumber_architecture.snap`, eg - `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`) package will be created under the root directory
+- Always delete the old snap package before rebuilding.
+### Install Device LLRP Snap Packages
+- `sudo snap install --devmode --dangerous *.snap` 
+- Use list command to verify the installation of the snap package
+### Test Device LLRP Snap Packages
+#### Start Service
+- `sudo snap start edgex-device-llrp`
+- For successful initialization of the service there should be no errors in the logs
+- `sudo snap logs edgex-device-llrp`
+- At initialization, Device LLRP Service registeres itself with consul. Make sure consul is running before starting to avoid any errors.
+#### Helpful Commands
+##### List installed snap packages
+- `snap list`
+##### Check Service Status
+- `systemctl status snap.edgex-device-llrp.device-llrp-go.service`
+##### Remove Snap Package
+- `sudo snap remove edgex-device-llrp`
+##### Check System log
+- `journalctl -xe`
 
 ## Footnotes
 ### Notes on configuration.toml
