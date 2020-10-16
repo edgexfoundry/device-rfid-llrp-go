@@ -6,9 +6,9 @@
 package main
 
 import (
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/driver"
 	"github.com/edgexfoundry/device-sdk-go/pkg/startup"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/driver"
 )
 
 func main() {

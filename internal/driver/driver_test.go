@@ -8,8 +8,8 @@ package driver
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"testing"
 	"time"
 )

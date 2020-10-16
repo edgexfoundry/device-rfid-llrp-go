@@ -1,4 +1,4 @@
-The following open source projects are referenced by Device Service LLRP Go:
+The following open source projects are referenced by Device Service RFID LLRP Go:
 
 BurntSushi/toml (MIT) https://github.com/BurntSushi/toml
 https://github.com/BurntSushi/toml/blob/master/COPYING
