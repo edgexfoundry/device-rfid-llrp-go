@@ -53,7 +53,9 @@ const (
 	AttribVendor   = "vendor"
 	AttribSubtype  = "subtype"
 
-	provisionWatcherFolder = "res/provision_watchers"
+	// Note: For now disable the registration of provision watchers since we are not using them
+	registerProvisionWatchers = false
+	provisionWatcherFolder    = "res/provision_watchers"
 
 	GenericDeviceProfile = "Device.LLRP.Profile"
 	ImpinjDeviceProfile  = "Impinj.LLRP.Profile"
@@ -795,13 +797,15 @@ func (d *Driver) Discover() {
 	maxSeconds := driver.config.MaxDiscoverDurationSeconds
 	d.configMu.RUnlock()
 
-	provisionOnce.Do(func() {
-		err := d.addProvisionWatchers()
-		if err != nil {
-			d.lc.Error(err.Error())
-			return
-		}
-	})
+	if registerProvisionWatchers {
+		provisionOnce.Do(func() {
+			err := d.addProvisionWatchers()
+			if err != nil {
+				d.lc.Error(err.Error())
+				return
+			}
+		})
+	}
 
 	ctx := context.Background()
 	if maxSeconds > 0 {
