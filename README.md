@@ -513,8 +513,8 @@ The following are particularly useful:
 [test_helper]: internal/llrp/test_helpers.go
 
 ## Snap Development and Testing
-Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building snap package for this Device LLRP Service
-### Build Device LLRP Snap Packages
+Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building snap package for this Device RFID LLRP Service
+### Build Device RFID LLRP Snap Packages
 Execut following commands from the root directory, else build will error out with `source not found` error message
 - `snapcraft clean`
 - `snapcraft`
@@ -522,18 +522,20 @@ Execut following commands from the root directory, else build will error out wit
 On successful build, `*.snap` package (package name format -`snapName_versionNumber_architecture.snap`, eg - `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`) will be created under the root directory
 
 Always delete the old snap package before rebuilding.
-### Install Device LLRP Snap Packages
+### Install Device RFID LLRP Snap Packages
 - `sudo snap install --devmode --dangerous *.snap` 
 
 Use list command to verify the installation of the snap package
-### Test Device LLRP Snap Packages
+### Test Device RFID LLRP Snap Packages
 #### Start Service
 - `sudo snap start edgex-device-llrp`
 
 For successful initialization of the service there should be no errors in the logs
 - `sudo snap logs edgex-device-llrp`
 
-At initialization, Device LLRP Service registeres itself with consul. Make sure consul & other Edgex services are running before starting to avoid any errors.
+At initialization, Device RFID LLRP Service registers itself with consul. 
+Make sure Consul & other Edgex Snap packages are installed & services are running before starting Device RFID LLRP service , to avoid any errors.
+
 #### Helpful Commands
 ##### List installed snap packages
 - `snap list`
@@ -545,6 +547,8 @@ At initialization, Device LLRP Service registeres itself with consul. Make sure 
 - `sudo snap remove edgex-device-llrp`
 ##### Check System log
 - `journalctl -xe`
+##### Install EdgeX Snap Packages
+- `sudo snap install edgexfoundry`
 
 ## Footnotes
 ### Notes on configuration.toml
