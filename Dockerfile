@@ -40,8 +40,6 @@ FROM alpine:latest
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2020: Intel'
 
-LABEL Name=device-rfid-llrp-go Version=${VERSION}
-
 COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/LICENSE /
 COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/Attribution.txt /
 COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/cmd /
