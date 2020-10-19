@@ -38,7 +38,7 @@ RUN $MAKE
 FROM alpine:latest
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
-  copyright='Copyright (c) 2019: Intel'
+  copyright='Copyright (c) 2020: Intel'
 
 LABEL Name=device-rfid-llrp-go Version=${VERSION}
 

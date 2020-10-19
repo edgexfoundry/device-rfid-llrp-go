@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eu pipefail
+set -euo pipefail
 
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}
 url="${CONSUL_URL}/v1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Driver/DiscoverySubnets"
