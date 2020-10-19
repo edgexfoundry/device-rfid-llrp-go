@@ -158,7 +158,7 @@ func (e *FError) Unwrap() error {
 	return e.MainErr
 }
 
-// Error returns a string describing the MainError the caused FError,
+// Error returns a string describing the MainError that caused FError,
 // followed by any saved errors encountered during each Retry attempt,
 // separated by newlines and indented by one tab.
 func (e *FError) Error() string {
