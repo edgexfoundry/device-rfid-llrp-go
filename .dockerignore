@@ -1,16 +1,9 @@
-node_modules
-npm-debug.log
-Dockerfile*
-docker-compose*
-.dockerignore
-.git
-.gitignore
-.env
-*/bin
-*/obj
-README.md
-.vscode
-.idea/
+# Ignoring the go.sum file. There are checksum issues with
+# different versions of Golang. Remove once all Go versions
+# are in sync
 go.sum
-res/
-!res/docker*
+
+docker-compose*.yml
+coverage.out
+.idea
+.gitignore
