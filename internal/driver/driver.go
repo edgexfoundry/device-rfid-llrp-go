@@ -175,7 +175,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		}
 
 		d.lc.Info("Creating a new Reader connection.", "deviceName", device.Name)
-		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
+		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr, device.OperatingState)
 	}
 
 	return nil
@@ -615,14 +615,6 @@ func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState 
 // The Device Service SDK calls it when a Device is updated,
 // so this assumes the device is already registered with EdgeX.
 //
-// If the device's operating state is DISABLED,
-// then if the Driver is not managing the device, nothing happens.
-// If it is managing the device, it disconnects from it.
-//
-// If the device's operating state is ENABLED,
-// if the Driver isn't currently managing a device with the given name,
-// it'll create a new one and attempt to maintain its connection.
-//
 // If the Driver has a device with this name, but the device's address changes,
 // this will shutdown any current connection associated with the named device,
 // update the address, and attempt to reconnect at the new address and port.
@@ -709,7 +701,7 @@ func (d *Driver) getDevice(name string, p protocolMap) (dev *LLRPDevice, isNew b
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
-	dev = d.NewLLRPDevice(name, addr)
+	dev = d.NewLLRPDevice(name, addr, contract.Enabled)
 	d.activeDevices[name] = dev
 	return dev, true, nil
 }
