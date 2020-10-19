@@ -62,9 +62,8 @@ const (
 )
 
 var (
-	createOnce    sync.Once
-	provisionOnce sync.Once
-	driver        *Driver
+	createOnce sync.Once
+	driver     *Driver
 )
 
 type protocolMap = map[string]contract.ProtocolProperties
@@ -91,11 +90,15 @@ type Driver struct {
 	config   *driverConfiguration
 	configMu sync.RWMutex
 
+	addedWatchers bool
+	watchersMu    sync.Mutex
+
 	svc ServiceWrapper
 }
 
 type MultiErr []error
 
+//goland:noinspection GoReceiverNames
 func (me MultiErr) Error() string {
 	strs := make([]string, len(me))
 	for i, s := range me {
@@ -798,13 +801,19 @@ func (d *Driver) Discover() {
 	d.configMu.RUnlock()
 
 	if registerProvisionWatchers {
-		provisionOnce.Do(func() {
-			err := d.addProvisionWatchers()
-			if err != nil {
-				d.lc.Error(err.Error())
-				return
+		d.watchersMu.Lock()
+		if !d.addedWatchers {
+			if err := d.addProvisionWatchers(); err != nil {
+				d.lc.Error("Error adding provision watchers. Newly discovered devices may fail to register with EdgeX.",
+					"error", err.Error())
+				// Do not return on failure, as it is possible there are alternative watchers registered.
+				// And if not, the discovered devices will just not be registered with EdgeX, but will
+				// still be available for discovery again.
+			} else {
+				d.addedWatchers = true
 			}
-		})
+		}
+		d.watchersMu.Unlock()
 	}
 
 	ctx := context.Background()
