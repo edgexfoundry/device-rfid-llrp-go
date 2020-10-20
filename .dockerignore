@@ -1,9 +1,14 @@
-# Ignoring the go.sum file. There are checksum issues with
-# different versions of Golang. Remove once all Go versions
-# are in sync
 go.sum
-
 docker-compose*.yml
 coverage.out
 .idea
 .gitignore
+Dockerfile*
+.dockerignore
+.git
+.gitignore
+.env
+*/bin
+*/obj
+README.md
+.vscode
