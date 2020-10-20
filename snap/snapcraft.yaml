@@ -78,7 +78,7 @@ parts:
       cd $SNAPCRAFT_PART_SRC
       make build
 
-      install -DT "./cmd/device-llrp-go" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp-go"
+      install -DT "./cmd/device-rfid-llrp-go" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp-go" 
 
       install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/"
       
