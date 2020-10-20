@@ -1,6 +1,6 @@
-module github.impcloud.net/RSP-Inventory-Suite/device-llrp-go
+module github.com/edgexfoundry-holding/device-rfid-llrp-go
 
-go 1.14
+go 1.15
 
 require (
 	github.com/edgexfoundry/device-sdk-go v1.2.2

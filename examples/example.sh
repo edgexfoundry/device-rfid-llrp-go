@@ -20,7 +20,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Get the first device
-device=$(curl -so- ${HOST}:${META_PORT}/api/v1/device/servicename/edgex-device-llrp | jq '.[0].name' | tr -d '"')
+device=$(curl -so- ${HOST}:${META_PORT}/api/v1/device/servicename/edgex-device-rfid-llrp | jq '.[0].name' | tr -d '"')
 dev_url=${HOST}:${CMDS_PORT}/api/v1/device/name/${device}
 
 echo "Using ${dev_url}"

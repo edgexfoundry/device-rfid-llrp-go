@@ -6,8 +6,8 @@
 package driver
 
 import (
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 )
 
 // edgexLLRPClientLogger implements the llrp.ClientLogger interface

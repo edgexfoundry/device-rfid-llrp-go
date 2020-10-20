@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/flags"
@@ -18,7 +19,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
 	"math"
 	"net"
@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	ServiceName    = "edgex-device-llrp"
+	ServiceName    = "edgex-device-rfid-llrp"
 	BaseConsulPath = "edgex/devices/1.0/" + ServiceName
 
 	ResourceReaderCap          = "ReaderCapabilities"

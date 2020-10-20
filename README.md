@@ -1,20 +1,18 @@
-# Device LLRP Go
-[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
-## Overview
-LLRP Micro Service - device service for connecting LLRP based devices to EdgeX.
+# Device RFID LLRP Go
+EdgeX device service for communicating with LLRP-based RFID readers.
 
 ## First Run
-**Build and deploy**
+**Build Native**
 ```bash
-make docker deploy
+make build
+```
+**Build Docker**
+```bash
+make docker
 ```
 **Configure subnet information**
 ```bash
-make auto-configure
-```
-**Restart service to pick up configuration changes**
-```bash
-docker-compose -f docker-compose-geneva-redis-no-secty.yml restart device-llrp
+./bin/auto-configure.sh
 ```
 **Trigger a device discovery**
 
@@ -22,12 +20,8 @@ docker-compose -f docker-compose-geneva-redis-no-secty.yml restart device-llrp
 ```bash
 curl -X POST http://localhost:51992/api/v1/discovery
 ```
-**Tail the service logs**
-```bash
-docker-compose -f docker-compose-geneva-redis-no-secty.yml logs -f device-llrp
-```
 
-At this point the `device-llrp` service should have discovered your LLRP devices on the network and
+At this point the `device-rfid-llrp` service should have discovered your LLRP devices on the network and
 registered them with EdgeX.
 
 For more detailed info, see [Device Discovery](#Device-Discovery) and 
@@ -49,7 +43,7 @@ The discovery configuration can be modified via the `[Driver]` section of the [c
 _Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
-[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-llrp/Device/Discovery/
+[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Device/Discovery/
 ```toml
 [Driver]
 # NOTE: Items in the Driver section MUST be in quotes, even for numbers due to EdgeX limitation
@@ -84,7 +78,7 @@ field in Consul for you.
 
 Discovery can be manually triggered via REST:
 ```bash
-# POST http://<hostname>:<device-llrp-go port>/api/v1/discovery
+# POST http://<hostname>:<device-rfid-llrp-go port>/api/v1/discovery
 curl -X POST http://localhost:51992/api/v1/discovery
 ```
 or make:

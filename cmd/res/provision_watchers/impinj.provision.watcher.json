@@ -8,7 +8,7 @@
     "name": "Impinj.LLRP.Profile"
   },
   "service": {
-    "name": "edgex-device-llrp"
+    "name": "edgex-device-rfid-llrp"
   },
   "adminState": "UNLOCKED"
 }
