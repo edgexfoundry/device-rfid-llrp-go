@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/pkg/service"
 	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/flags"
@@ -18,7 +19,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
 	"io/ioutil"
 	"math"
 	"net"
@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	ServiceName    = "edgex-device-llrp"
+	ServiceName    = "edgex-device-rfid-llrp"
 	BaseConsulPath = "edgex/devices/1.0/" + ServiceName
 
 	ResourceReaderCap          = "ReaderCapabilities"
@@ -53,13 +53,17 @@ const (
 	AttribVendor   = "vendor"
 	AttribSubtype  = "subtype"
 
-	provisionWatcherFolder = "res/provision_watchers"
+	// Note: For now disable the registration of provision watchers since we are not using them
+	registerProvisionWatchers = false
+	provisionWatcherFolder    = "res/provision_watchers"
+
+	GenericDeviceProfile = "Device.LLRP.Profile"
+	ImpinjDeviceProfile  = "Impinj.LLRP.Profile"
 )
 
 var (
-	createOnce    sync.Once
-	provisionOnce sync.Once
-	driver        *Driver
+	createOnce sync.Once
+	driver     *Driver
 )
 
 type protocolMap = map[string]contract.ProtocolProperties
@@ -86,11 +90,15 @@ type Driver struct {
 	config   *driverConfiguration
 	configMu sync.RWMutex
 
+	addedWatchers bool
+	watchersMu    sync.Mutex
+
 	svc ServiceWrapper
 }
 
 type MultiErr []error
 
+//goland:noinspection GoReceiverNames
 func (me MultiErr) Error() string {
 	strs := make([]string, len(me))
 	for i, s := range me {
@@ -167,7 +175,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		}
 
 		d.lc.Info("Creating a new Reader connection.", "deviceName", device.Name)
-		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr)
+		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr, device.OperatingState)
 	}
 
 	return nil
@@ -607,14 +615,6 @@ func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState 
 // The Device Service SDK calls it when a Device is updated,
 // so this assumes the device is already registered with EdgeX.
 //
-// If the device's operating state is DISABLED,
-// then if the Driver is not managing the device, nothing happens.
-// If it is managing the device, it disconnects from it.
-//
-// If the device's operating state is ENABLED,
-// if the Driver isn't currently managing a device with the given name,
-// it'll create a new one and attempt to maintain its connection.
-//
 // If the Driver has a device with this name, but the device's address changes,
 // this will shutdown any current connection associated with the named device,
 // update the address, and attempt to reconnect at the new address and port.
@@ -701,7 +701,7 @@ func (d *Driver) getDevice(name string, p protocolMap) (dev *LLRPDevice, isNew b
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
-	dev = d.NewLLRPDevice(name, addr)
+	dev = d.NewLLRPDevice(name, addr, contract.Enabled)
 	d.activeDevices[name] = dev
 	return dev, true, nil
 }
@@ -792,13 +792,21 @@ func (d *Driver) Discover() {
 	maxSeconds := driver.config.MaxDiscoverDurationSeconds
 	d.configMu.RUnlock()
 
-	provisionOnce.Do(func() {
-		err := d.addProvisionWatchers()
-		if err != nil {
-			d.lc.Error(err.Error())
-			return
+	if registerProvisionWatchers {
+		d.watchersMu.Lock()
+		if !d.addedWatchers {
+			if err := d.addProvisionWatchers(); err != nil {
+				d.lc.Error("Error adding provision watchers. Newly discovered devices may fail to register with EdgeX.",
+					"error", err.Error())
+				// Do not return on failure, as it is possible there are alternative watchers registered.
+				// And if not, the discovered devices will just not be registered with EdgeX, but will
+				// still be available for discovery again.
+			} else {
+				d.addedWatchers = true
+			}
 		}
-	})
+		d.watchersMu.Unlock()
+	}
 
 	ctx := context.Background()
 	if maxSeconds > 0 {
@@ -826,6 +834,51 @@ func (d *Driver) discover(ctx context.Context) {
 	if ctx.Err() != nil {
 		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
 	}
-	d.deviceCh <- result
+
+	// Note: We have to send data over this channel to let the SDK know we are done discovering.
+	// see: https://github.com/edgexfoundry/device-sdk-go/issues/609
+	d.deviceCh <- nil
 	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Now().Sub(t1)))
+
+	// Note: For now we have to resort to adding our discovered devices ourselves due to multiple bugs in the
+	// provision watcher code, as well as no clear way to tell if a device was matched by a PW or not.
+	// see: https://github.com/edgexfoundry/device-sdk-go/issues/598
+	// see also: https://github.com/edgexfoundry/device-sdk-go/issues/606
+	for _, discovered := range result {
+		if _, err := d.registerDevice(discovered); err != nil {
+			d.lc.Error("Error adding device.", "name", discovered.Name, "error", err)
+		}
+	}
+}
+
+func (d *Driver) registerDevice(discovered dsModels.DiscoveredDevice) (id string, err error) {
+	profile := GenericDeviceProfile
+	// Note: This is a bit of a workaround based on provision watcher logic. It was only left
+	// this way (as opposed to a total refactor) in order to allow a smooth transition
+	// back to provision watchers once the assortment of bugs have been fixed.
+	if discovered.Protocols["tcp"]["vendorPEN"] == strconv.FormatUint(uint64(Impinj), 10) {
+		profile = ImpinjDeviceProfile
+	}
+	// remove the field as it is no longer needed/useful
+	delete(discovered.Protocols["tcp"], "vendorPEN")
+
+	return d.svc.AddDevice(contract.Device{
+		DescribedObject: contract.DescribedObject{
+			Timestamps: contract.Timestamps{
+				Origin: time.Now().UnixNano(),
+			},
+			Description: discovered.Description,
+		},
+		Name: discovered.Name,
+		Profile: contract.DeviceProfile{
+			Name: profile,
+		},
+		Protocols: discovered.Protocols,
+		Labels:    discovered.Labels,
+		Service: contract.DeviceService{
+			Name: ServiceName,
+		},
+		AdminState:     contract.Unlocked,
+		OperatingState: contract.Enabled,
+	})
 }

@@ -1,3 +1,4 @@
+#
 # Copyright (c) 2020 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,42 +12,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
 ARG BASE=golang:1.15-alpine
 FROM ${BASE} AS builder
 
-ARG ALPINE_PKG_BASE="build-base git openssh-client"
+ARG MAKE='make build'
+ARG ALPINE_PKG_BASE="make git"
 ARG ALPINE_PKG_EXTRA=""
 
-# Replicate the APK repository override.
-# If it is no longer necessary to avoid the CDN mirros we should consider dropping this as it is brittle.
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
-# Install our build time packages.
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
-WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go
+WORKDIR $GOPATH/src/github.com/edgexfoundry-holding/device-rfid-llrp-go
+
 COPY go.mod .
-RUN go mod download
+COPY Makefile .
+
+RUN make update
 
 COPY . .
 
-# To run tests in the build container:
-#   docker build --build-arg 'MAKE=build test' .
-# This is handy of you do your Docker business on a Mac
-ARG MAKE='make build'
 RUN $MAKE
 
-FROM alpine
-
-ENV APP_PORT=51992
-EXPOSE $APP_PORT
-
-COPY --from=builder /go/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/cmd /
-COPY --from=builder /go/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/LICENSE /
-COPY --from=builder /go/src/github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/Attribution.txt /
+FROM alpine:latest
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
-      copyright='Copyright (c) 2020: Intel Corporation'
+  copyright='Copyright (c) 2020: Intel'
 
-ENTRYPOINT ["/device-llrp-go"]
-CMD ["--cp=consul://edgex-core-consul:8500","--registry","--confdir=/res"]
+COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/LICENSE /
+COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/Attribution.txt /
+COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/cmd /
+
+EXPOSE 51992
+
+ENTRYPOINT ["/device-rfid-llrp-go"]
+CMD ["--cp=consul://edgex-core-consul:8500", "--confdir=/res", "--registry"]

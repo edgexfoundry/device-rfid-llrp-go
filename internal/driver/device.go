@@ -9,12 +9,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/retry"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/llrp"
-	"github.impcloud.net/RSP-Inventory-Suite/device-llrp-go/internal/retry"
 	"net"
 	"sync"
 	"time"
@@ -79,7 +79,7 @@ type LLRPDevice struct {
 }
 
 // NewLLRPDevice returns an LLRPDevice which attempts to connect to the given address.
-func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
+func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.OperatingState) *LLRPDevice {
 	// We need a context to manage cancellation in some of the methods below,
 	// and as a bonus, we can use it to simplify Stopping reattempts
 	// when the driver shuts down.
@@ -92,7 +92,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr) *LLRPDevice {
 		address: address,
 		lc:      d.lc,
 		ch:      d.asyncCh,
-		enabled: true,
+		enabled: opState == contract.Enabled,
 	}
 
 	// These options will be used each time we reconnect.
@@ -368,10 +368,14 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 
 		if renData.ConnectionAttemptEvent != nil &&
 			llrp.ConnectionAttemptEventType(*renData.ConnectionAttemptEvent) == llrp.ConnSuccess {
-			go l.onConnect(svc)
+			go func() {
+				// Don't send the event until after processing a possible OpState change.
+				l.onConnect(svc)
+				l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
+			}()
+		} else {
+			go l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
 		}
-
-		go l.sendEdgeXEvent(ResourceReaderNotification, now.UnixNano(), event)
 	})
 }
 
@@ -453,14 +457,6 @@ func processReport(readerStart time.Time, report *llrp.ROAccessReport) {
 
 // onConnect is called when we open a new connection to a Reader.
 func (l *LLRPDevice) onConnect(svc ServiceWrapper) {
-	l.lc.Debug("Setting Reader KeepAlive spec.", "device", l.name)
-	conf := &llrp.SetReaderConfig{
-		KeepAliveSpec: &llrp.KeepAliveSpec{
-			Trigger:  llrp.KATriggerPeriodic,
-			Interval: llrp.Millisecs32(keepAliveInterval.Milliseconds()),
-		},
-	}
-
 	l.deviceMu.RLock()
 	isEnabled := l.enabled
 	l.deviceMu.RUnlock()
@@ -470,11 +466,19 @@ func (l *LLRPDevice) onConnect(svc ServiceWrapper) {
 		if err := svc.SetDeviceOpState(l.name, contract.Enabled); err != nil {
 			l.lc.Error("Failed to set device operating state to Enabled.",
 				"device", l.name, "error", err.Error())
+		} else {
+			l.deviceMu.Lock()
+			l.enabled = true
+			l.deviceMu.Unlock()
 		}
+	}
 
-		l.deviceMu.Lock()
-		l.enabled = true
-		l.deviceMu.Unlock()
+	l.lc.Debug("Setting Reader KeepAlive spec.", "device", l.name)
+	conf := &llrp.SetReaderConfig{
+		KeepAliveSpec: &llrp.KeepAliveSpec{
+			Trigger:  llrp.KATriggerPeriodic,
+			Interval: llrp.Millisecs32(keepAliveInterval.Milliseconds()),
+		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)

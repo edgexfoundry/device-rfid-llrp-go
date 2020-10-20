@@ -21,6 +21,7 @@ type ServiceWrapper interface {
 	UpdateDeviceOperatingState(deviceName string, state string) error
 	GetProvisionWatcherByName(name string) (contract.ProvisionWatcher, error)
 	AddProvisionWatcher(watcher contract.ProvisionWatcher) (id string, err error)
+	AddDevice(device contract.Device) (id string, err error)
 
 	// Pass-through
 	DriverConfigs() map[string]string
