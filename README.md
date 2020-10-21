@@ -79,9 +79,9 @@ MaxDiscoverDurationSeconds = "300"
 ```
 
 The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur.
-The easiest way of doing this is via a make command:
+The easiest way of doing this is via the following script:
 ```bash
-make auto-configure
+./bin/auto-configure.sh
 ```
 What this command does is check your local machine's network interfaces to see which ones are both online
 and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
@@ -530,17 +530,20 @@ The service registers itself with consul at initialization,
 which requires Consul and other EdgeX Snap packages.
 
 Make sure they are installed and running (`snap install edgexfoundry`),
-then start the service with `snap start edgex-device-llrp`
-and verify there are no errors in the logs: `snap logs edgex-device-llrp`.
+then start the service with `sudo snap start edgex-device-llrp`
+and verify there are no errors in the logs: `sudo snap logs edgex-device-llrp`.
 
 Consul UI can also be used to verify if the service has started without any errors `http://localhost:8500`
+
+Follow [First Run](#first-run) section to auto-configure subnet & trigger device discovery.
+As part of testing, registered devices can be checked via EdgeX Core-Metadata API - `http://localhost:48081/api/v1/device`
 
 #### Here are other helpful commands:
 - List installed Snap packages: `snap list`
 - View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-llrp-go.service`
 - View System logs: `journalctl -xe`
-- Stop the Snap service: `snap stop edgex-device-rfid-llrp`
-- Remove the Snap package: `snap remove edgex-device-rfid-llrp`
+- Stop the Snap service: `sudo snap stop edgex-device-rfid-llrp`
+- Remove the Snap package: `sudo snap remove edgex-device-rfid-llrp`
 
 ## Footnotes
 ### Notes on configuration.toml
