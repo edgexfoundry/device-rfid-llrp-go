@@ -540,7 +540,7 @@ As part of testing, registered devices can be checked via EdgeX Core-Metadata AP
 
 #### Here are other helpful commands:
 - List installed Snap packages: `snap list`
-- View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-llrp-go.service`
+- View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-rfid-llrp-go.service`
 - View System logs: `journalctl -xe`
 - Stop the Snap service: `sudo snap stop edgex-device-rfid-llrp`
 - Remove the Snap package: `sudo snap remove edgex-device-rfid-llrp`
