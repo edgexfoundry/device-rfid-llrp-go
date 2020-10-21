@@ -39,7 +39,7 @@ printf "\e[1m%18s\e[0m: %s\n" "Interfaces" "${ifaces}"
 
 subnets=$(
     for iface in ${ifaces}; do
-        ip route | sed -E -n "s/.+dev ${iface}.+src ([0-9.]+).+/\1/p"
+        ip route | sed -E -n "s/([0-9.]+) dev ${iface}.+src.+/\1/p"
     done | xargs echo -n | tr ' ' ','
 )
 printf "\e[1m%18s\e[0m: %s\n" "Subnets" "${subnets}"
