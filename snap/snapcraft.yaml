@@ -52,14 +52,14 @@ parts:
           FILE_NAME=go1.15.2.linux-arm64.tar.gz
           FILE_HASH=c8ec460cc82d61604b048f9439c06bd591722efce5cd48f49e19b5f6226bd36d
           ;;
-        armhf)
-          FILE_NAME=go1.15.2.linux-armv6l.tar.gz
-          FILE_HASH=c12e2afdcb21e530d332d4994919f856dd2a676e9d67034c7d6fefcb241412d9
-          ;;
-        i386)
-          FILE_NAME=go1.15.2.linux-386.tar.gz
-          FILE_HASH=5a91080469df6b91f1022bdfb0ca75e01ca50387950b13518def3d0a7f6af9f1
-          ;;
+      #  armhf)
+      #    FILE_NAME=go1.15.2.linux-armv6l.tar.gz
+      #    FILE_HASH=c12e2afdcb21e530d332d4994919f856dd2a676e9d67034c7d6fefcb241412d9
+      #    ;;
+      #  i386)
+      #    FILE_NAME=go1.15.2.linux-386.tar.gz
+      #    FILE_HASH=5a91080469df6b91f1022bdfb0ca75e01ca50387950b13518def3d0a7f6af9f1
+      #    ;;
       esac
       # download the archive, failing on ssl cert problems
       curl https://dl.google.com/go/$FILE_NAME -O
@@ -86,20 +86,24 @@ parts:
         sed -e s:\"./device-rfid-llrp-go.log\":\'\$SNAP_COMMON/device-rfid-llrp-go.log\': \
           -e s:'ProfilesDir = \"./res\"':'ProfilesDir = \"\$SNAP_DATA/config/device-rfid-llrp-go/res\"': > \
         "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/configuration.toml"
-      
-      for fpath in ./cmd/res/*.yaml; do
+
+      if [ "$(find ./cmd/res/ -maxdepth 1 -name *.yaml -print -quit)" ]; then  
+       for fpath in ./cmd/res/*.yaml; do
           fname=$(basename "$fpath")
           install -DT "./cmd/res/${fname}" \
             "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/${fname}"
-      done
+       done
+      fi
       
       install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/provision_watchers"
 
-      for fpath in ./cmd/res/provision_watchers/*.json; do
+      if [ "$(find ./cmd/res/provision_watchers/ -maxdepth 1 -name *.json -print -quit)" ]; then
+       for fpath in ./cmd/res/provision_watchers/*.json; do
           fname=$(basename "$fpath")
           install -DT "./cmd/res/provision_watchers/${fname}" \
             "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/provision_watchers/${fname}"
-      done
+       done
+      fi
    
       install -DT "./Attribution.txt" \
          "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp-go/Attribution.txt"
