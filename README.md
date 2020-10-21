@@ -505,40 +505,42 @@ The following are particularly useful:
 [test_helper]: internal/llrp/test_helpers.go
 
 ## Snap Development and Testing
-+ The Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building a snap package for this Service.
+The Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building a snap package for this Service.
 ### Build Device RFID LLRP Snap Packages
-+ Execute the following commands from the project's root directory. If you try to build elsewhere, it will fail with a `source not found` error message.
-+ - `snapcraft clean`
-+ - `snapcraft`
+Execute the following commands from the project's root directory. If you try to build elsewhere, it will fail with a `source not found` error message.
+- `snapcraft clean`
+- `snapcraft`
 
-+ On success, this creates a `*.snap` package under the root directory. 
-+ The package name format is `{snapName}_{versionNumber}_{architecture}.snap`, e.g.
-+
-+    `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`
+On success, this creates a `*.snap` package under the root directory. 
+The package name format is `{snapName}_{versionNumber}_{architecture}.snap`, e.g.
 
-+ Always delete the old snap package before rebuilding via `rm oldsnap.snap` & `snapcraft clean`. 
-+ To debug snap build issues, run `snapcraft --debug`. 
-+ If snapcraft encounters an error it will open a shell within the virtualised build environment.
+ `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`
+
+Always delete the old snap package before rebuilding via `rm oldsnap.snap` & `snapcraft clean`. 
+
+To debug snap build issues, run `snapcraft --debug`. 
+
+If snapcraft encounters an error, it will open a shell within the virtualised build environment.
 ### Install Device RFID LLRP Snap Packages
-+ - `sudo snap install --devmode --dangerous *.snap` 
+- `sudo snap install --devmode --dangerous *.snap` 
 
-+ Use `snapcraft list` to verify the package was installed.
+Use `snapcraft list` to verify the package was installed.
 ### Test Device RFID LLRP Snap Packages
-+ The service registers itself with consul at initialization,
-+ which requires Consul and other EdgeX Snap packages.
-+ Make sure they are installed and running (`snap install edgexfoundry`),
-+ then start the service with `snap start edgex-device-llrp`
-+ and verify there are no errors in the logs: `snap logs edgex-device-llrp`.
-+ Consul UI can also be used to verify if the service has started without any errors `http://localhost:8500`
-+
-+ Here are other helpful commands:
-+
-+ - List installed Snap packages: `snap list`
-+ - View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-llrp-go.service`
-+ - View System logs: `journalctl -xe`
-+ - Stop the Snap service: `snap stop edgex-device-rfid-llrp`
-+ - Remove the Snap package: `snap remove edgex-device-rfid-llrp`
-+
+The service registers itself with consul at initialization,
+which requires Consul and other EdgeX Snap packages.
+
+Make sure they are installed and running (`snap install edgexfoundry`),
+then start the service with `snap start edgex-device-llrp`
+and verify there are no errors in the logs: `snap logs edgex-device-llrp`.
+
+Consul UI can also be used to verify if the service has started without any errors `http://localhost:8500`
+
+#### Here are other helpful commands:
+- List installed Snap packages: `snap list`
+- View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-llrp-go.service`
+- View System logs: `journalctl -xe`
+- Stop the Snap service: `snap stop edgex-device-rfid-llrp`
+- Remove the Snap package: `snap remove edgex-device-rfid-llrp`
 
 ## Footnotes
 ### Notes on configuration.toml

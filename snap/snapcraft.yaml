@@ -94,16 +94,6 @@ parts:
             "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/${fname}"
        done
       fi
-      
-      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/provision_watchers"
-
-      if [ "$(find ./cmd/res/provision_watchers/ -maxdepth 1 -name *.json -print -quit)" ]; then
-       for fpath in ./cmd/res/provision_watchers/*.json; do
-          fname=$(basename "$fpath")
-          install -DT "./cmd/res/provision_watchers/${fname}" \
-            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/provision_watchers/${fname}"
-       done
-      fi
    
       install -DT "./Attribution.txt" \
          "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp-go/Attribution.txt"

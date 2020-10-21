@@ -11,7 +11,6 @@ SNAP_CURRENT=${SNAP/%$SNAP_REVISION/current}
 mkdir -p "$SNAP_DATA/config"
 if [ ! -f "$SNAP_DATA/config/device-rfid-llrp-go/res/configuration.toml" ]; then
     mkdir -p "$SNAP_DATA/config/device-rfid-llrp-go/res"
-    mkdir -p "$SNAP_DATA/config/device-rfid-llrp-go/res/provision_watchers"	
     cp "$SNAP/config/device-rfid-llrp-go/res/configuration.toml" "$SNAP_DATA/config/device-rfid-llrp-go/res/configuration.toml"
 fi
 
@@ -19,9 +18,6 @@ fi
 find "$SNAP/config/device-rfid-llrp-go/res/" -maxdepth 1 -iname "*.yaml" -type f \
     -exec cp -u -t "$SNAP_DATA/config/device-rfid-llrp-go/res/" {} \; 
 
-# Also copy provision_watchers device json files into $SNAP_DATA
-find "$SNAP/config/device-rfid-llrp-go/res/provision_watchers/" -maxdepth 1 -iname "*.json" -type f \
-    -exec cp -u -t "$SNAP_DATA/config/device-rfid-llrp-go/res/provision_watchers/" {} \; 
 
 
 
