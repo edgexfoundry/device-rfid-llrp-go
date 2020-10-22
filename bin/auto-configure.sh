@@ -30,14 +30,22 @@ curl returned a status code of \e[1m%s\e[0m
 fi
 printf "\e[3D\e[32mSuccess\e[0m\n"
 
-# find all non-virtual network interfaces
-ifaces=$(find /sys/class/net -type l,f -exec realpath {} \; | grep -v "/sys/devices/virtual" | xargs basename --multiple)
+# find all online non-virtual network interfaces, separated by `|` for regex matching. ie. (eno1|eno2|eno3|...)
+ifaces=$(
+    find /sys/class/net -mindepth 1 -maxdepth 2 \
+        -not -lname '*devices/virtual*' \
+        -execdir grep -q 'up' "{}/operstate" \; \
+        -printf '%f|'
+)
 
-# expand ifaces into a list separated by `|` for regex matching. ie. (eno1|eno2|eno3|...)
 # print all ipv4 subnets, filter for just the ones associated with our physical interfaces
-subnets=$(ip -4 -o route list scope link | sed -En "s/ dev (${ifaces//$'\n'/|}).+//p" | sort -u)
-# replace newlines with commas
-subnets="${subnets//$'\n'/,}"
+# grab the unique ones and join them by commas
+subnets=$(
+    ip -4 -o route list scope link | \
+    sed -En "s/ dev (${ifaces::-1}).+//p" | \
+    sort -u | \
+    paste -sd, -
+)
 
 printf "\e[1m%18s\e[0m: %s\n" "Subnets" "${subnets}"
 if [ -z "${subnets}" ]; then
