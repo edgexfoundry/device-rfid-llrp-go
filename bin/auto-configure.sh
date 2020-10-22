@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -eu
 
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}
 url="${CONSUL_URL}/v1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Driver/DiscoverySubnets"
@@ -30,18 +30,23 @@ curl returned a status code of \e[1m%s\e[0m
 fi
 printf "\e[3D\e[32mSuccess\e[0m\n"
 
+# find all online non-virtual network interfaces, separated by `|` for regex matching. ie. (eno1|eno2|eno3|...)
 ifaces=$(
-    for x in /sys/class/net/*; do
-        printf "%s %s\n" "$(basename "$x")" "$(realpath "$x")"
-    done | grep -v "/sys/devices/virtual" | cut -d ' ' -f 1 | xargs echo -n
+    find /sys/class/net -mindepth 1 -maxdepth 2 \
+        -not -lname '*devices/virtual*' \
+        -execdir grep -q 'up' "{}/operstate" \; \
+        -printf '%f|'
 )
-printf "\e[1m%18s\e[0m: %s\n" "Interfaces" "${ifaces}"
 
+# print all ipv4 subnets, filter for just the ones associated with our physical interfaces
+# grab the unique ones and join them by commas
 subnets=$(
-    for iface in ${ifaces}; do
-        ip route | sed -E -n "s/([0-9.]+) dev ${iface}.+src.+/\1/p"
-    done | xargs echo -n | tr ' ' ','
+    ip -4 -o route list scope link | \
+    sed -En "s/ dev (${ifaces::-1}).+//p" | \
+    sort -u | \
+    paste -sd, -
 )
+
 printf "\e[1m%18s\e[0m: %s\n" "Subnets" "${subnets}"
 if [ -z "${subnets}" ]; then
     echo "Error, no subnets detected" 1>&2
