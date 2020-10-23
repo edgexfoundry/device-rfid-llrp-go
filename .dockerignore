@@ -1,0 +1,14 @@
+go.sum
+docker-compose*.yml
+coverage.out
+.idea
+.gitignore
+Dockerfile*
+.dockerignore
+.git
+.gitignore
+.env
+*/bin
+*/obj
+README.md
+.vscode

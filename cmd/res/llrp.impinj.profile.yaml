@@ -1,0 +1,292 @@
+name: "Impinj.LLRP.Profile"
+manufacturer: "Impinj"
+labels:
+  - "LLRP"
+  - "RFID"
+  - "Impinj"
+description: "A device profile with added Impinj support."
+
+deviceResources:
+  - name: "ImpinjCustomExtensionMessage"
+    properties:
+      value: { type: "String", readWrite: "RW" }
+      units: { defaultValue: "base64" }
+    attributes:
+      vendor: "25882"
+      subtype: "21"
+
+  - name: "ImpinjSaveSettingsMessage"
+    properties:
+      value: { type: "String", readWrite: "W" }
+      units: { defaultValue: "base64" }
+    attributes:
+      vendor: "25882"
+      subtype: "23"
+
+  - name: "ReaderCapabilities"
+    description: "The capabilities of a reader"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
+  - name: "ReaderConfig"
+    description: "A Reader's configuration"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
+  - name: "ROSpecID"
+    description: "Client-generated Reader Operation Specification Identifier"
+    properties:
+      value: { type: "uint32", readWrite: "W", defaultValue: "1" }
+
+  - name: "AccessSpecID"
+    description: "Client-generated Access Specification Identifier"
+    properties:
+      value: { type: "uint32", readWrite: "W", defaultValue: "1" }
+
+  - name: "ROSpec"
+    properties:
+      value: { type: "String", readWrite: "RW" }
+
+  - name: "AccessSpec"
+    properties:
+      value: { type: "String", readWrite: "RW" }
+
+  - name: "Action"
+    properties:
+      value: { "type": "String", readWrite: "W" }
+
+  - name: "ROAccessReport"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
+  - name: "ReaderEventNotification"
+    properties:
+      value: { type: "String", readWrite: "R" }
+
+deviceCommands:
+  - name: enableImpinjExt
+    set: [ { deviceResource: "ImpinjCustomExtensionMessage", parameter: "AAAAAA==" } ]
+
+  - name: capabilities
+    get: [ { deviceResource: "ReaderCapabilities" } ]
+
+  - name: config
+    get: [ { deviceResource: "ReaderConfig" } ]
+    set: [ { deviceResource: "ReaderConfig" } ]
+
+  - name: roSpec
+    get: [ { deviceResource: "ROSpec" } ]
+    set: [ { deviceResource: "ROSpec" } ]
+
+  - name: enableROSpec
+    set:
+      - { deviceResource: "ROSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Enable" }
+  - name: startROSpec
+    set:
+      - { deviceResource: "ROSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Start" }
+  - name: stopROSpec
+    set:
+      - { deviceResource: "ROSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Stop" }
+  - name: disableROSpec
+    set:
+      - { deviceResource: "ROSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Disable" }
+  - name: deleteROSpec
+    set:
+      - { deviceResource: "ROSpecID" }
+      - { deviceResource: "Action", parameter: "Delete" }
+
+  - name: accessSpec
+    get: [ { deviceResource: "AccessSpec" } ]
+    set: [ { deviceResource: "AccessSpec" } ]
+  - name: enableAccessSpec
+    set:
+      - { deviceResource: "AccessSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Enable" }
+  - name: disableAccessSpec
+    set:
+      - { deviceResource: "AccessSpecID", parameter: 0 }
+      - { deviceResource: "Action", parameter: "Disable" }
+  - name: deleteAccessSpec
+    set:
+      - { deviceResource: "AccessSpecID" }
+      - { deviceResource: "Action", parameter: "Delete" }
+
+coreCommands:
+  - name: ImpinjEnableCustomExt
+    put:
+      path: "/api/v1/device/{deviceId}/enableImpinjExt"
+      parameterNames: [ ]
+      responses:
+        - code: "200"
+          description: "Vendor extensions enabled."
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: GetReaderCapabilities
+    get:
+      path: "/api/v1/device/{deviceId}/capabilities"
+      responses:
+        - code: "200"
+          description: "Get a reader's capabilities."
+          expectedValues: [ "ReaderCapabilities" ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: GetReaderConfig
+    get:
+      path: "/api/v1/device/{deviceId}/config"
+      responses:
+        - code: "200"
+          description: "Get the reader's current configuration."
+          expectedValues: [ "ReaderConfig" ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: SetReaderConfig
+    put:
+      path: "/api/v1/device/{deviceId}/config"
+      parameterNames: [ "ReaderConfig" ]
+      responses:
+        - code: "200"
+          description: "Set a reader's configuration."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: GetROSpec
+    get:
+      path: "/api/v1/device/{deviceId}/roSpec"
+      responses:
+        - code: "200"
+          description: "Get ROSpecs."
+          expectedValues: [ "ROSpec" ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: AddROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/roSpec"
+      parameterNames: [ "ROSpec" ]
+      responses:
+        - code: "200"
+          description: "Add an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: EnableROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/enableROSpec"
+      parameterNames: [ "ROSpecID" ]
+      responses:
+        - code: "200"
+          description: "Enable an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: StartROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/startROSpec"
+      parameterNames: [ "ROSpecID" ]
+      responses:
+        - code: "200"
+          description: "Start an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: StopROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/stopROSpec"
+      parameterNames: [ "ROSpecID" ]
+      responses:
+        - code: "200"
+          description: "Stop an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: DisableROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/disableROSpec"
+      parameterNames: [ "ROSpecID" ]
+      responses:
+        - code: "200"
+          description: "Disable an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: DeleteROSpec
+    put:
+      path: "/api/v1/device/{deviceId}/deleteROSpec"
+      parameterNames: [ "ROSpecID" ]
+      responses:
+        - code: "200"
+          description: "Delete an ROSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: GetAccessSpec
+    get:
+      path: "/api/v1/device/{deviceId}/accessSpec"
+      responses:
+        - code: "200"
+          description: "Get AccessSpecs."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: AddAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/accessSpec"
+      parameterNames: [ "AccessSpec" ]
+      responses:
+        - code: "200"
+          description: "Add an AccessSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: DisableAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/disableAccessSpec"
+      parameterNames: [ "AccessSpecID" ]
+      responses:
+        - code: "200"
+          description: "Disable an AccessSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
+
+  - name: DeleteAccessSpec
+    put:
+      path: "/api/v1/device/{deviceId}/deleteAccessSpec"
+      parameterNames: [ "AccessSpecID" ]
+      responses:
+        - code: "200"
+          description: "Delete an AccessSpec."
+          expectedValues: [ ]
+        - code: "500"
+          description: "Error"
+          expectedValues: [ ]
