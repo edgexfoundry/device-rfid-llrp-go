@@ -822,7 +822,8 @@ func (d *Driver) Discover() {
 func (d *Driver) discover(ctx context.Context) {
 	d.configMu.RLock()
 	params := discoverParams{
-		subnets:    d.config.DiscoverySubnets,
+		// split the comma separated string here to avoid issues with EdgeX's Consul implementation
+		subnets:    strings.Split(d.config.DiscoverySubnets, ","),
 		asyncLimit: d.config.ProbeAsyncLimit,
 		timeout:    time.Duration(d.config.ProbeTimeoutSeconds) * time.Second,
 		scanPort:   d.config.ScanPort,

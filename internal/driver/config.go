@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"strconv"
-	"strings"
 )
 
 // driverConfiguration holds the values for the driver configuration
 type driverConfiguration struct {
-	// DiscoverySubnets holds a list of CIDR subnets to scan for devices
-	DiscoverySubnets []string
+	// DiscoverySubnets holds a comma separated list of CIDR subnets to scan for devices. This is kept as a string instead
+	// of a string slice because when using EdgeX's Consul implementation, the data returned is a slice of 1 element
+	// containing the entire string.
+	DiscoverySubnets string
 	// ProbeAsyncLimit specifies the maximum simultaneous network probes when performing a discovery
 	ProbeAsyncLimit int
 	// ProbeTimeoutSeconds specifies the maximum amount of seconds to wait for each IP probe before timing out
@@ -32,7 +33,7 @@ var (
 	// they are not present in the configuration
 	defaultConfig = map[string]string{
 		"DiscoverySubnets":           "",
-		"ProbeAsyncLimit":            "1000",
+		"ProbeAsyncLimit":            "5000",
 		"ProbeTimeoutSeconds":        "2",
 		"ScanPort":                   "5084",
 		"MaxDiscoverDurationSeconds": "300",
@@ -70,11 +71,12 @@ func load(configMap map[string]string, config *driverConfiguration) error {
 		cloneMap[k] = v
 	}
 
-	val, err := pop(cloneMap, "DiscoverySubnets")
+	var err error
+
+	config.DiscoverySubnets, err = pop(cloneMap, "DiscoverySubnets")
 	if err != nil {
 		return wrapParseError(err, "DiscoverySubnets")
 	}
-	config.DiscoverySubnets = strings.Split(val, ",")
 
 	config.ProbeAsyncLimit, err = popInt(cloneMap, "ProbeAsyncLimit")
 	if err != nil {

@@ -18,7 +18,7 @@ func testConfig() map[string]string {
 	// NOTE: If you change this, you MUST update `TestLoad`!
 	return map[string]string{
 		"DiscoverySubnets":           "127.0.0.1/32,127.0.1.1/32",
-		"ProbeAsyncLimit":            "40",
+		"ProbeAsyncLimit":            "2257",
 		"ProbeTimeoutSeconds":        "5",
 		"ScanPort":                   "5084",
 		"MaxDiscoverDurationSeconds": "100",
@@ -33,13 +33,14 @@ func TestLoad(t *testing.T) {
 	}
 
 	c := driverCfg
-	if c.ProbeAsyncLimit != 40 ||
+	subnets := strings.Split(c.DiscoverySubnets, ",")
+	if c.ProbeAsyncLimit != 2257 ||
 		c.ProbeTimeoutSeconds != 5 ||
 		c.ScanPort != "5084" ||
 		c.MaxDiscoverDurationSeconds != 100 ||
-		len(c.DiscoverySubnets) != 2 ||
-		c.DiscoverySubnets[0] != "127.0.0.1/32" ||
-		c.DiscoverySubnets[1] != "127.0.1.1/32" {
+		len(subnets) != 2 ||
+		subnets[0] != "127.0.0.1/32" ||
+		subnets[1] != "127.0.1.1/32" {
 
 		t.Errorf("One of the value fields is incorrect.\nOriginal: %+v\nParsed: %+v", cfg, driverCfg)
 	}

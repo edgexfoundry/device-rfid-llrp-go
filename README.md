@@ -64,7 +64,7 @@ aware of when modifying this file._
 DiscoverySubnets = ""
 
 # Maximum simultaneous network probes
-ProbeAsyncLimit = "1000"
+ProbeAsyncLimit = "5000"
 
 # Maximum amount of seconds to wait for each IP probe before timing out.
 # This will also be the minimum time the discovery process can take.
