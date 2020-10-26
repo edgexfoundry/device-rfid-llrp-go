@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 func makeParams() discoverParams {
 	return discoverParams{
 		subnets:    []string{"127.0.0.1/32"},
-		asyncLimit: 1000,
+		asyncLimit: 5000,
 		timeout:    1 * time.Second,
 		scanPort:   "59923",
 	}

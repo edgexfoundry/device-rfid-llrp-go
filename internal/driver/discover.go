@@ -14,6 +14,7 @@ import (
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
+	"math"
 	"math/bits"
 	"net"
 	"strconv"
@@ -113,7 +114,8 @@ func autoDiscover(ctx context.Context, params discoverParams) []dsModels.Discove
 	if estimatedProbes < asyncLimit {
 		asyncLimit = estimatedProbes
 	}
-	driver.lc.Debug(fmt.Sprintf("total estimated network probes: %d, async limit: %d", estimatedProbes, asyncLimit))
+	driver.lc.Debug(fmt.Sprintf("total estimated network probes: %d, async limit: %d, probe timeout: %v, total estimated time: %v",
+		estimatedProbes, asyncLimit, params.timeout, time.Duration(math.Ceil(float64(estimatedProbes)/float64(asyncLimit)))*params.timeout))
 
 	ipCh := make(chan uint32, asyncLimit)
 	resultCh := make(chan *discoveryInfo)
