@@ -141,8 +141,8 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
 	d.svc = &DeviceSDKService{
-		Service: service.RunningService(),
-		lc:      lc,
+		DeviceService: service.RunningService(),
+		lc:            lc,
 	}
 
 	config, err := CreateDriverConfig(d.svc.DriverConfigs())
