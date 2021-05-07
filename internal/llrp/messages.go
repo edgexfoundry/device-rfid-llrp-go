@@ -388,7 +388,7 @@ type Outgoing interface {
 	Type() MessageType
 }
 
-// Add returns an EnableROSpec message for this ROSpecID.
+// Add returns an AddROSpec message for this ROSpecID.
 func (ros *ROSpec) Add() *AddROSpec {
 	return &AddROSpec{ROSpec: *ros}
 }
@@ -398,12 +398,12 @@ func (ros *ROSpec) Enable() *EnableROSpec {
 	return &EnableROSpec{ROSpecID: ros.ROSpecID}
 }
 
-// Disable returns an EnableROSpec message for this ROSpecID.
+// Disable returns an DisableROSpec message for this ROSpecID.
 func (ros *ROSpec) Disable() *DisableROSpec {
 	return &DisableROSpec{ROSpecID: ros.ROSpecID}
 }
 
-// Delete returns an EnableROSpec message for this ROSpecID.
+// Delete returns an DeleteROSpec message for this ROSpecID.
 func (ros *ROSpec) Delete() *DeleteROSpec {
 	return &DeleteROSpec{ROSpecID: ros.ROSpecID}
 }
@@ -473,7 +473,7 @@ func (mt MessageType) NewInstance() Encodable {
 	case MsgDisableAccessSpec:
 		u = &DisableAccessSpec{}
 	case MsgDisableAccessSpecResponse:
-		u = &DisableROSpecResponse{}
+		u = &DisableAccessSpecResponse{}
 	case MsgGetAccessSpecs:
 		u = &GetAccessSpecs{}
 	case MsgGetAccessSpecsResponse:
