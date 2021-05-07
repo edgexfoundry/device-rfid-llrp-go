@@ -31,7 +31,7 @@ type ServiceWrapper interface {
 }
 
 type DeviceSDKService struct {
-	*service.Service
+	*service.DeviceService
 	lc logger.LoggingClient
 }
 
