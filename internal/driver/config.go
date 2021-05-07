@@ -51,7 +51,7 @@ var (
 // CreateDriverConfig creates a driverConfiguration object from the strings map provided by EdgeX
 func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, error) {
 	config := new(driverConfiguration)
-	err := load(configMap, config)
+	err := config.load(configMap)
 	return config, err
 }
 
@@ -61,11 +61,7 @@ func CreateDriverConfig(configMap map[string]string) (*driverConfiguration, erro
 // values after parsing is complete. This error can be safely ignored using:
 // `!errors.Is(err, ErrUnexpectedConfigItems)`
 // It may also return an error wrapping ErrParsingConfigValue or ErrMissingRequiredKey
-func load(configMap map[string]string, config *driverConfiguration) error {
-	if config == nil {
-		panic("driverConfiguration was nil!")
-	}
-
+func (config *driverConfiguration) load(configMap map[string]string) error {
 	cloneMap := make(map[string]string, len(configMap))
 	for k, v := range configMap {
 		cloneMap[k] = v
