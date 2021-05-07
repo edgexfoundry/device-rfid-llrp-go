@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # This example uses the standalone cmd/llrp executable
 # to connect to an Impinj Reader, send it Custom messages,
 # singulating for 5s, and reading the TID of each tag.
