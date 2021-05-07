@@ -15,5 +15,6 @@
 //
 
 edgeXBuildGoApp (
-    project: 'device-rfid-llrp-go'
+    project: 'device-rfid-llrp-go',
+    buildSnap: true
 )
