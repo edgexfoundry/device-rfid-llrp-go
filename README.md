@@ -1,5 +1,10 @@
+[inventory_service]: https://github.com/edgexfoundry-holding/rfid-llrp-inventory-service
 # Device RFID LLRP Go
 EdgeX device service for communicating with LLRP-based RFID readers.
+This service provides the capabilities to configure and enable LLRP-based RFID readers to generate asynchronous EdgeX readings that contain LLRP ROAccessReport and Reader messages.
+A ROAccessReport can be used to examine data read from one or more RFID tags seen by the reader over a given time period, and a ReaderEventNotifications message can be used for data regarding device connection changes, such as attempted connections, connections closed, and errors in a connection.
+
+The [LLRP RFID Inventory Service][inventory_service] can be used to automatically configure this service and readers it manages. This repository also provides a higher-level abstraction for working with RFID tag by parsing ROAccessReports and generating higher-level tag-specific readings (e.g. TAG_APPEARED, TAG_MOVED, etc).
 
 ## Table of contents
 
@@ -29,7 +34,7 @@ make docker
 
 *Note: make sure your LLRP devices are plugged in and powered on before this step*
 ```bash
-curl -X POST http://localhost:51992/api/v1/discovery
+curl -X POST http://localhost:49989/api/v1/discovery
 ```
 
 At this point the `device-rfid-llrp` service should have discovered your LLRP devices on the network and
@@ -90,11 +95,7 @@ field in Consul for you.
 Discovery can be manually triggered via REST:
 ```bash
 # POST http://<hostname>:<device-rfid-llrp-go port>/api/v1/discovery
-curl -X POST http://localhost:51992/api/v1/discovery
-```
-or make:
-```bash
-make discover
+curl -X POST http://localhost:49989/api/v1/discovery
 ```
 
 Every IP address in each of the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
@@ -102,7 +103,7 @@ If a device returns LLRP response messages, a new EdgeX device is created.
 
 ### EdgeX Device Naming
 EdgeX device names are generated from information it receives from the LLRP device. 
-In the case of Impinj readers, this devcice name *should* match the device's hostname given by
+In the case of Impinj readers, this device name *should* match the device's hostname given by
 Impinj, however the hostname information is not available through LLRP, 
 so the generated name may differ in certain edge cases.
 
@@ -164,6 +165,9 @@ aware of when modifying this file._
 
 [add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/1.2.0#/default/post_v1_device
 [config_toml]: cmd/res/configuration.toml
+[provision_watcher]: cmd/res/provision_watchers
+[impinj_watcher]: cmd/res/provision_watchers/impinj.provision.watcher.json
+[generic_watcher]: cmd/res/provision_watchers/llrp.provision.watcher.json
 
 ## Device Profiles, Custom LLRP Messages, and Service Limitations
 For some use cases, you may want or need to supply your own `deviceProfile`,
@@ -216,6 +220,11 @@ The following `LLRP` operations are _not_ supported at this time:
     There's really no reasonable general-purpose way to support it
     except through code, so if you need it, consider forking this repo
     and adding the interaction by using our [LLRP Library][llrp_library].
+  
+A `ProvisionWatcher` is used during the device discovery process to match discovered readers.
+It also determines the device profile to be used when adding the new device. The two pre-defined
+watchers are a [generic one][generic_watcher], and one for [Impinj][impinj_watcher]. Any new provision watchers 
+added to the same [directory][provision_watcher] will be auto-imported on service startup.
 
 ### Data Format
 EdgeX requires that `deviceResources` are representable as a basic type,
@@ -255,8 +264,8 @@ and how it satisfies the read request:
     
 You can configure `deviceCommands` in your device profile
 to read more than one resource at a time,
-in which case the device service attempts each of the above requests in series
-and returns the results of all of them.
+in which case the device service attempts each of the commands requests in the order
+specified by the device profile and returns the results of all of them.
 
 For `LLRP` messages that require only an `ROSpecID` or `AccessSpecID`,
 we define them as operations upon `uint32` `deviceResource`s with those names. 

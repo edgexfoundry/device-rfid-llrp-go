@@ -140,3 +140,18 @@ https://github.com/x448/float16/blob/master/LICENSE
 
 golang/snappy (BSD-3) https://github.com/golang/snappy
 https://github.com/golang/snappy/blob/master/LICENSE
+
+bertimus9/systemstat (MIT) https://bitbucket.org/bertimus9/systemstat/src/master/
+https://bitbucket.org/bertimus9/systemstat/src/master/LICENSE
+
+go-goplayground/locales (MIT) github.com/go-playground/locales
+https://github.com/go-playground/locales/blob/master/LICENSE
+
+go-goplayground/universal-translator (MIT) https://github.com/go-playground/universal-translator
+https://github.com/go-playground/universal-translator/blob/master/LICENSE
+
+go-goplayground/validator (MIT) https://github.com/go-playground/validator/v10
+https://github.com/go-playground/validator/blob/master/LICENSE
+
+leodido/go-urn (MIT) https://github.com/leodido/go-urn
+https://github.com/leodido/go-urn/blob/master/LICENSE
