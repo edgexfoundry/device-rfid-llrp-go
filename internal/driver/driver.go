@@ -33,7 +33,7 @@ import (
 
 const (
 	ServiceName    = "edgex-device-rfid-llrp"
-	BaseConsulPath = "edgex/devices/1.0/" + ServiceName
+	baseConsulPath = "edgex/devices/1.0/" + ServiceName
 
 	ResourceReaderCap          = "ReaderCapabilities"
 	ResourceReaderConfig       = "ReaderConfig"
@@ -201,8 +201,8 @@ func (d *Driver) watchForConfigChanges() error {
 	configClient, err := configuration.NewConfigurationClient(types.ServiceConfig{
 		Host:     cpUrl.Hostname(),
 		Port:     cpPort,
-		BasePath: BaseConsulPath,
-		Type:     cpUrl.Scheme,
+		BasePath: baseConsulPath,
+		Type:     strings.Split(cpUrl.Scheme, ".")[0],
 	})
 	if err != nil {
 		return err

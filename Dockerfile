@@ -47,4 +47,4 @@ COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/
 EXPOSE 49989
 
 ENTRYPOINT ["/device-rfid-llrp-go"]
-CMD ["--cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]
+CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]
