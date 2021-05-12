@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# This script configures the subnet information for device discovery.
+# The DiscoverySubnets config option defaults to blank in the configuration.toml file, and needs to be provided before
+# a discovery can occur. This script checks your local machine's network interfaces to see which
+# ones are both online and a physical device. It uses this information to fill in the
+# DiscoverySubnets field in Consul for you.
+
 set -eu
 
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}

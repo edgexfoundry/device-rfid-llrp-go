@@ -28,17 +28,17 @@ echo "Using ${dev_url}"
 
 # Add an ROSpec
 echo "Adding ROSpec ${ROSPEC_LOCATION}"
-curl -so- ${dev_url} | jq '.commands[]|select(.name=="AddROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
+curl -so- "${dev_url}" | jq '.commands[]|select(.name=="AddROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
     curl -so- -X PUT -H 'Content-Type: application/json' --data '@'<(jq '.|{ROSpec: @text}' "${ROSPEC_LOCATION}") 
 
 # Get ROSpecs
 echo "Getting ROSpecs from Reader"
-curl -so- ${dev_url} | jq '.commands[]|select(.name=="GetROSpec")|.get.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
+curl -so- "${dev_url}" | jq '.commands[]|select(.name=="GetROSpec")|.get.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
     curl -so- | jq '.readings[0].value|fromjson'
 
 # Enable ROSpec
 echo "Enabling ROSpec 1"
-curl -so- ${dev_url} | jq '.commands[]|select(.name=="EnableROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
+curl -so- "${dev_url}" | jq '.commands[]|select(.name=="EnableROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
     curl -so- -X PUT -H 'Content-Type: application/json' --data '{"ROSpecID": "1"}'
 
 # wait a bit
@@ -50,12 +50,12 @@ done
 
 # Disable ROSpec
 echo "Disabling ROSpec 1"
-curl -so- ${dev_url} | jq '.commands[]|select(.name=="DisableROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
+curl -so- "${dev_url}" | jq '.commands[]|select(.name=="DisableROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
     curl -so- -X PUT -H 'Content-Type: application/json' --data '{"ROSpecID": "1"}'
 
 # Delete ROSpec
 echo "Deleting ROSpec 1"
-curl -so- ${dev_url} | jq '.commands[]|select(.name=="DeleteROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
+curl -so- "${dev_url}" | jq '.commands[]|select(.name=="DeleteROSpec")|.put.url' | sed -e "s/edgex-core-command/${HOST}/" | xargs -L1 \
     curl -so- -X PUT -H 'Content-Type: application/json' --data '{"ROSpecID": "1"}'
 
 # See collected EPCs (assuming EPC96)

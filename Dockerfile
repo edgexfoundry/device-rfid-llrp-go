@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.15-alpine
+ARG BASE=golang:1.15-alpine3.12
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
@@ -35,7 +35,7 @@ COPY . .
 
 RUN $MAKE
 
-FROM alpine:latest
+FROM alpine:3.12
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2020: Intel'
@@ -44,7 +44,7 @@ COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/
 COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/Attribution.txt /
 COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/cmd /
 
-EXPOSE 51992
+EXPOSE 49989
 
 ENTRYPOINT ["/device-rfid-llrp-go"]
-CMD ["--cp=consul://edgex-core-consul:8500", "--confdir=/res", "--registry"]
+CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]

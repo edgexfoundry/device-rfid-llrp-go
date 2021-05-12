@@ -28,7 +28,7 @@ func testConfig() map[string]string {
 func TestLoad(t *testing.T) {
 	cfg := testConfig()
 	var driverCfg driverConfiguration
-	if err := load(cfg, &driverCfg); err != nil {
+	if err := driverCfg.load(cfg); err != nil {
 		t.Fatalf("got err: %s", err.Error())
 	}
 
@@ -48,7 +48,7 @@ func TestLoad(t *testing.T) {
 
 func TestEmptyConfigDefaults(t *testing.T) {
 	var driverCfg driverConfiguration
-	if err := load(map[string]string{}, &driverCfg); err != nil {
+	if err := driverCfg.load(map[string]string{}); err != nil {
 		t.Fatalf("got err: %s", err.Error())
 	}
 
@@ -97,7 +97,7 @@ func TestMissingFieldDefaults(t *testing.T) {
 			delete(cfg, test.key)
 
 			var driverCfg driverConfiguration
-			if err := load(cfg, &driverCfg); err != nil {
+			if err := driverCfg.load(cfg); err != nil {
 				t.Fatalf("got err: %s", err.Error())
 			}
 
@@ -115,7 +115,7 @@ func TestErrUnexpectedConfigItems(t *testing.T) {
 		"foo": "bar",
 	}
 	var driverCfg driverConfiguration
-	if err := load(cfg, &driverCfg); !errors.Is(err, ErrUnexpectedConfigItems) {
+	if err := driverCfg.load(cfg); !errors.Is(err, ErrUnexpectedConfigItems) {
 		t.Fatalf("expected ErrUnexpectedConfigItems, but got: %v", err)
 	}
 }
