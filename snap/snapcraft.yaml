@@ -28,7 +28,7 @@ apps:
     adapter: none
     command: bin/device-rfid-llrp-go $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
     environment:
-      CONFIG_PRO_ARG: "-cp=consul://localhost:8500"
+      CONFIG_PRO_ARG: "-cp=consul.http://localhost:8500"
       CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp-go/res"
       REGISTRY_ARG: "--registry"
       DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp-go/res"
