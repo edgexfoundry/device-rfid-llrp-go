@@ -26,7 +26,21 @@ make build
 ```bash
 make docker
 ```
+**Run EdgeX Hanoi**
+- [Docker](https://github.com/edgexfoundry/edgex-compose/tree/hanoi)
+- [Snap](https://snapcraft.io/edgexfoundry)
+
+**Run device-rfid-llrp**
+- [Run via Snap](#snap-development-and-testing)
+- Docker
+    - Add `device-rfid-llrp` to your `docker-compose.yml` file
+- Native
+    ```shell
+    cd cmd && ./device-rfid-llrp-go -cp=consul.http://localhost:8500 
+    ```
+
 **Configure subnet information**
+>_Note: This script requires EdgeX and device-rfid-llrp to be running first._
 ```bash
 ./bin/auto-configure.sh
 ```

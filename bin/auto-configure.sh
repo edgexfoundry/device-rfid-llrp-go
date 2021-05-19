@@ -8,8 +8,9 @@
 
 #
 # The purpose of this script is to make it easier for an end user to configure LLRP device discovery
-# without the need to have knowledge about subnets and/or CIDR format. It also allows the LLRP device
-# service to be run in a NAT-ed environment without host-mode networking because the subnet information
+# without the need to have knowledge about subnets and/or CIDR format. The "DiscoverySubnets" config
+# option defaults to blank in the configuration.toml file, and needs to be provided before a discovery can occur.
+# This allows the LLRP device service to be run in a NAT-ed environment without host-mode networking because the subnet information
 # is user-provided and does not rely on the device-rfid-llrp service to detect it.
 #
 # Essentially how this script works is it polls the machine it is running on and finds the active subnet for
@@ -17,8 +18,11 @@
 # It uses this information to automatically fill out the "DiscoverySubnets" configuration option through Consul of a deployed
 # device-rfid-llrp instance.
 #
-# NOTE: This script requires EdgeX Consul and the device-rfid-llrp service to have been run before this
+# NOTE 1: This script requires EdgeX Consul and the device-rfid-llrp service to have been run before this
 # script will function.
+#
+# NOTE 2: If the "DiscoverySubnets" config is provided via "configuration.toml" this script does
+# not need to be run.
 #
 
 set -eu
