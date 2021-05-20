@@ -28,6 +28,7 @@
 set -eu
 
 # If ran with DEBUG=1, enable bash command tracing
+DEBUG=${DEBUG:-0}
 if [ "${DEBUG}" == "1" ]; then
     set -x
 fi
