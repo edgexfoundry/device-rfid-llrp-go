@@ -24,7 +24,7 @@ ARG ALPINE_PKG_EXTRA=""
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
-WORKDIR $GOPATH/src/github.com/edgexfoundry-holding/device-rfid-llrp-go
+WORKDIR $GOPATH/src/github.com/edgexfoundry/device-rfid-llrp-go
 
 COPY go.mod .
 COPY Makefile .
@@ -40,9 +40,9 @@ FROM alpine:3.12
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2020: Intel'
 
-COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/LICENSE /
-COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/Attribution.txt /
-COPY --from=builder /go/src/github.com/edgexfoundry-holding/device-rfid-llrp-go/cmd /
+COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/LICENSE /
+COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/Attribution.txt /
+COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/cmd /
 
 EXPOSE 49989
 

@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"

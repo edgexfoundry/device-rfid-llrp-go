@@ -12,7 +12,7 @@ DOCKERS=docker_device_rfid_llrp_go
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 
 GIT_SHA=$(shell git rev-parse HEAD)
-GOFLAGS=-ldflags "-X github.com/edgexfoundry-holding/device-rfid-llrp-go.Version=$(VERSION)"
+GOFLAGS=-ldflags "-X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION)"
 
 build: $(MICROSERVICES)
 

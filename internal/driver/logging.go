@@ -6,7 +6,7 @@
 package driver
 
 import (
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 )
 
