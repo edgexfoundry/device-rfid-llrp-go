@@ -9,7 +9,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"net"
 	"os"

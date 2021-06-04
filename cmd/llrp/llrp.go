@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	"github.com/pkg/errors"
 	"io/ioutil"
 	stdlog "log"

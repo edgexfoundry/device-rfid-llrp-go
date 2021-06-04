@@ -6,8 +6,8 @@
 package main
 
 import (
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go"
-	"github.com/edgexfoundry-holding/device-rfid-llrp-go/internal/driver"
+	"github.com/edgexfoundry/device-rfid-llrp-go"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/driver"
 	"github.com/edgexfoundry/device-sdk-go/pkg/startup"
 )
 

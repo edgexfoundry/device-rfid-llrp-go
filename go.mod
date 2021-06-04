@@ -1,4 +1,4 @@
-module github.com/edgexfoundry-holding/device-rfid-llrp-go
+module github.com/edgexfoundry/device-rfid-llrp-go
 
 go 1.15
 
