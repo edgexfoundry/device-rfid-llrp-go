@@ -1,6 +1,6 @@
 module github.com/edgexfoundry/device-rfid-llrp-go
 
-go 1.15
+go 1.16
 
 require (
 	github.com/edgexfoundry/device-sdk-go v1.4.0

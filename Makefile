@@ -14,7 +14,10 @@ VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 GIT_SHA=$(shell git rev-parse HEAD)
 GOFLAGS=-ldflags "-X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION)"
 
-build: $(MICROSERVICES)
+build: tidy $(MICROSERVICES)
+
+tidy:
+	go mod tidy
 
 cmd/device-rfid-llrp-go:
 	$(GO) build $(GOFLAGS) -o $@ ./cmd

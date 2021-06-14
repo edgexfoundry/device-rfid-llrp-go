@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Intel Corporation
+# Copyright (c) 2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.15-alpine3.12
+ARG BASE=golang:1.16-alpine3.12
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
@@ -33,12 +33,13 @@ RUN make update
 
 COPY . .
 
+RUN go mod tidy
 RUN $MAKE
 
 FROM alpine:3.12
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
-  copyright='Copyright (c) 2020: Intel'
+  copyright='Copyright (c) 2021: Intel'
 
 COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/LICENSE /
 COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/Attribution.txt /
