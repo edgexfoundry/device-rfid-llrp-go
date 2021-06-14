@@ -40,13 +40,18 @@ make docker
     ```
 
 **Configure subnet information**
->_Note: This script requires EdgeX and device-rfid-llrp to be running first._
+>_**Note 1:** This script requires EdgeX and device-rfid-llrp to be running first._
+
+>_**Note 2:** This step is optional if you already configured the subnets beforehand in the configuration.toml file._
 ```bash
 ./bin/auto-configure.sh
 ```
 **Trigger a device discovery**
 
-*Note: make sure your LLRP devices are plugged in and powered on before this step*
+>_**Note 1:** Make sure your LLRP devices are plugged in and powered on before this step_
+
+>_**Note 2:** The system will trigger a discovery 10 seconds after any change is made to the subnet
+> or discover port config, so this step is often not required_
 ```bash
 curl -X POST http://localhost:49989/api/v1/discovery
 ```
@@ -58,8 +63,8 @@ For more detailed info, see [Device Discovery](#Device-Discovery) and
 [EdgeX Device Naming](#EdgeX-Device-Naming).
 
 ## Device Discovery
-*Note: Device discovery is currently only compatible with IPv4 networks.
-If using an IPv6-only network, you will need to [manually add your devices to EdgeX](#manually-adding-a-device).*
+>_**Note:** Device discovery is currently only compatible with IPv4 networks.
+If using an IPv6-only network, you will need to [manually add your devices to EdgeX](#manually-adding-a-device)._
 
 This service has the functionality to probe the local network 
 in an effort to discover devices that support LLRP.
@@ -70,7 +75,7 @@ for existing installations, and [configuration.toml][config_toml] for default va
 
 The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml][config_toml] file.
 
-_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
+>_**Note:** Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
 [consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Device/Discovery/
@@ -105,6 +110,9 @@ The easiest way of doing this is via the following script:
 What this command does is check your local machine's network interfaces to see which ones are both online
 and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
 field in Consul for you.
+
+>_**Note:** Whenever a change to `DiscoverySubnets` or `ScanPort` is detected via a Consul watcher,
+> a discovery is automatically triggered after a 10-second debounced delay._
 
 Discovery can be manually triggered via REST:
 ```bash
@@ -162,7 +170,7 @@ is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-1
 You can add devices directly via [EdgeX's APIs][add_device]
 or via the [toml configuration][config_toml], as in the following example:
 
-_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
+>_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
 ```
