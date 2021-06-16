@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,6 +60,10 @@ const (
 
 	GenericDeviceProfile = "Device.LLRP.Profile"
 	ImpinjDeviceProfile  = "Impinj.LLRP.Profile"
+
+	// discoverDebounceDuration is the amount of time to wait for additional changes to discover
+	// configuration before auto-triggering a discovery
+	discoverDebounceDuration = 10 * time.Second
 )
 
 var (
@@ -94,6 +99,10 @@ type Driver struct {
 	watchersMu    sync.Mutex
 
 	svc ServiceWrapper
+
+	// debounceTimer and debounceMu keep track of when to fire a debounced discovery call
+	debounceTimer *time.Timer
+	debounceMu    sync.Mutex
 }
 
 type MultiErr []error
@@ -238,8 +247,16 @@ func (d *Driver) watchForConfigChanges() error {
 				newCfg, ok := raw.(*driverConfiguration)
 				if ok {
 					d.configMu.Lock()
+					oldSubnets := d.config.DiscoverySubnets
+					oldScanPort := d.config.ScanPort
 					d.config = newCfg
 					d.configMu.Unlock()
+
+					if !reflect.DeepEqual(newCfg.DiscoverySubnets, oldSubnets) ||
+						newCfg.ScanPort != oldScanPort {
+						d.lc.Info("discover configuration has changed!")
+						d.debouncedDiscover()
+					}
 				} else {
 					d.lc.Warn("unable to decode incoming configuration from registry")
 				}
@@ -782,6 +799,45 @@ func (d *Driver) addProvisionWatchers() error {
 		return MultiErr(errs)
 	}
 	return nil
+}
+
+// debouncedDiscover adds or updates a future call to Discover. This function is intended to be
+// called by the config watcher in response to any configuration changes related to discovery.
+// The reason Discover calls are being debounced is to allow the user to make multiple changes to
+// their configuration, and only fire the discovery once.
+//
+// The way it works is that this code creates and starts a timer for discoverDebounceDuration.
+// Every subsequent call to this function before that timer elapses resets the timer to
+// discoverDebounceDuration. Once the timer finally elapses, the Discover function is called.
+func (d *Driver) debouncedDiscover() {
+	d.lc.Debug(fmt.Sprintf("trigger debounced discovery in %v", discoverDebounceDuration))
+
+	// everything in this function is mutex-locked and is safe to access asynchronously
+	d.debounceMu.Lock()
+	defer d.debounceMu.Unlock()
+
+	if d.debounceTimer != nil {
+		// timer is already active, so reset it (debounce)
+		d.debounceTimer.Reset(discoverDebounceDuration)
+	} else {
+		// no timer is active, so create and start a new one
+		d.debounceTimer = time.NewTimer(discoverDebounceDuration)
+
+		// asynchronously listen for the timer to elapse. this go routine will only ever be run
+		// once due to mutex locking and the above if statement.
+		go func() {
+			// wait for timer to tick
+			<-d.debounceTimer.C
+
+			// remove timer. we must lock the mutex as this go routine runs separately from the
+			// outer function's locked scope
+			d.debounceMu.Lock()
+			d.debounceTimer = nil
+			d.debounceMu.Unlock()
+
+			d.Discover()
+		}()
+	}
 }
 
 // Discover performs a discovery of LLRP readers on the network and passes them to EdgeX to get provisioned
