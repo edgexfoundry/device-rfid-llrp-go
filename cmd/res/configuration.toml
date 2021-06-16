@@ -8,6 +8,7 @@ Protocol = 'http'
 StartupMsg = 'device llrp started'
 Timeout = 5000
 ConnectRetries = 10
+CheckInterval = '10s'
 Labels = []
 EnableAsyncReadings = true
 AsyncBufferSize = 16
