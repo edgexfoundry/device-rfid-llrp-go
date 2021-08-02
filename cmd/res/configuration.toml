@@ -47,7 +47,7 @@ File = ''
   RemoveCmd = ''
   RemoveCmdArgs = ''
   ProfilesDir = './res'
-  UpdateLastConnected = true
+  UpdateLastConnected = false
   [Device.Discovery]
     Enabled = true
     Interval = '1h'
