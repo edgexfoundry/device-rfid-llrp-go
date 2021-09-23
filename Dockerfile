@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.16-alpine3.12
+ARG BASE=golang:1.16-alpine3.14
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
@@ -36,7 +36,7 @@ COPY . .
 RUN go mod tidy
 RUN $MAKE
 
-FROM alpine:3.12
+FROM alpine:3.14
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2021: Intel'
