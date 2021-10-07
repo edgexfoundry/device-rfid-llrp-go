@@ -26,12 +26,8 @@ RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
 WORKDIR $GOPATH/src/github.com/edgexfoundry/device-rfid-llrp-go
 
-COPY go.mod .
-COPY Makefile .
-
-RUN make update
-
 COPY . .
+RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
 
 RUN go mod tidy
 RUN $MAKE
