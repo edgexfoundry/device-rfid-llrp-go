@@ -58,3 +58,6 @@ venv
 internal/llrp/testdata/**/*.json
 internal/llrp/testdata/**/*.bytes
 !internal/llrp/testdata/roAccessReports/*-00?*
+
+#do not track vscode
+.vscode/*

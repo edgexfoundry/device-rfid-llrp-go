@@ -8,10 +8,14 @@ package driver
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"testing"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetTCPAddr(t *testing.T) {
@@ -44,42 +48,6 @@ func TestGetTCPAddr(t *testing.T) {
 	})
 }
 
-type edgexCompatTestLogger struct {
-	*testing.T
-}
-
-func (e edgexCompatTestLogger) SetLogLevel(_ string) error {
-	return nil
-}
-
-func (e edgexCompatTestLogger) Trace(msg string, args ...interface{}) {
-	if testing.Verbose() {
-		e.Logf("TRACE: "+msg, args...)
-	}
-}
-
-func (e edgexCompatTestLogger) Debug(msg string, args ...interface{}) {
-	if testing.Verbose() {
-		e.Logf("DEBUG: "+msg, args...)
-	}
-}
-
-func (e edgexCompatTestLogger) Info(msg string, args ...interface{}) {
-	if testing.Verbose() {
-		e.Logf(" INFO: "+msg, args...)
-	}
-}
-
-func (e edgexCompatTestLogger) Warn(msg string, args ...interface{}) {
-	if testing.Verbose() {
-		e.Logf(" WARN: "+msg, args...)
-	}
-}
-
-func (e edgexCompatTestLogger) Error(msg string, args ...interface{}) {
-	e.Logf("ERROR: "+msg, args...)
-}
-
 func TestHandleRead(t *testing.T) {
 	// c := llrp.GetFunctionalClient(t, "192.168.86.88:5084")
 
@@ -96,7 +64,8 @@ func TestHandleRead(t *testing.T) {
 	go rfid.ImpersonateReader()
 	c := rfid.ConnectClient(t)
 
-	elog := edgexCompatTestLogger{t}
+	elog := getLogger()
+
 	d := &Driver{
 		lc:            elog,
 		activeDevices: make(map[string]*LLRPDevice),
@@ -113,7 +82,7 @@ func TestHandleRead(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
 		target  llrp.Incoming
-		attribs map[string]string
+		attribs map[string]interface{}
 	}{
 		{name: ResourceReaderCap, target: &llrp.GetReaderCapabilitiesResponse{}},
 		{name: ResourceReaderConfig, target: &llrp.GetReaderConfigResponse{}},
@@ -124,7 +93,7 @@ func TestHandleRead(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			cvs, err := d.HandleReadCommands("localReader", protocolMap{}, []dsModels.CommandRequest{{
 				DeviceResourceName: testCase.name,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 				Attributes:         testCase.attribs,
 			}})
 			if err != nil {
@@ -144,8 +113,8 @@ func TestHandleRead(t *testing.T) {
 				t.Errorf("expected %s; got %s", testCase.name, cv.DeviceResourceName)
 			}
 
-			if dsModels.String != cv.Type {
-				t.Errorf("expected %v; got %v", dsModels.String, cv.Type)
+			if common.ValueTypeString != cv.Type {
+				t.Errorf("expected %v; got %v", common.ValueTypeString, cv.Type)
 			}
 
 			s, err := cv.StringValue()
@@ -162,9 +131,7 @@ func TestHandleRead(t *testing.T) {
 
 func TestHandleWrite(t *testing.T) {
 	rfid, err := llrp.NewTestDevice(llrp.Version1_0_1, llrp.Version1_1, time.Second*1, !testing.Verbose())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	rfid.SetResponse(llrp.MsgSetReaderConfig, &llrp.SetReaderConfigResponse{})
 	rfid.SetResponse(llrp.MsgStartROSpec, &llrp.StartROSpecResponse{})
@@ -178,7 +145,7 @@ func TestHandleWrite(t *testing.T) {
 	go rfid.ImpersonateReader()
 	c := rfid.ConnectClient(t)
 
-	elog := edgexCompatTestLogger{t}
+	elog := getLogger()
 	d := &Driver{
 		lc:            elog,
 		activeDevices: make(map[string]*LLRPDevice),
@@ -192,18 +159,26 @@ func TestHandleWrite(t *testing.T) {
 		lc:     elog,
 	}
 
-	roSpecID, err := dsModels.NewUint32Value(ResourceROSpecID, 0, 1)
-	if err != nil {
-		t.Fatalf("failed to make ROSpecID: %+v", err)
-	}
+	roSpecID, err := dsModels.NewCommandValueWithOrigin(ResourceROSpecID, common.ValueTypeUint32, uint32(1), 0)
+	require.NoError(t, err)
 
-	accessSpecID, err := dsModels.NewUint32Value(ResourceAccessSpecID, 0, 2)
-	if err != nil {
-		t.Fatalf("failed to make AccessSpecID: %+v", err)
-	}
+	accessSpecID, err := dsModels.NewCommandValueWithOrigin(ResourceAccessSpecID, common.ValueTypeUint32, uint32(2), 0)
+	require.NoError(t, err)
 
 	customData := base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 0})
 	t.Logf("%s", customData)
+
+	readerConfigCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceReaderConfig, common.ValueTypeString, "{}", 0)
+	require.NoError(t, err)
+
+	roSpecCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceAction, common.ValueTypeString, ActionStart, 0)
+	require.NoError(t, err)
+
+	accessSpecCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceAction, common.ValueTypeString, ActionEnable, 0)
+	require.NoError(t, err)
+
+	customMessageCmdValue, err := dsModels.NewCommandValueWithOrigin("MyCustomMessage", common.ValueTypeString, customData, 0)
+	require.NoError(t, err)
 
 	for _, testCase := range []struct {
 		name    string
@@ -215,51 +190,51 @@ func TestHandleWrite(t *testing.T) {
 			name: "SetReaderConfig",
 			reqs: []dsModels.CommandRequest{{
 				DeviceResourceName: ResourceReaderConfig,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 			}},
 			param: []*dsModels.CommandValue{
-				dsModels.NewStringValue(ResourceReaderConfig, 0, "{}"),
+				readerConfigCmdValue,
 			},
 		},
 		{
 			name: "StartROSpec1",
 			reqs: []dsModels.CommandRequest{{
 				DeviceResourceName: ResourceROSpecID,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 			}, {
 				DeviceResourceName: ResourceAction,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 			}},
 			param: []*dsModels.CommandValue{
 				roSpecID,
-				dsModels.NewStringValue(ResourceAction, 0, ActionStart),
+				roSpecCmdValue,
 			},
 		},
 		{
 			name: "EnableAccessSpec2",
 			reqs: []dsModels.CommandRequest{{
 				DeviceResourceName: ResourceAccessSpecID,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 			}, {
 				DeviceResourceName: ResourceAction,
-				Type:               dsModels.String,
+				Type:               common.ValueTypeString,
 			}},
 			param: []*dsModels.CommandValue{
 				accessSpecID,
-				dsModels.NewStringValue(ResourceAction, 0, ActionEnable),
+				accessSpecCmdValue,
 			}},
 		{
 			name: "CustomMessage",
 			reqs: []dsModels.CommandRequest{{
 				DeviceResourceName: "MyCustomMessage",
-				Type:               dsModels.String,
-				Attributes: map[string]string{
-					"vendor":  "25882",
-					"subtype": "21",
+				Type:               common.ValueTypeString,
+				Attributes: map[string]interface{}{
+					"vendor":  uint64(25882),
+					"subtype": uint64(21),
 				}},
 			},
 			param: []*dsModels.CommandValue{
-				dsModels.NewStringValue("MyCustomMessage", 0, customData),
+				customMessageCmdValue,
 			},
 		},
 	} {
@@ -270,9 +245,15 @@ func TestHandleWrite(t *testing.T) {
 				testCase.reqs, testCase.param,
 			)
 
-			if err != nil {
-				t.Fatalf("%+v", err)
-			}
+			require.NoError(t, err)
 		})
+	}
+}
+
+func getLogger() logger.LoggingClient {
+	if testing.Verbose() {
+		return logger.NewClient("unitTest", "DEBUG")
+	} else {
+		return logger.MockLogger{}
 	}
 }

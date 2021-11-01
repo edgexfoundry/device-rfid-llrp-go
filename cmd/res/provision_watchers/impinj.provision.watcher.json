@@ -4,11 +4,7 @@
     "vendorPEN": "25882"
   },
   "blockingidentifiers": {},
-  "profile": {
-    "name": "Impinj.LLRP.Profile"
-  },
-  "service": {
-    "name": "edgex-device-rfid-llrp"
-  },
+  "profileName": "LLRP-Impinj-Profile",
+  "serviceName": "edgex-device-rfid-llrp",
   "adminState": "UNLOCKED"
 }

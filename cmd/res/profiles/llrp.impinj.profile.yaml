@@ -1,0 +1,190 @@
+name: "LLRP-Impinj-Profile"
+manufacturer: "Impinj"
+labels:
+  - "LLRP"
+  - "RFID"
+  - "Impinj"
+description: "A device profile with added Impinj support."
+
+deviceResources:
+  - 
+    name: "ImpinjCustomExtensionMessage"
+    properties:
+      valueType: "String"
+      readWrite: "RW"
+    attributes:
+      vendor: 25882
+      subtype: 21
+
+  - 
+    name: "ImpinjSaveSettingsMessage"
+    properties:
+      valueType: "String"
+      readWrite: "W"
+    attributes:
+      vendor: 25882
+      subtype: 23
+
+  - 
+    name: "ReaderCapabilities"
+    description: "The capabilities of a reader"
+    properties:
+      valueType: "String"
+      readWrite: "R"
+
+  - 
+    name: "ReaderConfig"
+    description: "A Reader's configuration"
+    properties:
+      valueType: "String"
+      readWrite: "R"
+
+  - 
+    name: "ROSpecID"
+    description: "Client-generated Reader Operation Specification Identifier"
+    properties:
+      valueType: "uint32"
+      readWrite: "W"
+      defaultValue: "1"
+
+  - 
+    name: "AccessSpecID"
+    description: "Client-generated Access Specification Identifier"
+    properties:
+      valueType: "uint32"
+      readWrite: "W"
+      defaultValue: "1"
+      value: { type: "uint32", readWrite: "W", defaultValue: "1" }
+
+  - 
+    name: "ROSpec"
+    properties:
+      valueType: "String"
+      readWrite: "RW"
+
+  - 
+    name: "AccessSpec"
+    properties:
+      valueType: "String"
+      readWrite: "RW"
+
+  - 
+    name: "Action"
+    properties:
+      valueType: "String"
+      readWrite: "W"
+
+  - 
+    name: "ROAccessReport"
+    properties:
+      valueType: "String"
+      readWrite: "R"
+      value: { type: "String", readWrite: "R" }
+
+  - 
+    name: "ReaderEventNotification"
+    properties:
+      valueType: "String"
+      readWrite: "R"
+      value: { type: "String", readWrite: "R" }
+
+deviceCommands:
+  - 
+    name: enableImpinjExt
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ImpinjCustomExtensionMessage", defaultValue: "AAAAAA==" }
+
+  - 
+    name: capabilities
+    isHidden: false
+    readWrite: "R"
+    resourceOperations:
+      - { deviceResource: "ReaderCapabilities" }
+    get: [ { deviceResource: "ReaderCapabilities" } ]
+
+  - 
+    name: config
+    isHidden: false
+    readWrite: "R"
+    resourceOperations:
+      - { deviceResource: "ReaderConfig" }
+
+  - 
+    name: roSpec
+    isHidden: false
+    readWrite: "RW"
+    resourceOperations:
+      - { deviceResource: "ROSpec" }
+
+  - 
+    name: enableROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Enable" }
+
+  - 
+    name: startROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Start" }
+
+  - 
+    name: stopROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Stop" }
+
+  - 
+    name: disableROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Disable" }
+
+  - 
+    name: deleteROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Delete" }
+
+  - 
+    name: accessSpec
+    isHidden: false
+    readWrite: "RW"
+    resourceOperations:
+      - { deviceResource: "AccessSpec" }
+
+  - 
+    name: enableAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Enable" }
+
+  - 
+    name: disableAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID", defaultValue: "0" }
+      - { deviceResource: "Action", defaultValue: "Disable" }
+
+  - 
+    name: deleteAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID" }
+      - { deviceResource: "Action", defaultValue: "Delete" }

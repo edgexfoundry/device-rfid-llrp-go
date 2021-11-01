@@ -9,15 +9,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
+	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -92,7 +94,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.O
 		address: address,
 		lc:      d.lc,
 		ch:      d.asyncCh,
-		enabled: opState == contract.Enabled,
+		enabled: opState == contract.Up,
 	}
 
 	// These options will be used each time we reconnect.
@@ -190,7 +192,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.O
 
 				if isEnabled {
 					d.lc.Warn("Failed to connect to Device after multiple tries.", "device", name)
-					if err := d.svc.SetDeviceOpState(name, contract.Disabled); err != nil {
+					if err := d.svc.SetDeviceOpState(name, contract.Down); err != nil {
 						d.lc.Error("Failed to set device operating state to Disabled.",
 							"device", name, "error", err.Error())
 						// This is not likely, but might as well try again next round.
@@ -387,10 +389,15 @@ func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{
 			"event", fmt.Sprintf("%+v", event))
 		return
 	}
+	newCmd, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeString, string(data), ns)
+	if err != nil {
+		l.lc.Errorf("Failed to create new command value with origin: %s", err.Error())
+		return
+	}
 
 	l.ch <- &dsModels.AsyncValues{
 		DeviceName:    l.name,
-		CommandValues: []*dsModels.CommandValue{dsModels.NewStringValue(eventName, ns, string(data))},
+		CommandValues: []*dsModels.CommandValue{newCmd},
 	}
 }
 
@@ -463,7 +470,7 @@ func (l *LLRPDevice) onConnect(svc ServiceWrapper) {
 
 	if !isEnabled {
 		l.lc.Info("Device connection restored.", "device", l.name)
-		if err := svc.SetDeviceOpState(l.name, contract.Enabled); err != nil {
+		if err := svc.SetDeviceOpState(l.name, contract.Up); err != nil {
 			l.lc.Error("Failed to set device operating state to Enabled.",
 				"device", l.name, "error", err.Error())
 		} else {

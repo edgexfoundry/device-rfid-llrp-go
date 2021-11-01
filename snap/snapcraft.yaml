@@ -1,17 +1,15 @@
-name: edgex-device-rfid-llrp
+name:  edgex-device-rfid-llrp
 base: core18
-version: "replace-me"
-version-script: |
-  VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
-  echo $VERSION-$(date +%Y%m%d)+$(git rev-parse --short HEAD)
+adopt-info: version
 license: Apache-2.0
 summary: EdgeX Device LLRP Micro Service 
 title: EdgeX Device LLRP Micro Service 
 description: |
   The EdgeX Device LLRP service for connecting LLRP based RFID devices to EdgeX.
   Initially the daemon in the snap is disabled - a device profile must be
-  provisioned externally with core-metadata or provided to device-rfid-llrp-go inside
-  "$SNAP_DATA/config/device-rfid-llrp-go/res" before starting.
+  provisioned externally with core-metadata or provided to device-rfid-llrp inside
+  "$SNAP_DATA/config/device-rfid-llrp/res" before starting.
+
 # TODO: add armhf when the project supports this
 architectures:
   - build-on: amd64
@@ -20,82 +18,110 @@ architectures:
 grade: stable
 confinement: strict
 
-# delhi: 0, edinburgh: 1, fuji: 2, geneva: 3
-epoch: 3
+# delhi: 0, edinburgh: 1, fuji: 2, geneva/hanoi: 3, ireland: 4
+epoch: 4
+
+slots:
+  edgex-secretstore-token:
+    interface: content
+    content: edgex-secretstore-token
+    source:
+      write: [$SNAP_DATA/device-rfid-llrp]
 
 apps:
-   device-rfid-llrp-go:
-    adapter: none
-    command: bin/device-rfid-llrp-go $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
+  device-rfid-llrp:
+    adapter: full
+    command: bin/device-rfid-llrp $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
+    command-chain:
+      - bin/startup-env-var.sh
     environment:
-      CONFIG_PRO_ARG: "-cp=consul.http://localhost:8500"
-      CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp-go/res"
+      CONFIG_PRO_ARG: "--cp=consul.http://localhost:8500"
+      CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp/res"
       REGISTRY_ARG: "--registry"
-      DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp-go/res"
+      DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/profiles"
+      # DEVICE_DEVICESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/devices"
+      SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
     daemon: simple
+    passthrough:
+      install-mode: disable
     plugs: [network, network-bind]
 
+plugs:
+  device-config:
+    interface: content 
+    content: device-config
+    target: $SNAP_DATA/config/device-rfid-llrp/res
+
 parts:
-  go:
+  version:
     plugin: nil
     source: snap/local
-    build-packages: [curl]
-    override-build: |
-      # use dpkg architecture to figure out our target arch
-      # note - we specifically don't use arch
-      case "$(dpkg --print-architecture)" in
-        amd64)
-          FILE_NAME=go1.15.2.linux-amd64.tar.gz
-          FILE_HASH=b49fda1ca29a1946d6bb2a5a6982cf07ccd2aba849289508ee0f9918f6bb4552
-          ;;
-        arm64)
-          FILE_NAME=go1.15.2.linux-arm64.tar.gz
-          FILE_HASH=c8ec460cc82d61604b048f9439c06bd591722efce5cd48f49e19b5f6226bd36d
-          ;;
-      #  armhf)
-      #    FILE_NAME=go1.15.2.linux-armv6l.tar.gz
-      #    FILE_HASH=c12e2afdcb21e530d332d4994919f856dd2a676e9d67034c7d6fefcb241412d9
-      #    ;;
-      #  i386)
-      #    FILE_NAME=go1.15.2.linux-386.tar.gz
-      #    FILE_HASH=5a91080469df6b91f1022bdfb0ca75e01ca50387950b13518def3d0a7f6af9f1
-      #    ;;
-      esac
-      # download the archive, failing on ssl cert problems
-      curl https://dl.google.com/go/$FILE_NAME -O
-      echo "$FILE_HASH $FILE_NAME" > sha256
-      sha256sum -c sha256 | grep OK
-      tar -C $SNAPCRAFT_STAGE -xf go*.tar.gz --strip-components=1
-    prime:
-      - "-*"
-
-  device-rfid-llrp-go:
-    source: .
+    override-pull: |
+      cd $SNAPCRAFT_PROJECT_DIR
+      GIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/v//')
+      if [ -z "$GIT_VERSION" ]; then
+        GIT_VERSION="0.0.0"
+      fi
+      snapcraftctl set-version ${GIT_VERSION}
+      
+  hooks:
+    source: snap/local/hooks
     plugin: make
-    build-packages: [git]
-    after: [go]
+    build-snaps:
+      - go/1.16/stable
     override-build: |
       cd $SNAPCRAFT_PART_SRC
       make build
+      install -DT ./cmd/configure/configure "$SNAPCRAFT_PART_INSTALL/snap/hooks/configure"
+      install -DT ./cmd/install/install "$SNAPCRAFT_PART_INSTALL/snap/hooks/install"
 
-      install -DT "./cmd/device-rfid-llrp-go" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp-go" 
+  device-rfid-llrp:
+    source: .
+    plugin: make
+    build-packages: [git, libzmq3-dev, pkg-config]
+    stage-packages: [libzmq5]
+    build-snaps:
+      - go/1.16/stable
+    override-build: |
+      cd $SNAPCRAFT_PART_SRC
 
-      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/"
-      
-      cat "./cmd/res/configuration.toml" | \
-        sed -e s:\"./device-rfid-llrp-go.log\":\'\$SNAP_COMMON/device-rfid-llrp-go.log\': \
-          -e s:'ProfilesDir = \"./res\"':'ProfilesDir = \"\$SNAP_DATA/config/device-rfid-llrp-go/res\"': > \
-        "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/configuration.toml"
-
-      if [ "$(find ./cmd/res/ -maxdepth 1 -name *.yaml -print -quit)" ]; then  
-       for fpath in ./cmd/res/*.yaml; do
-          fname=$(basename "$fpath")
-          install -DT "./cmd/res/${fname}" \
-            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp-go/res/${fname}"
-       done
+      # The makefile uses a VERSION file to set the Version string. 
+      # This file needs to be generated here
+      GIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/v//')
+      if [ -z "$GIT_VERSION" ]; then
+        GIT_VERSION="0.0.0"
       fi
-   
+      echo $GIT_VERSION > ./VERSION
+
+      go mod tidy
+      make build
+
+      # copy device-rfid-llrp-go and rename to device-rfid-llrp
+      install -DT "./cmd/device-rfid-llrp-go" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
+
+      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/"
+      install -DT "./cmd/res/configuration.toml" \
+        "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/configuration.toml"
+
+      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/profiles/"
+      for fpath in ./cmd/res/profiles/*.yaml; do
+          fname=$(basename "$fpath")
+          install -DT "./cmd/res/profiles/${fname}" \
+            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/profiles/${fname}"
+      done
+
+      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/provision_watchers/"
+      for fpath in ./cmd/res/provision_watchers/*.json; do
+          fname=$(basename "$fpath")
+          install -DT "./cmd/res/provision_watchers/${fname}" \
+            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/provision_watchers/${fname}"
+      done
+
       install -DT "./Attribution.txt" \
-         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp-go/Attribution.txt"
+         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/Attribution.txt"
       install -DT "./LICENSE" \
-         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp-go/LICENSE"
+         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/LICENSE"
+
+  config-common:
+    plugin: dump
+    source: snap/local/runtime-helpers

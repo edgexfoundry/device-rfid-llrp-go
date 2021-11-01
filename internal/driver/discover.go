@@ -10,10 +10,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	"math"
 	"math/bits"
 	"net"
@@ -21,6 +17,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -191,7 +192,7 @@ func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]con
 		if found && existing.Name != info.deviceName {
 			// disable it and remove its protocol information since it is no longer valid
 			delete(existing.Protocols, "tcp")
-			existing.OperatingState = contract.Disabled
+			existing.OperatingState = contract.Down
 			if err := driver.svc.UpdateDevice(existing); err != nil {
 				driver.lc.Warn("There was an issue trying to disable an existing device.",
 					"deviceName", existing.Name,
@@ -225,8 +226,8 @@ func processResultChannel(resultCh chan *discoveryInfo, deviceMap map[string]con
 // its operating state to enabled.
 func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
 	shouldUpdate := false
-	if device.OperatingState == contract.Disabled {
-		device.OperatingState = contract.Enabled
+	if device.OperatingState == contract.Down {
+		device.OperatingState = contract.Up
 		shouldUpdate = true
 	}
 
@@ -243,7 +244,7 @@ func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
 			"port": info.port,
 		}
 		// make sure it is enabled
-		device.OperatingState = contract.Enabled
+		device.OperatingState = contract.Up
 		shouldUpdate = true
 	}
 
@@ -453,7 +454,7 @@ func ipWorker(params workerParams) {
 			ipStr := ip.String()
 			addr := ipStr + ":" + params.scanPort
 			if d, found := params.deviceMap[addr]; found {
-				if d.OperatingState == contract.Enabled {
+				if d.OperatingState == contract.Up {
 					driver.lc.Debug("Skip scan of " + addr + ", device already registered.")
 					continue
 				}

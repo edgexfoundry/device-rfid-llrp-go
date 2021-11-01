@@ -6,9 +6,9 @@
 package driver
 
 import (
-	"github.com/edgexfoundry/device-sdk-go/pkg/service"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/edgexfoundry/device-sdk-go/v2/pkg/service"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 	"github.com/pkg/errors"
 )
 
@@ -22,6 +22,8 @@ type ServiceWrapper interface {
 	GetProvisionWatcherByName(name string) (contract.ProvisionWatcher, error)
 	AddProvisionWatcher(watcher contract.ProvisionWatcher) (id string, err error)
 	AddDevice(device contract.Device) (id string, err error)
+	LoadCustomConfig(customConfig service.UpdatableConfig, sectionName string) error
+	ListenForCustomConfigChanges(configToWatch interface{}, sectionName string, changedCallback func(interface{})) error
 
 	// Pass-through
 	DriverConfigs() map[string]string

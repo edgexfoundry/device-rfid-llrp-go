@@ -7,7 +7,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 HOST=localhost
-DATA_PORT=48080
+DATA_PORT=59880
 CURL_OPTS="-o-"
 REMOVE_NULLS=0
 
@@ -26,7 +26,7 @@ usage() {
     echo ""
     echo "OPTS:"
     echo "    -h | --host HOST    edgex-core-data host   default: localhost"
-    echo "    -p | --port PORT    edgex-core-data port   default: 48080"
+    echo "    -p | --port PORT    edgex-core-data port   default: 59880"
     echo "    -v | --verbose      use verbose curl output"
     echo "    -s | --silent       use silent curl output"
     echo "    -f | --filter-null  skip null values in reports and tags"
@@ -74,7 +74,7 @@ fi
 # get up to 1000 readings from EdgeX's core-data and return reading[].value as unquoted json
 get() {
   TARGET=$1
-  curl ${CURL_OPTS} "${HOST}":"${DATA_PORT}"/api/v1/reading/name/"${TARGET}"/1000 | \
+  curl ${CURL_OPTS} "${HOST}":"${DATA_PORT}"/api/v2/reading/name/"${TARGET}"/1000 | \
     jq '.[].value|fromjson'
 }
 

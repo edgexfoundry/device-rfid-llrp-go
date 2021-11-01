@@ -1,6 +1,7 @@
 .PHONY: build test clean prepare update docker
 
-GO = CGO_ENABLED=0 GO111MODULE=on go
+GO=CGO_ENABLED=0 GO111MODULE=on go
+GOCGO=CGO_ENABLED=1 GO111MODULE=on go
 
 MICROSERVICES=cmd/device-rfid-llrp-go
 
@@ -20,11 +21,11 @@ tidy:
 build: $(MICROSERVICES)
 
 cmd/device-rfid-llrp-go:
-	$(GO) build $(GOFLAGS) -o $@ ./cmd
+	$(GOCGO) build $(GOFLAGS) -o $@ ./cmd
 
 test:
-	$(GO) test -coverprofile=coverage.out ./...
-	$(GO) vet ./...
+	$(GOCGO) test -coverprofile=coverage.out ./...
+	$(GOCGO) vet ./...
 	gofmt -l $$(find . -type f -name '*.go'| grep -v "/vendor/")
 	[ "`gofmt -l $$(find . -type f -name '*.go'| grep -v "/vendor/")`" = "" ]
 	./bin/test-attribution-txt.sh

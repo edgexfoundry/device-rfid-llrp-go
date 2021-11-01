@@ -43,7 +43,7 @@ err() {
 }
 
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}
-url="${CONSUL_URL}/v1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Driver/DiscoverySubnets"
+url="${CONSUL_URL}/v1/kv/edgex/devices/2.0/device-rfid-llrp/Driver/DiscoverySubnets"
 
 ### Dependencies Check
 # Note: trailing ${red} is to colorize red all potential error output from the following commands

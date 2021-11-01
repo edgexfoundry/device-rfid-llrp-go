@@ -11,17 +11,17 @@
 # The host & ports it will use are found in the variables below:
 
 HOST=localhost
-DATA_PORT=48080
-META_PORT=48081
-CMDS_PORT=48082
+DATA_PORT=59880
+META_PORT=59881
+CMDS_PORT=59882
 ROSPEC_LOCATION="ROSpec.json"
 
 set -euo pipefail
 IFS=$'\n\t'
 
 # Get the first device
-device=$(curl -so- ${HOST}:${META_PORT}/api/v1/device/servicename/edgex-device-rfid-llrp | jq '.[0].name' | tr -d '"')
-dev_url=${HOST}:${CMDS_PORT}/api/v1/device/name/${device}
+device=$(curl -so- ${HOST}:${META_PORT}/api/v2/device/servicename/device-rfid-llrp | jq '.[0].name' | tr -d '"')
+dev_url=${HOST}:${CMDS_PORT}/api/v2/device/name/${device}
 
 echo "Using ${dev_url}"
 
@@ -60,5 +60,5 @@ curl -so- "${dev_url}" | jq '.commands[]|select(.name=="DeleteROSpec")|.put.url'
 
 # See collected EPCs (assuming EPC96)
 echo "Displaying EPCs"
-curl -so- ${HOST}:${DATA_PORT}/api/v1/reading/name/ROAccessReport/1000 | \
+curl -so- ${HOST}:${DATA_PORT}/api/v2/reading/resourceName/ROAccessReport?limit=1000 | \
     jq '.[].value|fromjson|.TagReportData[]?.EPC96.EPC' | tr -d '"' | base64 -d | od --endian=big -t x2 -An -w12 -v | sort | uniq -c

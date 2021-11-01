@@ -10,31 +10,26 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/edgexfoundry/device-sdk-go/pkg/service"
-	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/flags"
-	"github.com/edgexfoundry/go-mod-configuration/configuration"
-	"github.com/edgexfoundry/go-mod-configuration/pkg/types"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"math"
 	"net"
-	"net/url"
-	"os"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
+	"github.com/edgexfoundry/device-sdk-go/v2/pkg/service"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/pkg/errors"
 )
 
 const (
-	ServiceName    = "edgex-device-rfid-llrp"
-	baseConsulPath = "edgex/devices/1.0/" + ServiceName
+	ServiceName = "device-rfid-llrp"
 
 	ResourceReaderCap          = "ReaderCapabilities"
 	ResourceReaderConfig       = "ReaderConfig"
@@ -89,7 +84,7 @@ type Driver struct {
 	activeDevices map[string]*LLRPDevice
 	devicesMu     sync.RWMutex
 
-	config   *driverConfiguration
+	config   *ServiceConfig
 	configMu sync.RWMutex
 
 	addedWatchers bool
@@ -138,7 +133,7 @@ func Instance() *Driver {
 func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
 	if lc == nil {
 		// prevent panics from this annoyance
-		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc = logger.NewClient(ServiceName, "DEBUG")
 		d.lc.Error("EdgeX initialized us with a nil logger >:(")
 	} else {
 		d.lc = lc
@@ -151,18 +146,18 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		lc:            lc,
 	}
 
-	config, err := CreateDriverConfig(d.svc.DriverConfigs())
-	if err != nil && !errors.Is(err, ErrUnexpectedConfigItems) {
-		return errors.Wrap(err, "read driver configuration failed")
+	d.config = &ServiceConfig{}
+
+	err := d.svc.LoadCustomConfig(d.config, "AppCustom")
+	if err != nil {
+		return errors.Wrap(err, "custom driver configuration failed to load")
 	}
 
-	d.configMu.Lock()
-	d.config = config
-	d.lc.Debug(fmt.Sprintf("%+v", config))
-	d.configMu.Unlock()
+	lc.Debugf("Custom config is : %v", d.config)
 
-	if err := d.watchForConfigChanges(); err != nil {
-		d.lc.Warn("Unable to watch for configuration changes!", "error", err)
+	err = d.svc.ListenForCustomConfigChanges(&d.config.AppCustom, "AppCustom", d.updateWritableConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to listen to custom config changes")
 	}
 
 	registered := d.svc.Devices()
@@ -187,80 +182,23 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 	return nil
 }
 
-func (d *Driver) watchForConfigChanges() error {
-	sdkFlags := flags.New()
-	sdkFlags.Parse(os.Args[1:])
-	cpUrl, err := url.Parse(sdkFlags.ConfigProviderUrl())
-	if err != nil {
-		return err
+func (d *Driver) updateWritableConfig(rawWritableConfig interface{}) {
+	updated, ok := rawWritableConfig.(*CustomConfig)
+	if !ok {
+		d.lc.Error("unable to update writable custom config: Can not cast raw config to type 'CustomConfig'")
+		return
 	}
 
-	cpPort := 8500
-	port := cpUrl.Port()
-	if port != "" {
-		cpPort, err = strconv.Atoi(port)
-		if err != nil {
-			cpPort = 8500
-		}
+	d.configMu.Lock()
+	oldSubnets := d.config.AppCustom.DiscoverySubnets
+	oldScanPort := d.config.AppCustom.ScanPort
+	d.config.AppCustom = *updated
+	d.configMu.Unlock()
+
+	if updated.DiscoverySubnets != oldSubnets || updated.ScanPort != oldScanPort {
+		d.lc.Info("discover configuration has changed!")
+		d.debouncedDiscover()
 	}
-
-	configClient, err := configuration.NewConfigurationClient(types.ServiceConfig{
-		Host:     cpUrl.Hostname(),
-		Port:     cpPort,
-		BasePath: baseConsulPath,
-		Type:     strings.Split(cpUrl.Scheme, ".")[0],
-	})
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		errorStream := make(chan error)
-		defer close(errorStream)
-
-		updateStream := make(chan interface{})
-		defer close(updateStream)
-
-		cfg := driverConfiguration{}
-		configClient.WatchForChanges(updateStream, errorStream, &cfg, "/Driver")
-		d.lc.Info("watching for configuration changes...")
-
-		for {
-			select {
-			case <-d.done:
-				return
-
-			case ex := <-errorStream:
-				d.lc.Error(ex.Error())
-
-			case raw, ok := <-updateStream:
-				if !ok {
-					return
-				}
-
-				d.lc.Info("driver configuration has been updated!")
-				d.lc.Debug(fmt.Sprintf("raw: %+v", raw))
-
-				newCfg, ok := raw.(*driverConfiguration)
-				if ok {
-					d.configMu.Lock()
-					oldSubnets := d.config.DiscoverySubnets
-					oldScanPort := d.config.ScanPort
-					d.config = newCfg
-					d.configMu.Unlock()
-
-					if !reflect.DeepEqual(newCfg.DiscoverySubnets, oldSubnets) ||
-						newCfg.ScanPort != oldScanPort {
-						d.lc.Info("discover configuration has changed!")
-						d.debouncedDiscover()
-					}
-				} else {
-					d.lc.Warn("unable to decode incoming configuration from registry")
-				}
-			}
-		}
-	}()
-	return nil
 }
 
 // HandleReadCommands triggers a protocol Read operation for the specified device.
@@ -322,8 +260,13 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 			return nil, err
 		}
 
-		responses[i] = dsModels.NewStringValue(
-			reqs[i].DeviceResourceName, time.Now().UnixNano(), string(respData))
+		cmdValue, err := dsModels.NewCommandValueWithOrigin(reqs[i].DeviceResourceName, common.ValueTypeString, string(respData), time.Now().UnixNano())
+		if err != nil {
+			return nil, errors.Errorf("Failed to create new command value with origin: %s", err.Error())
+		}
+
+		responses[i] = cmdValue
+
 	}
 
 	return responses, nil
@@ -361,7 +304,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		return err
 	}
 
-	getAttrib := func(idx int, key string) (string, error) {
+	getAttrib := func(idx int, key string) (interface{}, error) {
 		m := reqs[idx].Attributes
 		val := m[key]
 		if val == "" {
@@ -375,9 +318,13 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		if err != nil {
 			return 0, err
 		}
-		var u uint64
-		u, err = strconv.ParseUint(v, 10, 64)
-		return u, errors.Wrapf(err, "unable to parse attribute %q with val %q as uint", key, v)
+
+		u, ok := v.(uint64)
+		if !ok {
+			return 0, fmt.Errorf("unable to cast attribute %q with val %q as uint", key, v)
+		}
+
+		return u, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
@@ -547,7 +494,12 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 			return
 		}
 
-		cv := dsModels.NewStringValue(resName, time.Now().UnixNano(), string(respData))
+		cv, err := dsModels.NewCommandValueWithOrigin(resName, common.ValueTypeString, string(respData), time.Now().UnixNano())
+		if err != nil {
+			d.lc.Errorf("Failed to create new command value with origin: %s", err.Error())
+			return
+		}
+
 		d.asyncCh <- &dsModels.AsyncValues{
 			DeviceName:    devName,
 			CommandValues: []*dsModels.CommandValue{cv},
@@ -571,7 +523,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 func (d *Driver) Stop(force bool) error {
 	// Then Logging Client might not be initialized
 	if d.lc == nil {
-		d.lc = logger.NewClientStdOut(ServiceName, false, "DEBUG")
+		d.lc = logger.NewClient(ServiceName, "DEBUG")
 		d.lc.Error("EdgeX called Stop without calling Initialize >:(")
 	}
 	d.lc.Debug("LLRP-Driver.Stop called", "force", force)
@@ -715,7 +667,7 @@ func (d *Driver) getDevice(name string, p protocolMap) (dev *LLRPDevice, isNew b
 	}
 
 	d.lc.Info("Creating new connection for device.", "device", name)
-	dev = d.NewLLRPDevice(name, addr, contract.Enabled)
+	dev = d.NewLLRPDevice(name, addr, contract.Up)
 	d.activeDevices[name] = dev
 	return dev, true, nil
 }
@@ -764,18 +716,27 @@ func (d *Driver) addProvisionWatchers() error {
 		return err
 	}
 
+	d.lc.Debugf("%d provision watcher files found", len(files))
+
 	var errs []error
 	for _, file := range files {
 		filename := filepath.Join(provisionWatcherFolder, file.Name())
-		var watcher contract.ProvisionWatcher
+		d.lc.Debugf("processing %s", filename)
+		var watcher dtos.ProvisionWatcher
 		data, err := ioutil.ReadFile(filename)
 		if err != nil {
 			errs = append(errs, errors.Wrap(err, "error reading file "+filename))
 			continue
 		}
 
-		if err := watcher.UnmarshalJSON(data); err != nil {
+		if err := json.Unmarshal(data, &watcher); err != nil {
 			errs = append(errs, errors.Wrap(err, "error unmarshalling provision watcher "+filename))
+			continue
+		}
+
+		err = common.Validate(watcher)
+		if err != nil {
+			errs = append(errs, errors.Wrap(err, "provision watcher validation failed "+filename))
 			continue
 		}
 
@@ -783,13 +744,15 @@ func (d *Driver) addProvisionWatchers() error {
 			continue // provision watcher already exists
 		}
 
-		d.lc.Info("Adding provision watcher.", "name", watcher.Name)
-		id, err := d.svc.AddProvisionWatcher(watcher)
+		watcherModel := dtos.ToProvisionWatcherModel(watcher)
+
+		d.lc.Infof("Adding provision watcher:%s", watcherModel.Name)
+		id, err := d.svc.AddProvisionWatcher(watcherModel)
 		if err != nil {
-			errs = append(errs, errors.Wrap(err, "error adding provision watcher "+watcher.Name))
+			errs = append(errs, errors.Wrap(err, "error adding provision watcher "+watcherModel.Name))
 			continue
 		}
-		d.lc.Info("Successfully added provision watcher.", "name", watcher.Name, "id", id)
+		d.lc.Infof("Successfully added provision watcher: %s,  ID: %s", watcherModel.Name, id)
 	}
 
 	if errs != nil {
@@ -842,7 +805,7 @@ func (d *Driver) Discover() {
 	d.lc.Info("Discover was called.")
 
 	d.configMu.RLock()
-	maxSeconds := driver.config.MaxDiscoverDurationSeconds
+	maxSeconds := driver.config.AppCustom.MaxDiscoverDurationSeconds
 	d.configMu.RUnlock()
 
 	if registerProvisionWatchers {
@@ -876,10 +839,10 @@ func (d *Driver) discover(ctx context.Context) {
 	d.configMu.RLock()
 	params := discoverParams{
 		// split the comma separated string here to avoid issues with EdgeX's Consul implementation
-		subnets:    strings.Split(d.config.DiscoverySubnets, ","),
-		asyncLimit: d.config.ProbeAsyncLimit,
-		timeout:    time.Duration(d.config.ProbeTimeoutSeconds) * time.Second,
-		scanPort:   d.config.ScanPort,
+		subnets:    strings.Split(d.config.AppCustom.DiscoverySubnets, ","),
+		asyncLimit: d.config.AppCustom.ProbeAsyncLimit,
+		timeout:    time.Duration(d.config.AppCustom.ProbeTimeoutSeconds) * time.Second,
+		scanPort:   d.config.AppCustom.ScanPort,
 	}
 	d.configMu.RUnlock()
 
