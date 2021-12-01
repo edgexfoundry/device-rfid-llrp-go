@@ -11,14 +11,14 @@ deviceResources:
     name: "ReaderCapabilities"
     description: "The capabilities of a reader"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "R"
 
   - 
     name: "ReaderConfig"
     description: "Current configuration info of a reader"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "RW"
 
   - 
@@ -43,16 +43,16 @@ deviceResources:
       An ROSpec is a "Reader Operation Specification", i.e.,
       a declarative description of when and how
       a reader should turn on its antennas and report data.
-      It's passed via EdgeX as a string-encoded JSON struct.
+      It's passed via EdgeX as a JSON object.
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "RW"
 
   - 
     name: "AccessSpec"
     description: ""
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "RW"
       
   - 
@@ -88,33 +88,6 @@ deviceResources:
       readWrite: "W"
 
 deviceCommands:
-  - 
-    name: capabilities
-    isHidden: false
-    readWrite: "R"
-    resourceOperations:
-      - { deviceResource: "ReaderCapabilities"}
-
-  - 
-    name: config
-    isHidden: false
-    readWrite: "RW"
-    resourceOperations:
-      - { deviceResource: "ReaderConfig"}
-
-  - 
-    name: roSpec
-    isHidden: false
-    readWrite: "RW"
-    resourceOperations:
-      - { deviceResource: "ROSpec"}
-
-  - 
-    name: accessSpec
-    isHidden: false
-    readWrite: "RW"
-    resourceOperations:
-      - { deviceResource: "AccessSpec"}
 
   - 
     name: enableROSpec

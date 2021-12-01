@@ -14,6 +14,7 @@ import (
 	"math"
 	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -319,12 +320,14 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 			return 0, err
 		}
 
-		u, ok := v.(uint64)
-		if !ok {
-			return 0, fmt.Errorf("unable to cast attribute %q with val %q as uint", key, v)
+		value,ok := v.(string)
+		if !ok{
+			return 0, fmt.Errorf("unable to cast attribute %q with val %q as expected string", key, v) 
 		}
 
-		return u, nil
+		var u uint64
+		u, err = strconv.ParseUint(value, 10, 64)
+		return u, errors.Wrapf(err, "unable to parse attribute %q with val %q as uint", key, value)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)

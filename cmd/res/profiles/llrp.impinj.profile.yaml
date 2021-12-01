@@ -12,9 +12,10 @@ deviceResources:
     properties:
       valueType: "String"
       readWrite: "RW"
+      defaultValue: "AAAAAA=="
     attributes:
-      vendor: 25882
-      subtype: 21
+      vendor: "25882"
+      subtype: "21"
 
   - 
     name: "ImpinjSaveSettingsMessage"
@@ -22,22 +23,22 @@ deviceResources:
       valueType: "String"
       readWrite: "W"
     attributes:
-      vendor: 25882
-      subtype: 23
+      vendor: "25882"
+      subtype: "23"
 
   - 
     name: "ReaderCapabilities"
     description: "The capabilities of a reader"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "R"
 
   - 
     name: "ReaderConfig"
     description: "A Reader's configuration"
     properties:
-      valueType: "String"
-      readWrite: "R"
+      valueType: "Object"
+      readWrite: "RW"
 
   - 
     name: "ROSpecID"
@@ -59,13 +60,13 @@ deviceResources:
   - 
     name: "ROSpec"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "RW"
 
   - 
     name: "AccessSpec"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "RW"
 
   - 
@@ -89,35 +90,6 @@ deviceResources:
       value: { type: "String", readWrite: "R" }
 
 deviceCommands:
-  - 
-    name: enableImpinjExt
-    isHidden: false
-    readWrite: "W"
-    resourceOperations:
-      - { deviceResource: "ImpinjCustomExtensionMessage", defaultValue: "AAAAAA==" }
-
-  - 
-    name: capabilities
-    isHidden: false
-    readWrite: "R"
-    resourceOperations:
-      - { deviceResource: "ReaderCapabilities" }
-    get: [ { deviceResource: "ReaderCapabilities" } ]
-
-  - 
-    name: config
-    isHidden: false
-    readWrite: "R"
-    resourceOperations:
-      - { deviceResource: "ReaderConfig" }
-
-  - 
-    name: roSpec
-    isHidden: false
-    readWrite: "RW"
-    resourceOperations:
-      - { deviceResource: "ROSpec" }
-
   - 
     name: enableROSpec
     isHidden: false
@@ -157,13 +129,6 @@ deviceCommands:
     resourceOperations:
       - { deviceResource: "ROSpecID", defaultValue: "0" }
       - { deviceResource: "Action", defaultValue: "Delete" }
-
-  - 
-    name: accessSpec
-    isHidden: false
-    readWrite: "RW"
-    resourceOperations:
-      - { deviceResource: "AccessSpec" }
 
   - 
     name: enableAccessSpec

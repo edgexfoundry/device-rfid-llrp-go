@@ -46,7 +46,7 @@ make docker
 - Native
 
     ```shell
-    cd cmd && ./device-rfid-llrp-go -cp
+    cd cmd && EDGEX_SECURITY_SECRET_STORE=false ./device-rfid-llrp-go -cp -r
     ```
 
 **Configure subnet information**
