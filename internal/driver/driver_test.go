@@ -229,8 +229,8 @@ func TestHandleWrite(t *testing.T) {
 				DeviceResourceName: "MyCustomMessage",
 				Type:               common.ValueTypeString,
 				Attributes: map[string]interface{}{
-					"vendor":  uint64(25882),
-					"subtype": uint64(21),
+					"vendor":  "25882",
+					"subtype": "21",
 				}},
 			},
 			param: []*dsModels.CommandValue{
