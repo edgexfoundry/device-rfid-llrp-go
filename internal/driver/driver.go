@@ -320,9 +320,9 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 			return 0, err
 		}
 
-		value,ok := v.(string)
-		if !ok{
-			return 0, fmt.Errorf("unable to cast attribute %q with val %q as expected string", key, v) 
+		value, ok := v.(string)
+		if !ok {
+			return 0, fmt.Errorf("unable to cast attribute %q with val %q as expected string", key, v)
 		}
 
 		var u uint64
