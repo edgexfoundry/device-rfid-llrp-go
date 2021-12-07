@@ -8,7 +8,7 @@ LogLevel = "INFO"
       password = ""
       
 [Service]
-Host = "172.31.101.199"
+Host = "localhost"
 Port = 59989
 ServerBindAddr = ""  # blank value defaults to Service.Host value
 StartupMsg = "device llrp started"
@@ -87,7 +87,7 @@ UseMessageBus = true
 [AppCustom]
 # List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
 # separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
-DiscoverySubnets = "172.31.101.199/24,10.0.0.0/24"
+DiscoverySubnets = ""
 
 # Maximum simultaneous network probes
 ProbeAsyncLimit = 4000
