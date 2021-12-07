@@ -62,7 +62,7 @@ deviceResources:
       They contain the TagReportData or RFSurveyReportData,
       as well as any Custom parameter data.
     properties:
-      valueType: "String" # not actually readable; it's async
+      valueType: "Object" # not actually readable; it's async
       readWrite: "R"
 
   - 
@@ -73,7 +73,7 @@ deviceResources:
       GPIO state changes, new report data, and exception events.
       Some event notifications are configurable.
     properties:
-      valueType: "String" # not actually readable; it's async
+      valueType: "Object" # not actually readable; it's async
       readWrite: "R"
 
   - 

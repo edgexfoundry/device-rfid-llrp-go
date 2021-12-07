@@ -18,7 +18,7 @@ ARG BASE=golang:1.16-alpine3.14
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
-ARG ALPINE_PKG_BASE="make git"
+ARG ALPINE_PKG_BASE="make git openssh-client gcc libc-dev zeromq-dev libsodium-dev"
 ARG ALPINE_PKG_EXTRA=""
 
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
@@ -37,11 +37,14 @@ FROM alpine:3.14
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2021: Intel'
 
+RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
+RUN apk add --update --no-cache zeromq dumb-init
+
 COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/LICENSE /
 COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/Attribution.txt /
 COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/cmd /
 
-EXPOSE 49989
+EXPOSE 59989
 
 ENTRYPOINT ["/device-rfid-llrp-go"]
 CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]

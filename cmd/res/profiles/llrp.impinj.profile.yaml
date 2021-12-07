@@ -78,16 +78,14 @@ deviceResources:
   - 
     name: "ROAccessReport"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "R"
-      value: { type: "String", readWrite: "R" }
 
   - 
     name: "ReaderEventNotification"
     properties:
-      valueType: "String"
+      valueType: "Object"
       readWrite: "R"
-      value: { type: "String", readWrite: "R" }
 
 deviceCommands:
   - 

@@ -7,19 +7,18 @@ package driver
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 	"github.com/pkg/errors"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
 )
 
 const (
@@ -381,15 +380,17 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 	})
 }
 
-// sendEdgeXEvent marshals an interface to JSON and sends it as an EdgeX event.
+// sendEdgeXEvent creates EdgeX Event for the LLRP event and sends it.
 func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{}) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		l.lc.Error("Failed to marshal event to JSON", "error", err.Error(),
-			"event", fmt.Sprintf("%+v", event))
-		return
-	}
-	newCmd, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeString, string(data), ns)
+	//data, err := json.Marshal(event)
+	//if err != nil {
+	//	l.lc.Error("Failed to marshal event to JSON", "error", err.Error(),
+	//		"event", fmt.Sprintf("%+v", event))
+	//	return
+	//}
+
+	l.lc.Debugf("Sending LLRP Event '%s'", eventName)
+	newCmd, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeObject, event, ns)
 	if err != nil {
 		l.lc.Errorf("Failed to create new command value with origin: %s", err.Error())
 		return

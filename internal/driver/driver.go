@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/v2/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
@@ -27,6 +26,8 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 	"github.com/pkg/errors"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 )
 
 const (
@@ -256,12 +257,12 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 			return nil, err
 		}
 
-		respData, err := json.Marshal(llrpResp)
-		if err != nil {
-			return nil, err
-		}
+		//respData, err := json.Marshal(llrpResp)
+		//if err != nil {
+		//	return nil, err
+		//}
 
-		cmdValue, err := dsModels.NewCommandValueWithOrigin(reqs[i].DeviceResourceName, common.ValueTypeString, string(respData), time.Now().UnixNano())
+		cmdValue, err := dsModels.NewCommandValueWithOrigin(reqs[i].DeviceResourceName, reqs[i].Type, llrpResp, time.Now().UnixNano())
 		if err != nil {
 			return nil, errors.Errorf("Failed to create new command value with origin: %s", err.Error())
 		}
@@ -378,21 +379,36 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		llrpResp = &llrp.CustomMessage{}
 
 	case ResourceReaderConfig:
-		data, err := params[0].StringValue()
+		//data, err := params[0].StringValue()
+		//if err != nil {
+		//	return err
+		//}
+
+		/// Object value types come in as a map[string]interface{} which need to be
+		// marshaled back to JSON
+		reqData, err = json.Marshal(params[0])
 		if err != nil {
 			return err
 		}
 
-		reqData = []byte(data)
+		//reqData = data
 		llrpReq = &llrp.SetReaderConfig{}
 		llrpResp = &llrp.SetReaderConfigResponse{}
 	case ResourceROSpec:
-		data, err := params[0].StringValue()
+		//data, err := params[0].StringValue()
+		//if err != nil {
+		//	return errors.Wrap(err, "unable to get ROSpec parameter")
+		//}
+
+		/// Object value types come in as a map[string]interface{} which need to be
+		// marshaled back to JSON
+		reqData, err = json.Marshal(params[0])
 		if err != nil {
-			return errors.Wrap(err, "unable to get ROSpec parameter")
+			return err
 		}
 
-		reqData = []byte(data)
+		//reqData = data
+
 		addSpec := llrp.AddROSpec{}
 		dataTarget = &addSpec.ROSpec // the incoming data is an ROSpec, not AddROSpec
 		llrpReq = &addSpec           // but we want to send AddROSpec, not just ROSpec

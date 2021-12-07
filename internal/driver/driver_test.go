@@ -93,9 +93,10 @@ func TestHandleRead(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			cvs, err := d.HandleReadCommands("localReader", protocolMap{}, []dsModels.CommandRequest{{
 				DeviceResourceName: testCase.name,
-				Type:               common.ValueTypeString,
+				Type:               common.ValueTypeObject,
 				Attributes:         testCase.attribs,
 			}})
+
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -113,11 +114,11 @@ func TestHandleRead(t *testing.T) {
 				t.Errorf("expected %s; got %s", testCase.name, cv.DeviceResourceName)
 			}
 
-			if common.ValueTypeString != cv.Type {
-				t.Errorf("expected %v; got %v", common.ValueTypeString, cv.Type)
+			if common.ValueTypeObject != cv.Type {
+				t.Errorf("expected %v; got %v", common.ValueTypeObject, cv.Type)
 			}
 
-			s, err := cv.StringValue()
+			s, err := json.Marshal(cv)
 			if err != nil {
 				t.Errorf("%+v", err)
 			}
