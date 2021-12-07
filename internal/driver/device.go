@@ -382,13 +382,6 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 
 // sendEdgeXEvent creates EdgeX Event for the LLRP event and sends it.
 func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{}) {
-	//data, err := json.Marshal(event)
-	//if err != nil {
-	//	l.lc.Error("Failed to marshal event to JSON", "error", err.Error(),
-	//		"event", fmt.Sprintf("%+v", event))
-	//	return
-	//}
-
 	l.lc.Debugf("Sending LLRP Event '%s'", eventName)
 	newCmd, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeObject, event, ns)
 	if err != nil {
