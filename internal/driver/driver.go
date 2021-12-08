@@ -376,7 +376,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	case ResourceReaderConfig:
 		/// Object value types come in as a map[string]interface{} which need to be
 		// marshaled back to JSON
-		reqData, err = json.Marshal(params[0])
+		reqData, err = json.Marshal(params[0].Value)
 		if err != nil {
 			return err
 		}
@@ -386,7 +386,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	case ResourceROSpec:
 		/// Object value types come in as a map[string]interface{} which need to be
 		// marshaled back to JSON
-		reqData, err = json.Marshal(params[0])
+		reqData, err = json.Marshal(params[0].Value)
 		if err != nil {
 			return err
 		}

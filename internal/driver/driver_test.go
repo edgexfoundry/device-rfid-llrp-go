@@ -169,7 +169,7 @@ func TestHandleWrite(t *testing.T) {
 	customData := base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 0})
 	t.Logf("%s", customData)
 
-	readerConfigCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceReaderConfig, common.ValueTypeString, "{}", 0)
+	readerConfigCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceReaderConfig, common.ValueTypeObject, make(map[string]interface{}), 0)
 	require.NoError(t, err)
 
 	roSpecCmdValue, err := dsModels.NewCommandValueWithOrigin(ResourceAction, common.ValueTypeString, ActionStart, 0)
@@ -191,7 +191,7 @@ func TestHandleWrite(t *testing.T) {
 			name: "SetReaderConfig",
 			reqs: []dsModels.CommandRequest{{
 				DeviceResourceName: ResourceReaderConfig,
-				Type:               common.ValueTypeString,
+				Type:               common.ValueTypeObject,
 			}},
 			param: []*dsModels.CommandValue{
 				readerConfigCmdValue,
