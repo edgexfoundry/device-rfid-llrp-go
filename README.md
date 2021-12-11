@@ -39,8 +39,8 @@ make docker
 
 - Docker
     - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/jakarta/compose-builder)
-    - For non secure mode `make gen as-llrp no-secty`
-    - For secure mode `make gen as-llrp`
+    - For non secure mode `make gen ds-llrp no-secty`
+    - For secure mode `make gen ds-llrp`
     - `docker-compose -p edgex up -d`
     
 - Native

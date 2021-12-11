@@ -62,8 +62,8 @@ deviceResources:
       They contain the TagReportData or RFSurveyReportData,
       as well as any Custom parameter data.
     properties:
-      valueType: "Object" # not actually readable; it's async
-      readWrite: "R"
+      valueType: "Object" 
+      readWrite: "R" # not actually readable; it's async
 
   - 
     name: "ReaderEventNotification"
@@ -73,8 +73,8 @@ deviceResources:
       GPIO state changes, new report data, and exception events.
       Some event notifications are configurable.
     properties:
-      valueType: "Object" # not actually readable; it's async
-      readWrite: "R"
+      valueType: "Object"
+      readWrite: "R" # not actually readable; it's async
 
   - 
     name: "Action"
@@ -94,7 +94,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "ROSpecID"}
       - { deviceResource: "Action", defaultValue: "Enable" }
 
   - 
@@ -102,7 +102,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "ROSpecID" }
       - { deviceResource: "Action", defaultValue: "Start" }
 
   - 
@@ -110,7 +110,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "ROSpecID"}
       - { deviceResource: "Action", defaultValue: "Stop" }
 
   - 
@@ -118,7 +118,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "ROSpecID"}
       - { deviceResource: "Action", defaultValue: "Disable" }
 
   - 
@@ -126,7 +126,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "ROSpecID", defaultValue: "0" }
+      - { deviceResource: "ROSpecID"}
       - { deviceResource: "Action", defaultValue: "Delete" }
 
   - 
@@ -134,7 +134,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "AccessSpecID", defaultValue: "0" }
+      - { deviceResource: "AccessSpecID" }
       - { deviceResource: "Action", defaultValue: "Enable" }
 
   - 
@@ -142,7 +142,7 @@ deviceCommands:
     isHidden: false
     readWrite: "W"
     resourceOperations:
-      - { deviceResource: "AccessSpecID", defaultValue: "0" }
+      - { deviceResource: "AccessSpecID"}
       - { deviceResource: "Action", defaultValue: "Disable" }
 
   - 

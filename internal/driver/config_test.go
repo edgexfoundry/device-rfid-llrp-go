@@ -14,7 +14,7 @@ import (
 func TestUpdateFromRaw(t *testing.T) {
 	expectedConfig := &ServiceConfig{
 		AppCustom: CustomConfig{
-			DiscoverySubnets:           "0.134.00.1",
+			DiscoverySubnets:           "127.0.0.1/32,127.0.1.1/32",
 			ProbeAsyncLimit:            50,
 			ProbeTimeoutSeconds:        1,
 			ScanPort:                   "666",

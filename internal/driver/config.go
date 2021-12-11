@@ -5,10 +5,6 @@
 
 package driver
 
-import (
-	"github.com/pkg/errors"
-)
-
 // CustomConfig holds the values for the driver configuration
 type CustomConfig struct {
 	// DiscoverySubnets holds a comma separated list of CIDR subnets to scan for devices. This is kept as a string instead
@@ -26,7 +22,7 @@ type CustomConfig struct {
 	MaxDiscoverDurationSeconds int
 }
 
-//ServiceConfig a struct that wraps CustomConfig which holds the values for driver configuration
+// ServiceConfig a struct that wraps CustomConfig which holds the values for driver configuration
 type ServiceConfig struct {
 	AppCustom CustomConfig
 }
@@ -36,21 +32,10 @@ type ServiceConfig struct {
 func (c *ServiceConfig) UpdateFromRaw(rawConfig interface{}) bool {
 	configuration, ok := rawConfig.(*ServiceConfig)
 	if !ok {
-		return false //errors.New("unable to cast raw config to type 'ServiceConfig'")
+		return false
 	}
 
 	*c = *configuration
 
 	return true
 }
-
-var (
-
-	// ErrUnexpectedConfigItems is returned when the input configuration map has extra keys
-	// and values that are left over after parsing is complete
-	ErrUnexpectedConfigItems = errors.New("unexpected config items")
-	// ErrParsingConfigValue is returned when we are unable to parse the value for a config key
-	ErrParsingConfigValue = errors.New("unable to parse config value for key")
-	// ErrMissingRequiredKey is returned when we are unable to parse the value for a config key
-	ErrMissingRequiredKey = errors.New("missing required key")
-)

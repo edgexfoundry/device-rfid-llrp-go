@@ -18,7 +18,7 @@ ARG BASE=golang:1.16-alpine3.14
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
-ARG ALPINE_PKG_BASE="make git openssh-client gcc libc-dev zeromq-dev libsodium-dev"
+ARG ALPINE_PKG_BASE="make git gcc libc-dev zeromq-dev"
 ARG ALPINE_PKG_EXTRA=""
 
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories

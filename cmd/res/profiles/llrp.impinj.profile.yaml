@@ -55,7 +55,6 @@ deviceResources:
       valueType: "uint32"
       readWrite: "W"
       defaultValue: "1"
-      value: { type: "uint32", readWrite: "W", defaultValue: "1" }
 
   - 
     name: "ROSpec"
@@ -79,13 +78,13 @@ deviceResources:
     name: "ROAccessReport"
     properties:
       valueType: "Object"
-      readWrite: "R"
+      readWrite: "R" # not actually readable; it's async
 
   - 
     name: "ReaderEventNotification"
     properties:
       valueType: "Object"
-      readWrite: "R"
+      readWrite: "R" # not actually readable; it's async
 
 deviceCommands:
   - 
@@ -151,3 +150,4 @@ deviceCommands:
     resourceOperations:
       - { deviceResource: "AccessSpecID" }
       - { deviceResource: "Action", defaultValue: "Delete" }
+      
