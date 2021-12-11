@@ -380,10 +380,10 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 	})
 }
 
-// sendEdgeXEvent creates EdgeX Event for the LLRP event and sends it.
+// sendEdgeXEvent creates an EdgeX Event for the LLRP event and sends it.
 func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{}) {
 	l.lc.Debugf("Sending LLRP Event '%s'", eventName)
-	newCmd, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeObject, event, ns)
+	cmdValue, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeObject, event, ns)
 	if err != nil {
 		l.lc.Errorf("Failed to create new command value with origin: %s", err.Error())
 		return
@@ -391,7 +391,7 @@ func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{
 
 	l.ch <- &dsModels.AsyncValues{
 		DeviceName:    l.name,
-		CommandValues: []*dsModels.CommandValue{newCmd},
+		CommandValues: []*dsModels.CommandValue{cmdValue},
 	}
 }
 

@@ -115,7 +115,7 @@ func TestHandleRead(t *testing.T) {
 			}
 
 			if common.ValueTypeObject != cv.Type {
-				t.Errorf("expected %v; got %v", common.ValueTypeObject, cv.Type)
+				t.Errorf("expected %+v; got %+v", common.ValueTypeObject, cv.Type)
 			}
 
 			s, err := json.Marshal(cv)

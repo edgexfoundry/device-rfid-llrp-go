@@ -155,7 +155,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		return errors.Wrap(err, "custom driver configuration failed to load")
 	}
 
-	lc.Debugf("Custom config is : %v", d.config)
+	lc.Debugf("Custom config is : %+v", d.config)
 
 	err = d.svc.ListenForCustomConfigChanges(&d.config.AppCustom, "AppCustom", d.updateWritableConfig)
 	if err != nil {
@@ -172,7 +172,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		if err != nil {
 			d.lc.Error("Unsupported protocol mapping.",
 				"error", err,
-				"protocols", fmt.Sprintf("%v", device.Protocols),
+				"protocols", fmt.Sprintf("%+v", device.Protocols),
 				"deviceName", device.Name)
 			continue
 		}
@@ -198,7 +198,7 @@ func (d *Driver) updateWritableConfig(rawWritableConfig interface{}) {
 	d.configMu.Unlock()
 
 	if updated.DiscoverySubnets != oldSubnets || updated.ScanPort != oldScanPort {
-		d.lc.Info("discover configuration has changed!")
+		d.lc.Info("discover configuration has changed! Discovery will be triggered momentarily.")
 		d.debouncedDiscover()
 	}
 }
@@ -206,7 +206,7 @@ func (d *Driver) updateWritableConfig(rawWritableConfig interface{}) {
 // HandleReadCommands triggers a protocol Read operation for the specified device.
 func (d *Driver) HandleReadCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest) ([]*dsModels.CommandValue, error) {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleReadCommands: "+
-		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
+		"device: %s protocols: %+v reqs: %+v", devName, p, reqs))
 
 	results, err := d.handleReadCommands(devName, p, reqs)
 	if err != nil {
@@ -259,7 +259,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 
 		cmdValue, err := dsModels.NewCommandValueWithOrigin(reqs[i].DeviceResourceName, reqs[i].Type, llrpResp, time.Now().UnixNano())
 		if err != nil {
-			return nil, errors.Errorf("Failed to create new command value with origin: %s", err.Error())
+			return nil, errors.Wrapf(err, "Failed to create new command value with origin")
 		}
 
 		responses[i] = cmdValue
@@ -275,7 +275,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 // command.
 func (d *Driver) HandleWriteCommands(devName string, p protocolMap, reqs []dsModels.CommandRequest, params []*dsModels.CommandValue) error {
 	d.lc.Debug(fmt.Sprintf("LLRP-Driver.HandleWriteCommands: "+
-		"device: %s protocols: %v reqs: %+v", devName, p, reqs))
+		"device: %s protocols: %+v reqs: %+v", devName, p, reqs))
 
 	// kinda surprised EdgeX doesn't do this automatically.
 	err := d.handleWriteCommands(devName, p, reqs, params)
@@ -374,7 +374,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		llrpResp = &llrp.CustomMessage{}
 
 	case ResourceReaderConfig:
-		/// Object value types come in as a map[string]interface{} which need to be
+		// Object value types come in as a map[string]interface{} which need to be
 		// marshaled back to JSON
 		reqData, err = json.Marshal(params[0].Value)
 		if err != nil {
@@ -384,7 +384,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		llrpReq = &llrp.SetReaderConfig{}
 		llrpResp = &llrp.SetReaderConfigResponse{}
 	case ResourceROSpec:
-		/// Object value types come in as a map[string]interface{} which need to be
+		// Object value types come in as a map[string]interface{} which need to be
 		// marshaled back to JSON
 		reqData, err = json.Marshal(params[0].Value)
 		if err != nil {
@@ -568,7 +568,7 @@ func (d *Driver) Stop(force bool) error {
 // associated with this Device Service is added,
 // so this assumes the device is already registered with EdgeX.
 func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) error {
-	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %v adminState: %v",
+	d.lc.Debug(fmt.Sprintf("Adding new device: %s protocols: %+v adminState: %+v",
 		deviceName, protocols, adminState))
 	_, _, err := d.getDevice(deviceName, protocols)
 	if err != nil {
@@ -587,13 +587,13 @@ func (d *Driver) AddDevice(deviceName string, protocols protocolMap, adminState 
 // update the address, and attempt to reconnect at the new address and port.
 // If the address is the same, nothing happens.
 func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminState contract.AdminState) (err error) {
-	d.lc.Debug(fmt.Sprintf("Updating device: %s protocols: %v adminState: %v",
+	d.lc.Debug(fmt.Sprintf("Updating device: %s protocols: %+v adminState: %+v",
 		deviceName, protocols, adminState))
 	defer func() {
 		if err != nil {
 			d.lc.Error("Failed to update device.",
 				"error", err, "deviceName", deviceName,
-				"protocolMap", fmt.Sprintf("%v", protocols))
+				"protocolMap", fmt.Sprintf("%+v", protocols))
 		}
 	}()
 
@@ -622,7 +622,7 @@ func (d *Driver) UpdateDevice(deviceName string, protocols protocolMap, adminSta
 // RemoveDevice is a callback function that is invoked
 // when a Device associated with this Device Service is removed
 func (d *Driver) RemoveDevice(deviceName string, p protocolMap) error {
-	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %v", deviceName, p))
+	d.lc.Debug(fmt.Sprintf("Removing device: %s protocols: %+v", deviceName, p))
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
@@ -771,7 +771,7 @@ func (d *Driver) addProvisionWatchers() error {
 // Every subsequent call to this function before that timer elapses resets the timer to
 // discoverDebounceDuration. Once the timer finally elapses, the Discover function is called.
 func (d *Driver) debouncedDiscover() {
-	d.lc.Debug(fmt.Sprintf("trigger debounced discovery in %v", discoverDebounceDuration))
+	d.lc.Debug(fmt.Sprintf("trigger debounced discovery in %+v", discoverDebounceDuration))
 
 	// everything in this function is mutex-locked and is safe to access asynchronously
 	d.debounceMu.Lock()
@@ -853,7 +853,7 @@ func (d *Driver) discover(ctx context.Context) {
 		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
 	}
 
-	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Now().Sub(t1)))
+	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %+v.", len(result), time.Now().Sub(t1)))
 	// pass the discovered devices to the EdgeX SDK to be passed through to the provision watchers
 	d.deviceCh <- result
 }
