@@ -76,15 +76,17 @@ deviceResources:
 
   - 
     name: "ROAccessReport"
+    isHidden: true # resource is only async
     properties:
       valueType: "Object"
-      readWrite: "R" # not actually readable; it's async
+      readWrite: "R" 
 
   - 
     name: "ReaderEventNotification"
+    isHidden: true # resource is only async
     properties:
       valueType: "Object"
-      readWrite: "R" # not actually readable; it's async
+      readWrite: "R" 
 
 deviceCommands:
   - 

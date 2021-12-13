@@ -61,9 +61,10 @@ deviceResources:
       An ROAccessReport is the main report type in LLRP.
       They contain the TagReportData or RFSurveyReportData,
       as well as any Custom parameter data.
+    isHidden: true # resource is only async
     properties:
       valueType: "Object" 
-      readWrite: "R" # not actually readable; it's async
+      readWrite: "R"
 
   - 
     name: "ReaderEventNotification"
@@ -72,9 +73,10 @@ deviceResources:
       including changes in connectivity, antenna additions/removals,
       GPIO state changes, new report data, and exception events.
       Some event notifications are configurable.
+    isHidden: true # resource is only async
     properties:
       valueType: "Object"
-      readWrite: "R" # not actually readable; it's async
+      readWrite: "R" 
 
   - 
     name: "Action"
