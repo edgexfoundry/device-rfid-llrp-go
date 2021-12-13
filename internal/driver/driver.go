@@ -25,6 +25,7 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
@@ -374,26 +375,27 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		llrpResp = &llrp.CustomMessage{}
 
 	case ResourceReaderConfig:
-		// Object value types come in as a map[string]interface{} which need to be
-		// marshaled back to JSON
-		reqData, err = json.Marshal(params[0].Value)
-		if err != nil {
-			return err
-		}
-
 		llrpReq = &llrp.SetReaderConfig{}
-		llrpResp = &llrp.SetReaderConfigResponse{}
-	case ResourceROSpec:
-		// Object value types come in as a map[string]interface{} which need to be
-		// marshaled back to JSON
-		reqData, err = json.Marshal(params[0].Value)
+
+		// Object value types come in as a map[string]interface{} which need to be marshalled from this rather than JSON
+		err = mapstructure.Decode(params[0].Value, llrpReq)
 		if err != nil {
 			return err
 		}
 
+		llrpResp = &llrp.SetReaderConfigResponse{}
+
+	case ResourceROSpec:
 		addSpec := llrp.AddROSpec{}
-		dataTarget = &addSpec.ROSpec // the incoming data is an ROSpec, not AddROSpec
-		llrpReq = &addSpec           // but we want to send AddROSpec, not just ROSpec
+
+		// Object value types come in as a map[string]interface{} which need to be marshalled from this rather than JSON
+		// incoming data is RoSpec and not AddRoSpec
+		err = mapstructure.Decode(params[0].Value, &addSpec.ROSpec)
+		if err != nil {
+			return err
+		}
+
+		llrpReq = &addSpec // but we want to send AddROSpec, not just ROSpec
 		llrpResp = &llrp.AddROSpecResponse{}
 
 	case ResourceROSpecID:
