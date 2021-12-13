@@ -8,7 +8,7 @@ description: "A device profile with added Impinj support."
 
 deviceResources:
   - 
-    name: "ImpinjCustomExtensionMessage"
+    name: "EnableImpinjExtensions"
     properties:
       valueType: "String"
       readWrite: "RW"
