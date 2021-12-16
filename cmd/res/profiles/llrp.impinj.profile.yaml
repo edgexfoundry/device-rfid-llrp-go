@@ -11,7 +11,7 @@ deviceResources:
     name: "EnableImpinjExtensions"
     properties:
       valueType: "String"
-      readWrite: "RW"
+      readWrite: "W"
       defaultValue: "AAAAAA=="
     attributes:
       vendor: "25882"
