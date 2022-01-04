@@ -152,4 +152,3 @@ deviceCommands:
     resourceOperations:
       - { deviceResource: "AccessSpecID" }
       - { deviceResource: "Action", defaultValue: "Delete" }
-      

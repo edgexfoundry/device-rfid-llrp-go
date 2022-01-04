@@ -79,9 +79,6 @@ This service has the functionality to probe the local network in an effort to di
 This discovery also happens at a regular interval and can be configured via [EdgeX Consul][consul_discovery] 
 for existing installations, and [configuration.toml][config_toml] for default values.
 
-> consul_discovery: http://localhost:8500/ui/dc1/kv/edgex/devices/2.0/device-rfid-llrp/Device/Discovery/ 
->
-
 The additional discovery configuration can be modified via the `[AppCustom]` section of the [configuration.toml][config_toml] file.
 
 >_**Note:** Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
@@ -197,6 +194,7 @@ aware of when modifying this file._
 [provision_watcher]: cmd/res/provision_watchers
 [impinj_watcher]: cmd/res/provision_watchers/impinj.provision.watcher.json
 [generic_watcher]: cmd/res/provision_watchers/llrp.provision.watcher.json
+[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/2.0/device-rfid-llrp/Device/Discovery/ 
 
 ## Device Profiles, Custom LLRP Messages, and Service Limitations
 For some use cases, you may want or need to supply your own `deviceProfile`,
