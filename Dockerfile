@@ -24,7 +24,7 @@ ARG ALPINE_PKG_EXTRA=""
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
-WORKDIR $GOPATH/src/github.com/edgexfoundry/device-rfid-llrp-go
+WORKDIR /app
 
 COPY . .
 RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
@@ -40,11 +40,12 @@ LABEL license='SPDX-License-Identifier: Apache-2.0' \
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --update --no-cache zeromq dumb-init
 
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/LICENSE /
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/Attribution.txt /
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/cmd /
+COPY --from=builder /app/LICENSE /
+COPY --from=builder /app/Attribution.txt /
+COPY --from=builder /app/cmd/device-rfid-llrp /device-rfid-llrp
+COPY --from=builder /app/cmd/res/ /
 
 EXPOSE 59989
 
-ENTRYPOINT ["/device-rfid-llrp-go"]
+ENTRYPOINT ["/device-rfid-llrp"]
 CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]

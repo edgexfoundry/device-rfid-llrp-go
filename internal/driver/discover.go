@@ -498,8 +498,9 @@ func newDiscoveredDevice(info *discoveryInfo) dsModels.DiscoveredDevice {
 	if VendorIDType(info.vendor) == Impinj {
 		ipjModelStr := ImpinjModelType(info.model).String()
 		if !strings.HasPrefix(modelStr, "ImpinjModelType(") {
-			labels = append(labels, modelStr)
 			modelStr = ipjModelStr
+			labels = append(labels, modelStr)
+
 		}
 	}
 

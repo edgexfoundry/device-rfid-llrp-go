@@ -96,8 +96,8 @@ parts:
       go mod tidy
       make build
 
-      # copy device-rfid-llrp-go and rename to device-rfid-llrp
-      install -DT "./cmd/device-rfid-llrp-go" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
+      # copy device-rfid-llrp
+      install -DT "./cmd/device-rfid-llrp" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
 
       install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/"
       install -DT "./cmd/res/configuration.toml" \
