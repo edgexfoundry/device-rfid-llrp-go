@@ -9,8 +9,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	"net"
 	"os"
 	"strconv"
@@ -18,6 +16,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 )
 
 type inetTest struct {
@@ -36,7 +37,7 @@ func TestMain(m *testing.M) {
 	_ = Instance()
 
 	driver.svc = svc
-	driver.lc = logger.NewClient("test", false, "", "DEBUG")
+	driver.lc = logger.NewClient("test", "DEBUG")
 
 	os.Exit(m.Run())
 }

@@ -7,17 +7,18 @@ package driver
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
-	dsModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	"net"
 	"sync"
 	"time"
+
+	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/pkg/errors"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
 )
 
 const (
@@ -71,7 +72,7 @@ type LLRPDevice struct {
 	// This calculation does not account for leap seconds,
 	// but neither does Go's stdlib Time package.
 	readerStart time.Time
-	enabled     bool // used for managing EdgeX opstate; isn't updated immediately
+	isUp        bool // used for managing EdgeX opstate; isn't updated immediately
 
 	clientLock sync.RWMutex // we'll recreate client if it closes; note its lock is independent
 	client     *llrp.Client
@@ -92,7 +93,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.O
 		address: address,
 		lc:      d.lc,
 		ch:      d.asyncCh,
-		enabled: opState == contract.Enabled,
+		isUp:    opState == contract.Up,
 	}
 
 	// These options will be used each time we reconnect.
@@ -184,18 +185,18 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.O
 				// Multiple attempts to connect have failed.
 				// Tell EdgeX the device is disabled (if we haven't already).
 				l.deviceMu.Lock()
-				isEnabled := l.enabled
-				l.enabled = false
+				isEnabled := l.isUp
+				l.isUp = false
 				l.deviceMu.Unlock()
 
 				if isEnabled {
 					d.lc.Warn("Failed to connect to Device after multiple tries.", "device", name)
-					if err := d.svc.SetDeviceOpState(name, contract.Disabled); err != nil {
+					if err := d.svc.SetDeviceOpState(name, contract.Down); err != nil {
 						d.lc.Error("Failed to set device operating state to Disabled.",
 							"device", name, "error", err.Error())
 						// This is not likely, but might as well try again next round.
 						l.deviceMu.Lock()
-						l.enabled = true
+						l.isUp = true
 						l.deviceMu.Unlock()
 					}
 				}
@@ -379,18 +380,18 @@ func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandl
 	})
 }
 
-// sendEdgeXEvent marshals an interface to JSON and sends it as an EdgeX event.
+// sendEdgeXEvent creates an EdgeX Event for the LLRP event and sends it.
 func (l *LLRPDevice) sendEdgeXEvent(eventName string, ns int64, event interface{}) {
-	data, err := json.Marshal(event)
+	l.lc.Debugf("Sending LLRP Event '%s'", eventName)
+	cmdValue, err := dsModels.NewCommandValueWithOrigin(eventName, common.ValueTypeObject, event, ns)
 	if err != nil {
-		l.lc.Error("Failed to marshal event to JSON", "error", err.Error(),
-			"event", fmt.Sprintf("%+v", event))
+		l.lc.Errorf("Failed to create new command value with origin: %s", err.Error())
 		return
 	}
 
 	l.ch <- &dsModels.AsyncValues{
 		DeviceName:    l.name,
-		CommandValues: []*dsModels.CommandValue{dsModels.NewStringValue(eventName, ns, string(data))},
+		CommandValues: []*dsModels.CommandValue{cmdValue},
 	}
 }
 
@@ -458,17 +459,17 @@ func processReport(readerStart time.Time, report *llrp.ROAccessReport) {
 // onConnect is called when we open a new connection to a Reader.
 func (l *LLRPDevice) onConnect(svc ServiceWrapper) {
 	l.deviceMu.RLock()
-	isEnabled := l.enabled
+	isEnabled := l.isUp
 	l.deviceMu.RUnlock()
 
 	if !isEnabled {
 		l.lc.Info("Device connection restored.", "device", l.name)
-		if err := svc.SetDeviceOpState(l.name, contract.Enabled); err != nil {
+		if err := svc.SetDeviceOpState(l.name, contract.Up); err != nil {
 			l.lc.Error("Failed to set device operating state to Enabled.",
 				"device", l.name, "error", err.Error())
 		} else {
 			l.deviceMu.Lock()
-			l.enabled = true
+			l.isUp = true
 			l.deviceMu.Unlock()
 		}
 	}

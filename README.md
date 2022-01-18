@@ -29,17 +29,24 @@ make build
 ```bash
 make docker
 ```
-**Run EdgeX Hanoi**
-- [Docker](https://github.com/edgexfoundry/edgex-compose/tree/hanoi)
+**Run EdgeX Jakarta**
+
+- [Docker](https://github.com/edgexfoundry/edgex-compose/tree/jakarta)
 - [Snap](https://snapcraft.io/edgexfoundry)
 
 **Run device-rfid-llrp**
 - [Run via Snap](#snap-development-and-testing)
+
 - Docker
-    - Add `device-rfid-llrp` to your `docker-compose.yml` file
+    - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/jakarta/compose-builder)
+    - For non secure mode `make gen ds-llrp no-secty`
+    - For secure mode `make gen ds-llrp`
+    - `docker-compose -p edgex up -d`
+    
 - Native
+
     ```shell
-    cd cmd && ./device-rfid-llrp-go -cp=consul.http://localhost:8500 
+    cd cmd && EDGEX_SECURITY_SECRET_STORE=false ./device-rfid-llrp-go -cp -r
     ```
 
 **Configure subnet information**
@@ -56,53 +63,47 @@ make docker
 >_**Note 2:** The system will trigger a discovery 10 seconds after any change is made to the subnet
 > or discover port config, so this step is often not required_
 ```bash
-curl -X POST http://localhost:49989/api/v1/discovery
+curl -X POST http://localhost:59989/api/v2/discovery
 ```
 
-At this point the `device-rfid-llrp` service should have discovered your LLRP devices on the network and
-registered them with EdgeX.
+At this point the `device-rfid-llrp` service should have discovered your LLRP devices on the network and registered them with EdgeX.
 
-For more detailed info, see [Device Discovery](#Device-Discovery) and 
-[EdgeX Device Naming](#EdgeX-Device-Naming).
+For more detailed info, see [Device Discovery](#Device-Discovery) and [EdgeX Device Naming](#EdgeX-Device-Naming).
 
 ## Device Discovery
 >_**Note:** Device discovery is currently only compatible with IPv4 networks.
 If using an IPv6-only network, you will need to [manually add your devices to EdgeX](#manually-adding-a-device)._
 
-This service has the functionality to probe the local network 
-in an effort to discover devices that support LLRP.
+This service has the functionality to probe the local network in an effort to discover devices that support LLRP.
 
-This discovery also happens at a regular interval and can be configured via 
-[EdgeX Consul][consul_discovery] 
+This discovery also happens at a regular interval and can be configured via [EdgeX Consul][consul_discovery] 
 for existing installations, and [configuration.toml][config_toml] for default values.
 
-The discovery configuration can be modified via the `[Driver]` section of the [configuration.toml][config_toml] file.
+The additional discovery configuration can be modified via the `[AppCustom]` section of the [configuration.toml][config_toml] file.
 
 >_**Note:** Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
 aware of when modifying this file._
 
-[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/edgex-device-rfid-llrp/Device/Discovery/
-```toml
-[Driver]
-# NOTE: Items in the Driver section MUST be in quotes, even for numbers due to EdgeX limitation
 
+```toml
+[AppCustom]
 # List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
 # separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
 DiscoverySubnets = ""
 
 # Maximum simultaneous network probes
-ProbeAsyncLimit = "5000"
+ProbeAsyncLimit = 4000
 
 # Maximum amount of seconds to wait for each IP probe before timing out.
 # This will also be the minimum time the discovery process can take.
-ProbeTimeoutSeconds = "2"
+ProbeTimeoutSeconds = 2
 
 # Port to scan for LLRP devices on
 ScanPort = "5084"
 
 # Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
 # It is especially important to have this configured in the case of larger subnets such as /16 and /8
-MaxDiscoverDurationSeconds = "300"
+MaxDiscoverDurationSeconds = 300
 ```
 
 The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur.
@@ -119,8 +120,8 @@ field in Consul for you.
 
 Discovery can be manually triggered via REST:
 ```bash
-# POST http://<hostname>:<device-rfid-llrp-go port>/api/v1/discovery
-curl -X POST http://localhost:49989/api/v1/discovery
+# POST http://<hostname>:<device-rfid-llrp-go port>/api/v2/discovery
+curl -X POST http://localhost:59989/api/v2/discovery
 ```
 
 Every IP address in each of the subnets provided in `DiscoverySubnets` are probed at the specified `ScanPort` (default `5084`). 
@@ -179,7 +180,7 @@ aware of when modifying this file._
 ```
 [[DeviceList]]
   Name = "Speedway"
-  Profile = "Device.LLRP.Profile"
+  Profile = "Device-LLRP-Profile"
   Description = "LLRP RFID Reader"
   Labels = ["LLRP", "RFID"]
   [DeviceList.Protocols]
@@ -188,11 +189,12 @@ aware of when modifying this file._
       port = "5084"
 ```
 
-[add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/1.2.0#/default/post_v1_device
+[add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/2.1.0#/default/post_device
 [config_toml]: cmd/res/configuration.toml
 [provision_watcher]: cmd/res/provision_watchers
 [impinj_watcher]: cmd/res/provision_watchers/impinj.provision.watcher.json
 [generic_watcher]: cmd/res/provision_watchers/llrp.provision.watcher.json
+[consul_discovery]: http://localhost:8500/ui/dc1/kv/edgex/devices/2.0/device-rfid-llrp/Device/Discovery/ 
 
 ## Device Profiles, Custom LLRP Messages, and Service Limitations
 For some use cases, you may want or need to supply your own `deviceProfile`,
@@ -245,7 +247,7 @@ The following `LLRP` operations are _not_ supported at this time:
     There's really no reasonable general-purpose way to support it
     except through code, so if you need it, consider forking this repo
     and adding the interaction by using our [LLRP Library][llrp_library].
-  
+
 A `ProvisionWatcher` is used during the device discovery process to match discovered readers.
 It also determines the device profile to be used when adding the new device. The two pre-defined
 watchers are a [generic one][generic_watcher], and one for [Impinj][impinj_watcher]. Any new provision watchers 
@@ -287,6 +289,7 @@ and how it satisfies the read request:
 - `AccessSpec` sends `GET_ACCESSSPECS` (Message Type 44)
     and returns `GET_ACCESSSPECS_RESPONSE` (Message Type 44).
     
+
 You can configure `deviceCommands` in your device profile
 to read more than one resource at a time,
 in which case the device service attempts each of the commands requests in the order
@@ -324,8 +327,8 @@ as a base64-encoded byte array, which it uses as the `payload` of the `CustomMes
 You can see an example [device profile][custom_profile] 
 that defines a `deviceResource` to enable Impinj's custom extensions.
 
-[basic_profile]: cmd/res/llrp.device.profile.yaml
-[custom_profile]: cmd/res/llrp.impinj.profile.yaml
+[basic_profile]: cmd/res/profiles/llrp.device.profile.yaml
+[custom_profile]: cmd/res/profiles/llrp.impinj.profile.yaml
 [llrp_library]: internal/llrp/hacking_with_llrp.md
 [llrp_diagram]: internal/llrp/LLRPMsgStructure.pdf
 
@@ -374,7 +377,7 @@ so don't rely on them for much more than happy-path testing.
     to the first reader that EdgeX knows about,
     waits a bit, disables/deletes it from the reader,
     then displays any collected tags.
- 
+
 They assume everything is running and expect you have a these on your path:
 `jq`, `curl`, `sed`, `xargs`, `base64`, and `od`. 
 By default, they all try to connect to `localhost` on the typical EdgeX ports.
@@ -428,6 +431,7 @@ The full options it will respond to:
     but [is only needed in special circumstances](#updating-recorded-test-data)
     and should not be used unless you understand the consequences.
     
+
 Note that if you're using the Goland IDE, 
 you can put these options in a test config's `program arguments`,
 though the `short` and `verbose` options need the `test.` prefix. 
@@ -570,7 +574,7 @@ and verify there are no errors in the logs: `sudo snap logs edgex-device-llrp`.
 Consul UI can also be used to verify if the service has started without any errors `http://localhost:8500`
 
 Follow [First Run](#first-run) section to auto-configure subnet & trigger device discovery.
-As part of testing, registered devices can be checked via EdgeX Core-Metadata API - `http://localhost:48081/api/v1/device`
+As part of testing, registered devices can be checked via EdgeX Core-Metadata API - `http://localhost:59881/api/v2/device/service/name/device-rfid-llrp`
 
 #### Here are other helpful commands:
 - List installed Snap packages: `snap list`
@@ -584,11 +588,11 @@ As part of testing, registered devices can be checked via EdgeX Core-Metadata AP
 - Modifying the `configuration.toml` file will require you to rebuild the docker image 
 and re-deploy using the new image
 - Any modifications made to the `configuration.toml` file will be ignored if this is not 
-the first time you have deployed the service and EdgeX Consul is enabled. 
+  the first time you have deployed the service and EdgeX Consul is enabled. 
   - Consul will always overwrite any modifications to the toml.
   - To get around this behavior, you may delete the whole configuration group for this
     service within [EdgeX Consul][consul_devices].
-    
+
 ![](images/delete_consul.png)
 
-[consul_devices]: http://localhost:8500/ui/dc1/kv/edgex/devices/1.0/
+[consul_devices]: http://localhost:8500/ui/dc1/kv/edgex/devices/2.0/

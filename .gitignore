@@ -18,7 +18,7 @@
 
 .idea/
 vendor/
-cmd/device-rfid-llrp-go
+cmd/device-rfid-llrp
 glide.lock
 
 # snap files
@@ -58,3 +58,6 @@ venv
 internal/llrp/testdata/**/*.json
 internal/llrp/testdata/**/*.bytes
 !internal/llrp/testdata/roAccessReports/*-00?*
+
+#do not track vscode
+.vscode/*

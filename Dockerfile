@@ -18,13 +18,13 @@ ARG BASE=golang:1.16-alpine3.14
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
-ARG ALPINE_PKG_BASE="make git"
+ARG ALPINE_PKG_BASE="make git gcc libc-dev zeromq-dev"
 ARG ALPINE_PKG_EXTRA=""
 
 RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
-WORKDIR $GOPATH/src/github.com/edgexfoundry/device-rfid-llrp-go
+WORKDIR /app
 
 COPY . .
 RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
@@ -37,11 +37,15 @@ FROM alpine:3.14
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2021: Intel'
 
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/LICENSE /
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/Attribution.txt /
-COPY --from=builder /go/src/github.com/edgexfoundry/device-rfid-llrp-go/cmd /
+RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
+RUN apk add --update --no-cache zeromq dumb-init
 
-EXPOSE 49989
+COPY --from=builder /app/LICENSE /
+COPY --from=builder /app/Attribution.txt /
+COPY --from=builder /app/cmd/device-rfid-llrp /device-rfid-llrp
+COPY --from=builder /app/cmd/res/ /
 
-ENTRYPOINT ["/device-rfid-llrp-go"]
+EXPOSE 59989
+
+ENTRYPOINT ["/device-rfid-llrp"]
 CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]

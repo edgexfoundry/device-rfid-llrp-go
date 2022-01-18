@@ -8,7 +8,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 HOST=localhost
-CMDS_PORT=48082
+CMDS_PORT=59882
 CURL_OPTS="-o-"
 DEVICE=""
 
@@ -25,7 +25,7 @@ usage() {
     echo "OPTS:"
     echo "    -d | --device NAME  specific device to use     default: all LLRP devices"
     echo "    -h | --host HOST    edgex-core-commands host   default: localhost"
-    echo "    -p | --port PORT    edgex-core-commands port   default: 48082"
+    echo "    -p | --port PORT    edgex-core-commands port   default: 59882"
     echo "    -v | --verbose      use verbose curl output"
     echo "    -s | --silent       use silent curl output"
     echo ""
@@ -72,7 +72,7 @@ devices() {
     if [[ -n "$DEVICE" ]]; then
         echo "$DEVICE"
     else
-        curl ${CURL_OPTS} "$HOST:$CMDS_PORT/api/v1/device" | jq '[.[]|select(.labels[]=="LLRP")]'
+        curl ${CURL_OPTS} "$HOST:$CMDS_PORT/api/v2/device" | jq '[.[]|select(.labels[]=="LLRP")]'
     fi
 }
 

@@ -1,0 +1,156 @@
+name: "LLRP-Device-Profile"
+manufacturer: "Intel"
+model: "RFID Reader"
+labels:
+  - "LLRP"
+  - "RFID"
+description: "A generic device profile for readers that communicate over LLRP"
+
+deviceResources:
+  - 
+    name: "ReaderCapabilities"
+    description: "The capabilities of a reader"
+    properties:
+      valueType: "Object"
+      readWrite: "R"
+
+  - 
+    name: "ReaderConfig"
+    description: "Current configuration info of a reader"
+    properties:
+      valueType: "Object"
+      readWrite: "RW"
+
+  - 
+    name: "ROSpecID"
+    description: "Client-generated Reader Operation Specification Identifier"
+    properties:
+      valueType: "uint32"
+      readWrite: "W"
+      defaultValue: "1"
+
+  - 
+    name: "AccessSpecID"
+    description: "Client-generated Access Specification Identifier"
+    properties:
+      valueType: "uint32"
+      readWrite: "W"
+      defaultValue: "1"
+
+  - 
+    name: "ROSpec"
+    description: >-
+      An ROSpec is a "Reader Operation Specification", i.e.,
+      a declarative description of when and how
+      a reader should turn on its antennas and report data.
+      It's passed via EdgeX as a JSON object.
+    properties:
+      valueType: "Object"
+      readWrite: "RW"
+
+  - 
+    name: "AccessSpec"
+    description: ""
+    properties:
+      valueType: "Object"
+      readWrite: "RW"
+      
+  - 
+    name: "ROAccessReport"
+    description: >-
+      An ROAccessReport is the main report type in LLRP.
+      They contain the TagReportData or RFSurveyReportData,
+      as well as any Custom parameter data.
+    isHidden: true # resource is only async
+    properties:
+      valueType: "Object" 
+      readWrite: "R"
+
+  - 
+    name: "ReaderEventNotification"
+    description: >-
+      Readers generate Reader Event Notifications for a variety of events,
+      including changes in connectivity, antenna additions/removals,
+      GPIO state changes, new report data, and exception events.
+      Some event notifications are configurable.
+    isHidden: true # resource is only async
+    properties:
+      valueType: "Object"
+      readWrite: "R" 
+
+  - 
+    name: "Action"
+    description: >-
+      EdgeX's Device Service SDK only distinguishes between "GET" and "PUT",
+      and all PUT parameters must be defined deviceResources.
+      Since we won't have, e.g., information about the HTTP path used in a request,
+      this resource exists only to distinguish actions to take on other resources.
+    properties:
+      valueType: "String"
+      readWrite: "W"
+
+deviceCommands:
+
+  - 
+    name: enableROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID"}
+      - { deviceResource: "Action", defaultValue: "Enable" }
+
+  - 
+    name: startROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID" }
+      - { deviceResource: "Action", defaultValue: "Start" }
+
+  - 
+    name: stopROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID"}
+      - { deviceResource: "Action", defaultValue: "Stop" }
+
+  - 
+    name: disableROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID"}
+      - { deviceResource: "Action", defaultValue: "Disable" }
+
+  - 
+    name: deleteROSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "ROSpecID"}
+      - { deviceResource: "Action", defaultValue: "Delete" }
+
+  - 
+    name: enableAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID" }
+      - { deviceResource: "Action", defaultValue: "Enable" }
+
+  - 
+    name: disableAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID"}
+      - { deviceResource: "Action", defaultValue: "Disable" }
+
+  - 
+    name: deleteAccessSpec
+    isHidden: false
+    readWrite: "W"
+    resourceOperations:
+      - { deviceResource: "AccessSpecID"}
+      - { deviceResource: "Action", defaultValue: "Delete" }
