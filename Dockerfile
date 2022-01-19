@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.16-alpine3.14
+ARG BASE=golang:1.17-alpine3.15
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
@@ -26,10 +26,10 @@ RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
 WORKDIR /app
 
-COPY . .
+COPY go.mod vendor* ./
 RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
 
-RUN go mod tidy
+COPY . .
 RUN $MAKE
 
 FROM alpine:3.14
