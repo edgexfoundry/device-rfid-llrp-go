@@ -213,7 +213,7 @@ type signaler struct {
 }
 
 func newSignaler() *signaler {
-	interrupt := make(chan os.Signal)
+	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
 	return &signaler{interrupt: interrupt}
 }
