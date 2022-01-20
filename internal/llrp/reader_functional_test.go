@@ -170,6 +170,7 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 	bfn := filepath.Join(dir, baseName+".bytes")
 	jfn := filepath.Join(dir, baseName+".json")
 
+	//nolint: gosec //G306: Expect WriteFile permissions to be 0600 or less
 	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
 		return err
 	}
@@ -183,6 +184,7 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 		return err
 	}
 
+	//nolint: gosec //G306: Expect WriteFile permissions to be 0600 or less
 	if err := ioutil.WriteFile(jfn, j, 0644); err != nil {
 		return err
 	}
