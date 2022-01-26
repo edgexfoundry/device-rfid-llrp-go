@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func TestClient_readHeader(t *testing.T) {
@@ -194,6 +195,7 @@ func dummyReply(h *Header, rfid net.Conn) error {
 // randomReply returns a function that sends replies with a random payload
 // such that minSz <= len(payload) <= maxSz.
 func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
+	//nolint:gosec // G404: Use of weak random number generator
 	rnd := rand.New(rand.NewSource(1))
 	if minSz > maxSz {
 		panic(errors.Errorf("bad sizes: %d > %d", minSz, maxSz))
@@ -372,11 +374,9 @@ func TestClient_ManySenders(t *testing.T) {
 		var h Header
 		err := connectSuccess(&h, rfid)
 		op, nextOp := dummyRead, randomReply(0, 1024)
-		s1, s2 := "read", "reply"
 		for err == nil {
 			err = op(&h, rfid)
 			op, nextOp = nextOp, op
-			s1, s2 = s2, s1
 		}
 		rfidErrs <- errors.Wrap(err, "mock failed")
 	}()
@@ -392,8 +392,10 @@ func TestClient_ManySenders(t *testing.T) {
 		go func() {
 			defer msgGrp.Done()
 
+			//nolint:gosec // G404: Use of weak random number generator
 			sz := rand.Int31n(1024)
 			data := make([]byte, sz)
+			//nolint:gosec // G404: Use of weak random number generator
 			rand.Read(data)
 
 			_, _, err := c.SendMessage(ctx, MsgCustomMessage, data)
@@ -454,11 +456,9 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 		var h Header
 		err := connectSuccess(&h, rfid)
 		op, nextOp := dummyRead, randomReply(0, 1024)
-		s1, s2 := "read", "reply"
 		for err == nil {
 			err = op(&h, rfid)
 			op, nextOp = nextOp, op
-			s1, s2 = s2, s1
 		}
 		rfidErrs <- errors.Wrap(err, "mock failed")
 	}()
@@ -477,8 +477,10 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 		go func() {
 			defer msgGrp.Done()
 
+			//nolint:gosec // G404: Use of weak random number generator
 			sz := rand.Int31n(1024)
 			data := make([]byte, sz)
+			//nolint:gosec // G404: Use of weak random number generator
 			rand.Read(data)
 
 			_, _, err := r.SendMessage(ctx, MsgCustomMessage, data)

@@ -267,10 +267,9 @@ func sendCustom(ctx context.Context, c *llrp.Client, custom string) error {
 	if err := json.Unmarshal(data, msgs); err != nil {
 		return err
 	}
-
-	for i, cst := range *msgs {
+	for i := range *msgs {
 		log.Infof("sending custom %d", i)
-		logErr(send(ctx, c, &cst, &llrp.CustomMessage{}))
+		logErr(send(ctx, c, &(*msgs)[i], &llrp.CustomMessage{}))
 	}
 
 	return nil

@@ -854,7 +854,7 @@ func (d *Driver) discover(ctx context.Context) {
 		d.lc.Warn("Discover process has been cancelled!", "ctxErr", ctx.Err())
 	}
 
-	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Now().Sub(t1)))
+	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Since(t1)))
 	// pass the discovered devices to the EdgeX SDK to be passed through to the provision watchers
 	d.deviceCh <- result
 }

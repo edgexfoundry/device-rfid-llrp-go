@@ -401,6 +401,7 @@ func (ebo ExpBackOff) nextWait(attempts int) time.Duration {
 	if ebo.Jitter {
 		// Choose a random value in [0, 2^attempt) with uniform probability.
 		// The expected value is (1/2)*2^attempt = 2^(attempt-1).
+		//nolint:gosec // G404: Use of weak random number generator
 		s := time.Duration(rand.Int63n(1 << attempts))
 		if s > 0 && ebo.BackOff > ebo.Max/s {
 			wait = ebo.Max
