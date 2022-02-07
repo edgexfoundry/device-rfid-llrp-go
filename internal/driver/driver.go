@@ -53,7 +53,6 @@ const (
 
 	// enable this by default, otherwise discovery will not work.
 	registerProvisionWatchers = true
-	provisionWatcherFolder    = "res/provision_watchers"
 
 	// discoverDebounceDuration is the amount of time to wait for additional changes to discover
 	// configuration before auto-triggering a discovery
@@ -713,6 +712,13 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 }
 
 func (d *Driver) addProvisionWatchers() error {
+
+	provisionWatcherFolder := driver.config.AppCustom.ProvisionWatcherDir
+	if provisionWatcherFolder == "" {
+		provisionWatcherFolder = "res/provision_watchers"
+	}
+	d.lc.Infof("Adding provision watchers from %s", provisionWatcherFolder)
+
 	files, err := ioutil.ReadDir(provisionWatcherFolder)
 	if err != nil {
 		return err

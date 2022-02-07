@@ -29,18 +29,29 @@ slots:
       write: [$SNAP_DATA/device-rfid-llrp]
 
 apps:
+  auto-configure:
+    adapter: none
+    command-chain:
+        - snap/command-chain/snapcraft-runner
+    command: bin/auto-configure.sh
+    plugs:
+      - network
+      - network-observe
+      - network-control
+
   device-rfid-llrp:
     adapter: full
     command: bin/device-rfid-llrp $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
     command-chain:
       - bin/startup-env-var.sh
     environment:
-      CONFIG_PRO_ARG: "--cp=consul.http://localhost:8500"
+      CONFIG_PRO_ARG: "--cp=consul://localhost:8500"
       CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp/res"
       REGISTRY_ARG: "--registry"
       DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/profiles"
       # DEVICE_DEVICESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/devices"
       SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
+      APPCUSTOM_PROVISION_WATCHER_FOLDER: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
     daemon: simple
     passthrough:
       install-mode: disable
@@ -125,3 +136,10 @@ parts:
   config-common:
     plugin: dump
     source: snap/local/runtime-helpers
+
+   # required for device discovery
+  static-packages:
+    source: snap/local
+    plugin: nil
+    stage-packages:
+      - curl

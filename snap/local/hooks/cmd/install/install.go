@@ -47,6 +47,28 @@ func installConfig() error {
 	return nil
 }
 
+func installProvisionWatchers() error {
+	var err error
+
+	profs := [...]string{"impinj", "llrp"}
+
+	for _, v := range profs {
+		path := fmt.Sprintf("/config/device-rfid-llrp/res/provision_watchers/%s.provision.watcher.json", v)
+		destFile := hooks.SnapData + path
+		srcFile := hooks.Snap + path
+
+		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
+			return err
+		}
+
+		if err = hooks.CopyFile(srcFile, destFile); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func installDevices() error {
 	//No device files
 
@@ -97,6 +119,12 @@ func main() {
 	}
 
 	err = installDevProfiles()
+	if err != nil {
+		hooks.Error(fmt.Sprintf("edgex-device-rfid-llrp:install: %v", err))
+		os.Exit(1)
+	}
+
+	err = installProvisionWatchers()
 	if err != nil {
 		hooks.Error(fmt.Sprintf("edgex-device-rfid-llrp:install: %v", err))
 		os.Exit(1)
