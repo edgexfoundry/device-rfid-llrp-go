@@ -69,6 +69,25 @@ ensures that as well as starting the service now, it will be automatically start
 $ sudo snap start --enable edgex-device-rfid-llrp.device-rfid-llrp
 ```
 
+## Subnet setup
+
+The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur. This can be done in two ways:
+
+1. Using `snap set`
+
+```bash
+$ sudo snap set edgex-device-rfid-llrp env.app-custom.discovery-subnets="192.168.1.0/24,10.0.0.0/24"
+```
+
+2. Using the `auto-configure` command.T his command identifies online physical local network interfaces and sets the value of `DiscoverySubnets` 
+in Consul. When running with security enabled, it requires a Consul token, so it needs to be run as follows:
+
+```bash
+CONSUL_TOKEN=$(sudo cat /var/snap/edgexfoundry/current/secrets/consul-acl-token/bootstrap_token.json | jq ".SecretID" | tr -d '"') 
+echo $CONSUL_TOKEN 
+edgex-device-rfid-llrp.auto-configure $CONSUL_TOKEN
+```
+
 ### Using a content interface to set device configuration
 
 The `device-config` content interface allows another snap to seed this device
@@ -169,4 +188,25 @@ clients.core-metadata.port      // Clients.core-metadata.Port
 [Device]
 device.update-last-connected    // Device.UpdateLastConnected
 device.use-message-bus          // Device.UseMessageBus
+
+[AppCustom]
+
+# List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+# separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+app-custom.discovery-subnets  // AppCustom.DiscoverySubnets
+
+# Maximum simultaneous network probes
+app-custom.probe-async-limit    // ProbeAsyncLimit = 4000
+
+# Maximum amount of seconds to wait for each IP probe before timing out.
+# This will also be the minimum time the discovery process can take.
+app-custom.probe-timeout-seconds // ProbeTimeoutSeconds = 2
+
+# Port to scan for LLRP devices on
+app-custom.ScanPort = "5084"
+
+# Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+# It is especially important to have this configured in the case of larger subnets such as /16 and /8
+app-custom.MaxDiscoverDurationSeconds = 300
+
 ```

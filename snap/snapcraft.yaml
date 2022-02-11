@@ -26,13 +26,16 @@ slots:
 apps:
   auto-configure:
     adapter: none
-    command-chain:
-        - snap/command-chain/snapcraft-runner
     command: bin/auto-configure.sh
+    command-chain:
+      - snap/command-chain/snapcraft-runner
+      # - bin/snapcraft-preload
     plugs:
       - network
       - network-observe
       - network-control
+    environment:
+      CURL_BINARY: "$SNAP/usr/bin/curl"
 
   device-rfid-llrp:
     adapter: full

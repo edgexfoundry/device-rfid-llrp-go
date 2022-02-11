@@ -111,6 +111,13 @@ The easiest way of doing this is via the following script:
 ```bash
 ./bin/auto-configure.sh
 ```
+
+This script requires access to Consul. If running with security enabled, then a Consul token is required. In that case it should be passed as an argument to the script, i.e:
+
+```bash
+./bin/auto-configure.sh a7910d82-69ae-ea21-214d-fd1326e68545
+```
+
 What this command does is check your local machine's network interfaces to see which ones are both online
 and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
 field in Consul for you.
