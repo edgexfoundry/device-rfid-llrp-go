@@ -58,7 +58,7 @@ plugs:
     target: $SNAP_DATA/config/device-rfid-llrp
 
 parts:
-   hooks:
+  hooks:
     source: snap/local/hooks
     plugin: make
     build-snaps:
@@ -137,11 +137,14 @@ parts:
       echo $VERSION > ./VERSION
       # set the version of this snap
       snapcraftctl set-version $VERSION
-    parse-info: [edgex-device-rfid-llrp.md]
+    parse-info: [edgex-device-rfid-llrp.metainfo.xml]
 
  
+  # copy auto-configure.sh to /bin and make sure curl is installed
   auto-configure:
-    source: snap/local
-    plugin: nil
+    plugin: dump
+    source: bin/
+    organize:
+      auto-configure.sh: bin/auto-configure.sh
     stage-packages:
       - curl

@@ -33,6 +33,13 @@ if [ "${DEBUG}" == "1" ]; then
     set -x
 fi
 
+# Snap-specific settings
+# This script must run using snapcraft-runner, to set the shared libraries path correctly
+# network-control and network-observe are required.
+CURL=$SNAP/usr/bin/curl
+CONSUL_TOKEN=$1
+
+
 spacing=18; prev_line="\e[1A\e[$((spacing + 2))C"
 green="\e[32m"; red="\e[31m"; clear="\e[0m"; bold="\e[1m"; normal="\e[22;24m"
 
@@ -44,6 +51,7 @@ err() {
 
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}
 url="${CONSUL_URL}/v1/kv/edgex/devices/2.0/device-rfid-llrp/AppCustom/DiscoverySubnets"
+
 
 ### Dependencies Check
 # Note: trailing ${red} is to colorize red all potential error output from the following commands
@@ -57,7 +65,8 @@ echo -e "${prev_line}${green}Success${clear}"
 ### Consul Check
 # Note: trailing ${red} is to colorize red all potential error output from the following commands
 printf "${bold}%${spacing}s${clear}: ...\n${red}" "Consul Check"
-code=$(curl -X GET -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+echo "$CURL -X GET -H "X-Consul-Token:$CONSUL_TOKEN" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?"
+code=$($CURL -X GET -H "X-Consul-Token:$CONSUL_TOKEN" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
 if [ $((code)) -ne 200 ]; then
     echo -e "${red}${bold}Failed!${normal} curl returned a status code of '${bold}$((code))'${normal}"
     # Special message for error code 7
@@ -138,7 +147,7 @@ echo -e "${prev_line}${clear}${subnets}"
 
 ### Configure Consul
 printf "${bold}%${spacing}s${clear}: ...\n${red}" "Configure"
-code=$(curl -X PUT --data "${subnets}" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+code=$(curl -X PUT -H "X-Consul-Token:$CONSUL_TOKEN" --data "${subnets}" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
 if [ $((code)) -ne 200 ]; then
     echo -e "${red}${bold}Failed!${normal} curl returned a status code of '${bold}${code}'${clear}"
     exit $((code))
