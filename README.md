@@ -17,7 +17,6 @@ The [LLRP RFID Inventory Service][inventory_service] can be used to automaticall
 * [Connection Management](#connection-management)
 * [Example Scripts](#example-scripts)
 * [Testing](#testing)
-* [Snap Development and Testing](#snap-development-and-testing)
 * [Footnotes](#footnotes)
 
  

@@ -713,7 +713,7 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 
 func (d *Driver) addProvisionWatchers() error {
 
-	provisionWatcherFolder := driver.config.AppCustom.ProvisionWatcherDir
+	provisionWatcherFolder := d.config.AppCustom.ProvisionWatcherDir
 	if provisionWatcherFolder == "" {
 		provisionWatcherFolder = "res/provision_watchers"
 	}
