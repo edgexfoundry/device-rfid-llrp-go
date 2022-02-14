@@ -28,14 +28,11 @@ apps:
     adapter: none
     command: bin/auto-configure.sh
     command-chain:
-      - snap/command-chain/snapcraft-runner
-      # - bin/snapcraft-preload
+      - snap/command-chain/snapcraft-runner 
     plugs:
       - network
-      - network-observe
-      - network-control
-    environment:
-      CURL_BINARY: "$SNAP/usr/bin/curl"
+      - network-observe # required for /operstate
+      - network-control # required for "ip" 
 
   device-rfid-llrp:
     adapter: full
@@ -49,7 +46,7 @@ apps:
       DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/profiles"
       DEVICE_DEVICESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/devices"
       SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
-      APPCUSTOM_PROVISION_WATCHER_FOLDER: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
+      APPCUSTOM_PROVISIONWATCHERDIR: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
     daemon: simple
     passthrough:
       install-mode: disable
@@ -89,31 +86,18 @@ parts:
       make tidy
       make build
 
-      # copy device-rfid-llrp
-      install -DT "./cmd/device-rfid-llrp" "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
+      install -DT ./cmd/device-rfid-llrp "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
+      install -DT ./Attribution.txt "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/Attribution.txt"
+      install -DT ./LICENSE "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/LICENSE"
 
-      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/"
-      install -DT "./cmd/res/configuration.toml" \
-        "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/configuration.toml"
+      LLRP_RES_DIR="$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/"
+      mkdir -p "$LLRP_RES_DIR/profiles"
+      mkdir -p "$LLRP_RES_DIR/devices"
+      mkdir -p "$LLRP_RES_DIR/provision_watchers"
+      cp ./cmd/res/configuration.toml "$LLRP_RES_DIR/"
+      cp ./cmd/res/profiles/*.yaml "$LLRP_RES_DIR/profiles/"
+      cp ./cmd/res/provision_watchers/*.json "$LLRP_RES_DIR/provision_watchers/"
 
-      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/profiles/"
-      for fpath in ./cmd/res/profiles/*.yaml; do
-          fname=$(basename "$fpath")
-          install -DT "./cmd/res/profiles/${fname}" \
-            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/profiles/${fname}"
-      done
-
-      install -d "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/provision_watchers/"
-      for fpath in ./cmd/res/provision_watchers/*.json; do
-          fname=$(basename "$fpath")
-          install -DT "./cmd/res/provision_watchers/${fname}" \
-            "$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/provision_watchers/${fname}"
-      done
-
-      install -DT "./Attribution.txt" \
-         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/Attribution.txt"
-      install -DT "./LICENSE" \
-         "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/LICENSE"
 
   runtime-helpers:
     plugin: dump

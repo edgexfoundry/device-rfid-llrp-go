@@ -71,22 +71,33 @@ $ sudo snap start --enable edgex-device-rfid-llrp.device-rfid-llrp
 
 ## Subnet setup
 
-The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur. This can be done in two ways:
+The `DiscoverySubnets` setting needs to be provided before a device discovery can occur. This can be done manually or using a script to run auto-configure:
 
-1. Using `snap set`
+1. Using `snap set` to set your local subnet information. Example:
 
 ```bash
-$ sudo snap set edgex-device-rfid-llrp env.app-custom.discovery-subnets="192.168.1.0/24,10.0.0.0/24"
+$ sudo snap set edgex-device-rfid-llrp env.app-custom.discovery-subnets="192.168.10.0/24"
+curl -X POST http://localhost:59989/api/v2/discovery
 ```
 
-2. Using the `auto-configure` command.T his command identifies online physical local network interfaces and sets the value of `DiscoverySubnets` 
+2. Using the `auto-configure` command. This command finds all local network interfaces which are online and non-virtual and sets the value of `DiscoverySubnets` 
 in Consul. When running with security enabled, it requires a Consul token, so it needs to be run as follows:
 
 ```bash
+
+# get Consul ACL token
 CONSUL_TOKEN=$(sudo cat /var/snap/edgexfoundry/current/secrets/consul-acl-token/bootstrap_token.json | jq ".SecretID" | tr -d '"') 
 echo $CONSUL_TOKEN 
+
+# start the device service and connect the interfaces required for network interface discovery
+sudo snap start edgex-device-rfid-llrp.device-rfid-llrp 
+sudo snap connect edgex-device-rfid-llrp:network-control 
+sudo snap connect edgex-device-rfid-llrp:network-observe 
+
+# run the nework interface discovery, providing the Consul token
 edgex-device-rfid-llrp.auto-configure $CONSUL_TOKEN
 ```
+
 
 ### Using a content interface to set device configuration
 
@@ -164,49 +175,48 @@ For details on the mapping of configuration options to Config options, please re
 
 ```
 [Service]
-service.boot-timeout            // Service.BootTimeout
-service.health-check-interval   // Service.HealthCheckInterval
-service.host                    // Service.Host
-service.server-bind-addr        // Service.ServerBindAddr
-service.port                    // Service.Port
-service.protocol                // Service.Protocol
-service.max-result-count        // Service.MaxResultCount
-service.max-request-size        // Service.MaxRequestSize
-service.startup-msg             // Service.StartupMsg
-service.request-timeout         // Service.RequestTimeout
+service.boot-timeout                    // Service.BootTimeout
+service.health-check-interval           // Service.HealthCheckInterval
+service.host                            // Service.Host
+service.server-bind-addr                // Service.ServerBindAddr
+service.port                            // Service.Port
+service.protocol                        // Service.Protocol
+service.max-result-count                // Service.MaxResultCount
+service.max-request-size                // Service.MaxRequestSize
+service.startup-msg                     // Service.StartupMsg
+service.request-timeout                 // Service.RequestTimeout
 
 [SecretStore]
 secret-store.secrets-file               // SecretStore.SecretsFile
 secret-store.disable-scrub-secrets-file // SecretStore.DisableScrubSecretsFile
 
 [Clients.core-data]
-clients.core-data.port          // Clients.core-data.Port
+clients.core-data.port                  // Clients.core-data.Port
 
 [Clients.core-metadata]
-clients.core-metadata.port      // Clients.core-metadata.Port
+clients.core-metadata.port              // Clients.core-metadata.Port
 
 [Device]
-device.update-last-connected    // Device.UpdateLastConnected
-device.use-message-bus          // Device.UseMessageBus
+device.update-last-connected            // Device.UpdateLastConnected
+device.use-message-bus                  // Device.UseMessageBus
 
 [AppCustom]
 
 # List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
 # separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
-app-custom.discovery-subnets  // AppCustom.DiscoverySubnets
+app-custom.discovery-subnets            // AppCustom.DiscoverySubnets
 
 # Maximum simultaneous network probes
-app-custom.probe-async-limit    // ProbeAsyncLimit = 4000
+app-custom.probe-async-limit            // AppCustom.ProbeAsyncLimit
 
 # Maximum amount of seconds to wait for each IP probe before timing out.
 # This will also be the minimum time the discovery process can take.
-app-custom.probe-timeout-seconds // ProbeTimeoutSeconds = 2
+app-custom.probe-timeout-seconds        // AppCustom.ProbeTimeoutSeconds
 
 # Port to scan for LLRP devices on
-app-custom.ScanPort = "5084"
+app-custom.scan-port                    // AppCustom.ScanPort
 
 # Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
 # It is especially important to have this configured in the case of larger subnets such as /16 and /8
-app-custom.MaxDiscoverDurationSeconds = 300
-
+app-custom.max-discover-duration-seconds // AppCustom.MaxDiscoverDurationSeconds
 ```

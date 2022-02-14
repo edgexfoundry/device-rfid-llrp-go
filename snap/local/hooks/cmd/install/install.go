@@ -27,73 +27,59 @@ import (
 )
 
 var cli *hooks.CtlCli = hooks.NewSnapCtl()
+var LLRP_RES = "/config/device-rfid-llrp/res"
+
+func installFile(path string) error {
+	destFile := hooks.SnapData + LLRP_RES + path
+	srcFile := hooks.Snap + LLRP_RES + path
+
+	hooks.Info(fmt.Sprintf("Copying %s to %s\n", srcFile, destFile))
+
+	err := os.MkdirAll(filepath.Dir(destFile), 0755)
+	if err != nil {
+		return err
+	}
+	err = hooks.CopyFile(srcFile, destFile)
+
+	return err
+
+}
 
 // installProfiles copies the profile configuration.toml files from $SNAP to $SNAP_DATA.
 func installConfig() error {
-	var err error
-
-	path := "/config/device-rfid-llrp/res/configuration.toml"
-	destFile := hooks.SnapData + path
-	srcFile := hooks.Snap + path
-
-	if err = os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
-		return err
-	}
-
-	if err = hooks.CopyFile(srcFile, destFile); err != nil {
-		return err
-	}
-
-	return nil
+	return installFile("/configuration.toml")
 }
 
 func installProvisionWatchers() error {
-	var err error
 
 	profs := [...]string{"impinj", "llrp"}
 
 	for _, v := range profs {
-		path := fmt.Sprintf("/config/device-rfid-llrp/res/provision_watchers/%s.provision.watcher.json", v)
-		destFile := hooks.SnapData + path
-		srcFile := hooks.Snap + path
-
-		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
-			return err
-		}
-
-		if err = hooks.CopyFile(srcFile, destFile); err != nil {
+		path := fmt.Sprintf("/provision_watchers/%s.provision.watcher.json", v)
+		err := installFile(path)
+		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
 func installDevices() error {
 	//No device files
-
-	return nil
+	hooks.Info(fmt.Sprintf("Creating " + hooks.SnapData + LLRP_RES + "/devices"))
+	return os.MkdirAll(hooks.SnapData+LLRP_RES+"/devices", 0755)
 }
 
 func installDevProfiles() error {
-	var err error
 
 	profs := [...]string{"device", "impinj"}
-
 	for _, v := range profs {
-		path := fmt.Sprintf("/config/device-rfid-llrp/res/profiles/llrp.%s.profile.yaml", v)
-		destFile := hooks.SnapData + path
-		srcFile := hooks.Snap + path
-
-		if err := os.MkdirAll(filepath.Dir(destFile), 0755); err != nil {
-			return err
-		}
-
-		if err = hooks.CopyFile(srcFile, destFile); err != nil {
+		path := fmt.Sprintf("/profiles/llrp.%s.profile.yaml", v)
+		err := installFile(path)
+		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -101,9 +87,8 @@ func main() {
 	var err error
 
 	if err = hooks.Init(false, "edgex-device-rfid-llrp"); err != nil {
-		fmt.Println(fmt.Sprintf("edgex-device-rfid-llrp::install: initialization failure: %v", err))
+		fmt.Printf("edgex-device-rfid-llrp::install: initialization failure: %v\n", err)
 		os.Exit(1)
-
 	}
 
 	err = installConfig()
