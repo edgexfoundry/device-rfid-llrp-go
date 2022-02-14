@@ -33,8 +33,6 @@ func installFile(path string) error {
 	destFile := hooks.SnapData + LLRP_RES + path
 	srcFile := hooks.Snap + LLRP_RES + path
 
-	hooks.Info(fmt.Sprintf("Copying %s to %s\n", srcFile, destFile))
-
 	err := os.MkdirAll(filepath.Dir(destFile), 0755)
 	if err != nil {
 		return err
@@ -66,7 +64,6 @@ func installProvisionWatchers() error {
 
 func installDevices() error {
 	//No device files
-	hooks.Info(fmt.Sprintf("Creating " + hooks.SnapData + LLRP_RES + "/devices"))
 	return os.MkdirAll(hooks.SnapData+LLRP_RES+"/devices", 0755)
 }
 
