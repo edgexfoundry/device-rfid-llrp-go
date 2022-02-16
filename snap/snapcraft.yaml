@@ -130,6 +130,8 @@ parts:
   auto-configure:
     plugin: dump
     source: bin/
+    filesets:
+      auto-configure: [bin/auto-configure.sh]
     organize:
       auto-configure.sh: bin/auto-configure.sh
     stage-packages:
