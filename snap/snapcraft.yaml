@@ -48,8 +48,7 @@ apps:
       SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
       APPCUSTOM_PROVISIONWATCHERDIR: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
     daemon: simple
-    passthrough:
-      install-mode: disable
+    install-mode: disable
     plugs: [network, network-bind]
 
 plugs:
