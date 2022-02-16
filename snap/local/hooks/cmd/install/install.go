@@ -27,7 +27,7 @@ import (
 )
 
 var cli *hooks.CtlCli = hooks.NewSnapCtl()
-var LLRP_RES = "/config/device-rfid-llrp/res"
+const LLRP_RES = "/config/device-rfid-llrp/res"
 
 func installFile(path string) error {
 	destFile := hooks.SnapData + LLRP_RES + path
