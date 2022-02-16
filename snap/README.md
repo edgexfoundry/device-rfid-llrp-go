@@ -28,12 +28,6 @@ The latest stable version of the snap can be installed using:
 $ sudo snap install edgex-device-rfid-llrp
 ```
 
-The 2.0 (Ireland) release of the snap can be installed using:
-
-```bash
-$ sudo snap install edgex-device-rfid-llrp --channel=2.0
-```
-
 The latest development version of the snap can be installed using:
 
 ```bash
@@ -101,38 +95,12 @@ edgex-device-rfid-llrp.auto-configure $CONSUL_TOKEN
 
 ### Using a content interface to set device configuration
 
-The `device-config` content interface allows another snap to seed this device
-snap with configuration files under the `$SNAP_DATA/config/device-rfid-llrp/res` directory.
+The `device-config` content interface allows another snap to seed this snap with configuration directories under `$SNAP_DATA/config/device-rfid-llrp`.
 
 Note that the `device-config` content interface does NOT support seeding of the Secret Store Token because that file is expected at a different path.
 
-To use, create a new snap with a directory containing the configuration files.
-Your `snapcraft.yaml` file then needs to define a slot with read access to the directory you are sharing.
+Please refer to [edgex-config-provider](https://github.com/canonical/edgex-config-provider), for an example and further instructions.
 
-```
-slots:
-  device-config:
-    interface: content  
-    content: device-config
-    read: 
-      - $SNAP/config
-```
-
-where `$SNAP/config` is configuration directory your snap is providing to the device snap.
-
-Then connect the plug in the device snap to the slot in your snap, which will replace the configuration in the device snap. Do this with:
-
-```bash
-$ sudo snap connect edgex-device-rfid-llrp:device-config your-snap:device-config
-```
-
-This needs to be done before the device service is started for the first time. Once you have set the configuration the device service can be started and it will then be configured using the settings you provided:
-
-```bash
-$ sudo snap start edgex-device-rfid-llrp.device-rfid-llrp
-```
-
-**Note** - content interfaces from snaps installed from the Snap Store that have the same publisher connect automatically. For more information on snap content interfaces please refer to the snapcraft.io [Content Interface](https://snapcraft.io/docs/content-interface) documentation.
 
 ### Autostart
 By default, the edgex-device-rfid-llrp disables its service on install, as the expectation is that the default profile configuration files will be customized, and thus this behavior allows the profile `configuration.toml` files in $SNAP_DATA to be modified before the service is first started.
