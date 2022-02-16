@@ -711,8 +711,11 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
+// todo: remove this method once the Device SDK has been updated as per https://github.com/edgexfoundry/device-sdk-go/issues/1100
 func (d *Driver) addProvisionWatchers() error {
 
+	// this setting is a workaround for the fact that there is no standard way to define this directory using the SDK
+	// the snap needs to be able to change the location of the provision watchers
 	provisionWatcherFolder := d.config.AppCustom.ProvisionWatcherDir
 	if provisionWatcherFolder == "" {
 		provisionWatcherFolder = "res/provision_watchers"

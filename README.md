@@ -39,7 +39,7 @@ make docker
     - For the snap, refer to the [snap](snap) directory.
 
 - Docker
-    - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/main/compose-builder)
+    - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/jakarta/compose-builder)
     - For non secure mode `make gen ds-llrp no-secty`
     - For secure mode `make gen ds-llrp`
     - `docker-compose -p edgex up -d`
