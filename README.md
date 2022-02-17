@@ -10,16 +10,16 @@ A ROAccessReport can be used to examine data read from one or more RFID tags see
 The [LLRP RFID Inventory Service][inventory_service] can be used to automatically configure this service and readers it manages. This repository also provides a higher-level abstraction for working with RFID tag by parsing ROAccessReports and generating higher-level tag-specific readings (e.g. TAG_APPEARED, TAG_MOVED, etc).
 
 ## Table of contents
-
+ 
 * [First Run](#first-run)
 * [Device Discovery](#device-discovery)
 * [Device Profiles, Custom LLRP Messages, and Service Limitations](#device-profiles-custom-llrp-messages-and-service-limitations)
 * [Connection Management](#connection-management)
 * [Example Scripts](#example-scripts)
 * [Testing](#testing)
-* [Snap Development and Testing](#snap-development-and-testing)
 * [Footnotes](#footnotes)
 
+ 
 ## First Run
 **Build Native**
 ```bash
@@ -35,7 +35,8 @@ make docker
 - [Snap](https://snapcraft.io/edgexfoundry)
 
 **Run device-rfid-llrp**
-- [Run via Snap](#snap-development-and-testing)
+- Snap
+    - For the snap, refer to the [snap](snap) directory.
 
 - Docker
     - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/jakarta/compose-builder)
@@ -111,6 +112,13 @@ The easiest way of doing this is via the following script:
 ```bash
 ./bin/auto-configure.sh
 ```
+
+This script requires access to Consul. If running with security enabled, then a Consul token is required. In that case it should be passed as an argument to the script, i.e:
+
+```bash
+./bin/auto-configure.sh a7910d82-69ae-ea21-214d-fd1326e68545
+```
+
 What this command does is check your local machine's network interfaces to see which ones are both online
 and a physical device (instead of virtual). It uses that information to fill in the `DiscoverySubnets` 
 field in Consul for you.
@@ -541,47 +549,6 @@ The following are particularly useful:
 - `go doc llrp.GetFunctionalClient`
 
 [test_helper]: internal/llrp/test_helpers.go
-
-## Snap Development and Testing
-The Snap directory consists of the `snapcraft.yaml` file and the initialization file `install` for building a snap package for this Service.
-### Build Device RFID LLRP Snap Packages
-Execute the following commands from the project's root directory. If you try to build elsewhere, it will fail with a `source not found` error message.
-- `snapcraft clean`
-- `snapcraft`
-
-On success, this creates a `*.snap` package under the root directory. 
-The package name format is `{snapName}_{versionNumber}_{architecture}.snap`, e.g.
-
- `edgex-device-llrp_0.0.0-20201014+39fc566_amd64.snap`
-
-Always delete the old snap package before rebuilding via `rm oldsnap.snap` & `snapcraft clean`. 
-
-To debug snap build issues, run `snapcraft --debug`. 
-
-If snapcraft encounters an error, it will open a shell within the virtualised build environment.
-### Install Device RFID LLRP Snap Packages
-- `sudo snap install --devmode --dangerous *.snap` 
-
-Use `snapcraft list` to verify the package was installed.
-### Test Device RFID LLRP Snap Packages
-The service registers itself with consul at initialization,
-which requires Consul and other EdgeX Snap packages.
-
-Make sure they are installed and running (`snap install edgexfoundry`),
-then start the service with `sudo snap start edgex-device-llrp`
-and verify there are no errors in the logs: `sudo snap logs edgex-device-llrp`.
-
-Consul UI can also be used to verify if the service has started without any errors `http://localhost:8500`
-
-Follow [First Run](#first-run) section to auto-configure subnet & trigger device discovery.
-As part of testing, registered devices can be checked via EdgeX Core-Metadata API - `http://localhost:59881/api/v2/device/service/name/device-rfid-llrp`
-
-#### Here are other helpful commands:
-- List installed Snap packages: `snap list`
-- View the Snap service status: `systemctl status snap.edgex-device-rfid-llrp.device-rfid-llrp-go.service`
-- View System logs: `journalctl -xe`
-- Stop the Snap service: `sudo snap stop edgex-device-rfid-llrp`
-- Remove the Snap package: `sudo snap remove edgex-device-rfid-llrp`
 
 ## Footnotes
 ### Notes on configuration.toml

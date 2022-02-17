@@ -41,9 +41,11 @@ err() {
     echo -e "${red}${bold}Failed!${clear}"
     exit 1
 }
-
+ 
+CONSUL_TOKEN=${1:-""}
 CONSUL_URL=${CONSUL_URL:-http://localhost:8500}
 url="${CONSUL_URL}/v1/kv/edgex/devices/2.0/device-rfid-llrp/AppCustom/DiscoverySubnets"
+
 
 ### Dependencies Check
 # Note: trailing ${red} is to colorize red all potential error output from the following commands
@@ -57,7 +59,13 @@ echo -e "${prev_line}${green}Success${clear}"
 ### Consul Check
 # Note: trailing ${red} is to colorize red all potential error output from the following commands
 printf "${bold}%${spacing}s${clear}: ...\n${red}" "Consul Check"
-code=$(curl -X GET -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+
+if [ -z $CONSUL_TOKEN ]; then
+    code=$(curl -X GET -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+else
+    code=$(curl -X GET -H "X-Consul-Token:$CONSUL_TOKEN" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+fi
+
 if [ $((code)) -ne 200 ]; then
     echo -e "${red}${bold}Failed!${normal} curl returned a status code of '${bold}$((code))'${normal}"
     # Special message for error code 7
@@ -85,6 +93,7 @@ ifaces=$(
         -execdir grep -q 'up' "{}/operstate" \;   `# ensure interface is online (operstate == up)` \
         -printf '%f|'                             `# print them separated by | for regex matching`
 )
+
 if [ -z "${ifaces}" ]; then
     echo "Error, no online physical network interfaces detected.${clear}"
     exit 1
@@ -138,7 +147,12 @@ echo -e "${prev_line}${clear}${subnets}"
 
 ### Configure Consul
 printf "${bold}%${spacing}s${clear}: ...\n${red}" "Configure"
-code=$(curl -X PUT --data "${subnets}" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+if [ -z $CONSUL_TOKEN ]; then
+    code=$(curl -X PUT --data "${subnets}" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+else
+    code=$(curl -X PUT -H "X-Consul-Token:$CONSUL_TOKEN" --data "${subnets}" -w "%{http_code}" -o /dev/null -s "${url}" || echo $?)
+fi
+
 if [ $((code)) -ne 200 ]; then
     echo -e "${red}${bold}Failed!${normal} curl returned a status code of '${bold}${code}'${clear}"
     exit $((code))

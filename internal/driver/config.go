@@ -20,6 +20,9 @@ type CustomConfig struct {
 	// MaxDiscoverDurationSeconds is the maximum amount of seconds for a discovery to run. It is important
 	// to have this configured in the case of larger subnets such as /16 and /8
 	MaxDiscoverDurationSeconds int
+
+	// Location of Provision Watchers
+	ProvisionWatcherDir string
 }
 
 // ServiceConfig a struct that wraps CustomConfig which holds the values for driver configuration

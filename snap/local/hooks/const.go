@@ -30,4 +30,23 @@ var ConfToEnv = map[string]string{
 	// [Device]
 	"device.update-last-connected": "DEVICE_UPDATELASTCONNECTED",
 	"device.use-message-bus":       "DEVICE_USEMESSAGEBUS",
+
+	// [AppCustom]
+	// List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+	// separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+	"app-custom.discovery-subnets": "APPCUSTOM_DISCOVERYSUBNETS",
+
+	// Maximum simultaneous network probes
+	"app-custom.probe-async-limit": "APPCUSTOM_PROBEASYNCLIMIT",
+
+	// Maximum amount of seconds to wait for each IP probe before timing out.
+	// This will also be the minimum time the discovery process can take.
+	"app-custom.probe-timeout-seconds": "APPCUSTOM_PROBETIMEOUTSECONDS", // ProbeTimeoutSeconds = 2
+
+	// Port to scan for LLRP devices on
+	"app-custom.scan-port": "APPCUSTOM_SCANPORT",
+
+	// Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+	// It is especially important to have this configured in the case of larger subnets such as /16 and /8
+	"app-custom.max-discover-duration-seconds": "APPCUSTOM_MAXDISCOVERDURATIONSECONDS",
 }

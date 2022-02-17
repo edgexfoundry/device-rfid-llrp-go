@@ -28,12 +28,6 @@ The latest stable version of the snap can be installed using:
 $ sudo snap install edgex-device-rfid-llrp
 ```
 
-The 2.0 (Ireland) release of the snap can be installed using:
-
-```bash
-$ sudo snap install edgex-device-rfid-llrp --channel=2.0
-```
-
 The latest development version of the snap can be installed using:
 
 ```bash
@@ -69,40 +63,51 @@ ensures that as well as starting the service now, it will be automatically start
 $ sudo snap start --enable edgex-device-rfid-llrp.device-rfid-llrp
 ```
 
+## Subnet setup
+
+The `DiscoverySubnets` setting needs to be provided before a device discovery can occur. This can be done in a number of ways:
+
+- Using `snap set` to set your local subnet information. Example:
+
+    ```bash
+    $ sudo snap set edgex-device-rfid-llrp env.app-custom.discovery-subnets="192.168.10.0/24"
+    
+    $ curl -X POST http://localhost:59989/api/v2/discovery
+    ```
+
+    **NOTE:** This will only work after [this issue](https://github.com/edgexfoundry/app-functions-sdk-go/issues/1043) is resolved.
+
+- Using a [content interface](#using-a-content-interface-to-set-device-configuration) to set device configuration
+
+
+- Using the `auto-configure` command. 
+    
+    This command finds all local network interfaces which are online and non-virtual and sets the value of `DiscoverySubnets` 
+in Consul. When running with security enabled, it requires a Consul token, so it needs to be run as follows:
+
+    ```bash
+    # get Consul ACL token
+    CONSUL_TOKEN=$(sudo cat /var/snap/edgexfoundry/current/secrets/consul-acl-token/bootstrap_token.json | jq ".SecretID" | tr -d '"') 
+    echo $CONSUL_TOKEN 
+
+    # start the device service and connect the interfaces required for network interface discovery
+    sudo snap start edgex-device-rfid-llrp.device-rfid-llrp 
+    sudo snap connect edgex-device-rfid-llrp:network-control 
+    sudo snap connect edgex-device-rfid-llrp:network-observe 
+
+    # run the nework interface discovery, providing the Consul token
+    edgex-device-rfid-llrp.auto-configure $CONSUL_TOKEN
+    ```
+
+
 ### Using a content interface to set device configuration
 
-The `device-config` content interface allows another snap to seed this device
-snap with configuration files under the `$SNAP_DATA/config/device-rfid-llrp/res` directory.
+The `device-config` content interface allows another snap to seed this snap with configuration directories under `$SNAP_DATA/config/device-rfid-llrp`.
 
 Note that the `device-config` content interface does NOT support seeding of the Secret Store Token because that file is expected at a different path.
 
-To use, create a new snap with a directory containing the configuration files.
-Your `snapcraft.yaml` file then needs to define a slot with read access to the directory you are sharing.
+Please refer to [edgex-config-provider](https://github.com/canonical/edgex-config-provider), for an example and further instructions.
 
-```
-slots:
-  device-config:
-    interface: content  
-    content: device-config
-    read: 
-      - $SNAP/config
-```
-
-where `$SNAP/config` is configuration directory your snap is providing to the device snap.
-
-Then connect the plug in the device snap to the slot in your snap, which will replace the configuration in the device snap. Do this with:
-
-```bash
-$ sudo snap connect edgex-device-rfid-llrp:device-config your-snap:device-config
-```
-
-This needs to be done before the device service is started for the first time. Once you have set the configuration the device service can be started and it will then be configured using the settings you provided:
-
-```bash
-$ sudo snap start edgex-device-rfid-llrp.device-rfid-llrp
-```
-
-**Note** - content interfaces from snaps installed from the Snap Store that have the same publisher connect automatically. For more information on snap content interfaces please refer to the snapcraft.io [Content Interface](https://snapcraft.io/docs/content-interface) documentation.
 
 ### Autostart
 By default, the edgex-device-rfid-llrp disables its service on install, as the expectation is that the default profile configuration files will be customized, and thus this behavior allows the profile `configuration.toml` files in $SNAP_DATA to be modified before the service is first started.
@@ -124,7 +129,6 @@ the overrides will be picked up when the services are first started.
 
 The following syntax is used to specify service-specific configuration overrides:
 
-
 ```
 env.<stanza>.<config option>
 ```
@@ -145,28 +149,33 @@ For details on the mapping of configuration options to Config options, please re
 
 ```
 [Service]
-service.boot-timeout            // Service.BootTimeout
-service.health-check-interval   // Service.HealthCheckInterval
-service.host                    // Service.Host
-service.server-bind-addr        // Service.ServerBindAddr
-service.port                    // Service.Port
-service.protocol                // Service.Protocol
-service.max-result-count        // Service.MaxResultCount
-service.max-request-size        // Service.MaxRequestSize
-service.startup-msg             // Service.StartupMsg
-service.request-timeout         // Service.RequestTimeout
+service.health-check-interval           // Service.HealthCheckInterval
+service.host                            // Service.Host
+service.server-bind-addr                // Service.ServerBindAddr
+service.port                            // Service.Port
+service.max-result-count                // Service.MaxResultCount
+service.max-request-size                // Service.MaxRequestSize
+service.startup-msg                     // Service.StartupMsg
+service.request-timeout                 // Service.RequestTimeout
 
 [SecretStore]
 secret-store.secrets-file               // SecretStore.SecretsFile
 secret-store.disable-scrub-secrets-file // SecretStore.DisableScrubSecretsFile
 
 [Clients.core-data]
-clients.core-data.port          // Clients.core-data.Port
+clients.core-data.port                  // Clients.core-data.Port
 
 [Clients.core-metadata]
-clients.core-metadata.port      // Clients.core-metadata.Port
+clients.core-metadata.port              // Clients.core-metadata.Port
 
 [Device]
-device.update-last-connected    // Device.UpdateLastConnected
-device.use-message-bus          // Device.UseMessageBus
+device.update-last-connected            // Device.UpdateLastConnected
+device.use-message-bus                  // Device.UseMessageBus
+
+[AppCustom]
+app-custom.discovery-subnets            // AppCustom.DiscoverySubnets
+app-custom.probe-async-limit            // AppCustom.ProbeAsyncLimit
+app-custom.probe-timeout-seconds        // AppCustom.ProbeTimeoutSeconds
+app-custom.scan-port                    // AppCustom.ScanPort
+app-custom.max-discover-duration-seconds // AppCustom.MaxDiscoverDurationSeconds
 ```
