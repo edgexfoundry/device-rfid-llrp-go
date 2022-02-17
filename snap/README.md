@@ -129,7 +129,6 @@ the overrides will be picked up when the services are first started.
 
 The following syntax is used to specify service-specific configuration overrides:
 
-
 ```
 env.<stanza>.<config option>
 ```
