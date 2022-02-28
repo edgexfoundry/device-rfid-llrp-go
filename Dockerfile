@@ -42,8 +42,7 @@ RUN apk add --update --no-cache zeromq dumb-init
 
 COPY --from=builder /app/LICENSE /
 COPY --from=builder /app/Attribution.txt /
-COPY --from=builder /app/cmd/device-rfid-llrp /device-rfid-llrp
-COPY --from=builder /app/cmd/res/ /
+COPY --from=builder /app/cmd/ /
 
 EXPOSE 59989
 
