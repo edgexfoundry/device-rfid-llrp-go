@@ -72,7 +72,7 @@ devices() {
     if [[ -n "$DEVICE" ]]; then
         echo "$DEVICE"
     else
-        curl ${CURL_OPTS} "$HOST:$CMDS_PORT/api/v2/device" | jq '[.[]|select(.labels[]=="LLRP")]'
+        curl ${CURL_OPTS} "$HOST:$CMDS_PORT/api/v2/device/all" | jq '[.deviceCoreCommands[]|select(.profileName | startswith("LLRP"))]'
     fi
 }
 
@@ -84,20 +84,21 @@ put_file() {
     if [[ "$1" == "put" ]]; then
         CMD_NAME="${2}"
     else
-        CMD_NAME="${1^}${2}"
+        CMD_NAME="${2}"
     fi
     TYPE=${2}
     FILE_PATH="${3}"
     
-    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.put.url' | \
+    devices | jq '.[].coreCommands[]|select(.name=="'"$CMD_NAME"'")|.url+.path' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
-            --data '@'<(jq '.|{'"$TYPE"': @text}' "$FILE_PATH")
+            --data '@'<(echo "{\"${TYPE}\":$(<"$FILE_PATH")}")
 }
 
 put() {
     set -x
-    devices | jq '.[].commands[]|select(.name=="'"${2}"'")|.put.url' | \
+
+    devices | jq '.[].coreCommands[]|select(.name=="'"${2}"'")|.url+.path' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
             --data "${3}" 
@@ -108,12 +109,10 @@ put_num() {
         usage; exit
     fi
     
-    CMD_NAME="${1^}${2}"
+    CMD_NAME="${1}${2}"
     TYPE="${2}ID"
     NUM="${3}"
-    
-    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.put.url' | \
-            sed -e "s/edgex-core-command/${HOST}/" | \
+    devices | jq '.[].coreCommands[]|select(.name=="'"$CMD_NAME"'")|.url+.path' | sed -e "s/edgex-core-command/${HOST}/" | \
             xargs -L1 curl ${CURL_OPTS} -X PUT -H 'Content-Type: application/json' \
             --data '{"'"$TYPE"'": "'"$NUM"'"}'
 }
@@ -126,12 +125,12 @@ get() {
     if [[ "$1" == "pull" ]]; then
         CMD_NAME="${2}"
     else
-        CMD_NAME="Get${1}"
+        CMD_NAME="${1}"
     fi
     
-    devices | jq '.[].commands[]|select(.name=="'"$CMD_NAME"'")|.get.url' | \
+    devices | jq '.[].coreCommands[]|select(.name=="'"$CMD_NAME"'") | .url+.path' | \
             sed -e "s/edgex-core-command/${HOST}/" | \
-            xargs -L1 curl ${CURL_OPTS} | jq '.readings[].value|fromjson'
+            xargs -L1  curl ${CURL_OPTS} | jq '.event.readings[].objectValue'
 }
 
 list() {
@@ -142,10 +141,10 @@ list() {
     
     case "$1" in 
     devices)
-        devices | jq '.[].name' | tr -d '"'
+        devices | jq '.[].deviceName' | tr -d '"'
         ;;
     commands)
-        devices | jq '.[].commands[]|{name, url:(.get.url // .put.url), get:(.get.path!=null),put:(.put.path!=null)}' | \
+        devices | jq '.[].coreCommands[]' | \
              jq -s '.|=.'
         ;;
     *)
