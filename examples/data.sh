@@ -74,8 +74,7 @@ fi
 # get up to 1000 readings from EdgeX's core-data and return reading[].value as unquoted json
 get() {
   TARGET=$1
-  curl ${CURL_OPTS} "${HOST}":"${DATA_PORT}"/api/v2/reading/name/"${TARGET}"/1000 | \
-    jq '.[].value|fromjson'
+  curl ${CURL_OPTS} "${HOST}":"${DATA_PORT}"/api/v2/reading/all?limit=50 | jq '.readings[].objectValue'
 }
 
 # based on the target, get some data and filter it
