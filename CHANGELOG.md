@@ -1,6 +1,20 @@
 # Device RFID LLRP
 
-<a name="x.y.z"></a>
+## Change Logs for EdgeX Dependencies
+
+- [device-sdk-go](https://github.com/edgexfoundry/device-sdk-go/blob/main/CHANGELOG.md)
+
+## [v2.2.0] - Kamakura - 2022-05-11  (Not Compatible with 1.x releases)
+
+### Features ✨
+
+- Update to latest go-mod-messaging w/o ZMQ on windows ([#a222f54](https://github.com/edgexfoundry/device-sdk-go/commits/a222f54))
+
+  ```
+  BREAKING CHANGE:
+  ZeroMQ no longer supported on native Windows for EdgeX
+  MessageBus
+  ```
 
 ## [v2.1.0] Jakarta - 2022-04-27  (Not Compatible with 1.x releases)
 ### Features ✨
