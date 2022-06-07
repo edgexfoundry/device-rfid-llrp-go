@@ -2,6 +2,16 @@
 
 <a name="x.y.z"></a>
 
+## Change Logs for EdgeX Dependencies
+
+- [device-sdk-go](https://github.com/edgexfoundry/device-sdk-go/blob/jakarta/CHANGELOG.md)
+
+## [v2.1.1] - Jakarta - 2021-06-08 (Only compatible with the 2.x releases)
+
+### Bug Fixes 🐛
+
+- see SDK changelog link above
+
 ## [v2.1.0] Jakarta - 2022-04-27  (Not Compatible with 1.x releases)
 ### Features ✨
 - Migrate service to V2 ([#52](https://github.com/edgexfoundry/device-rfid-llrp-go/issues/52)) ([#60419ad](https://github.com/edgexfoundry/device-rfid-llrp-go/commits/60419ad))

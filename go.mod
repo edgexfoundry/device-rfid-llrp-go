@@ -3,8 +3,8 @@ module github.com/edgexfoundry/device-rfid-llrp-go
 go 1.17
 
 require (
-	github.com/edgexfoundry/device-sdk-go/v2 v2.1.0
-	github.com/edgexfoundry/go-mod-core-contracts/v2 v2.1.0
+	github.com/edgexfoundry/device-sdk-go/v2 v2.1.1
+	github.com/edgexfoundry/go-mod-core-contracts/v2 v2.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
 )
@@ -16,11 +16,11 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.3.5 // indirect
-	github.com/edgexfoundry/go-mod-bootstrap/v2 v2.1.0 // indirect
+	github.com/edgexfoundry/go-mod-bootstrap/v2 v2.1.1 // indirect
 	github.com/edgexfoundry/go-mod-configuration/v2 v2.1.0 // indirect
-	github.com/edgexfoundry/go-mod-messaging/v2 v2.1.0 // indirect
+	github.com/edgexfoundry/go-mod-messaging/v2 v2.1.1 // indirect
 	github.com/edgexfoundry/go-mod-registry/v2 v2.1.0 // indirect
-	github.com/edgexfoundry/go-mod-secrets/v2 v2.1.0 // indirect
+	github.com/edgexfoundry/go-mod-secrets/v2 v2.1.1 // indirect
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.3.0 // indirect
 	github.com/go-kit/kit v0.11.0 // indirect
