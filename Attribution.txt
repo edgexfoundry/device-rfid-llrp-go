@@ -162,7 +162,7 @@ https://github.com/hashicorp/go-multierror/blob/master/LICENSE
 davecgh/go-spew (ISC) https://github.com/davecgh/go-spew
 https://github.com/davecgh/go-spew/blob/master/LICENSE
 
-eclipse/paho.mqtt.golang (Eclipse Distribution License) https://github.com/eclipse/paho.mqtt.golang
+eclipse/paho.mqtt.golang (Eclipse Public License 2.0) https://github.com/eclipse/paho.mqtt.golang
 https://github.com/eclipse/paho.mqtt.golang/blob/master/LICENSE
 
 edgexfoundry/go-mod-messaging/v2 (Apache 2.0) https://github.com/edgexfoundry/go-mod-messaging/v2
@@ -236,3 +236,6 @@ https://github.com/rcrowley/go-metrics/blob/master/LICENSE
 
 go-kit/log (MIT) https://github.com/go-kit/log
 https://github.com/go-kit/log/blob/main/LICENSE
+
+golang.org/x/sync (Unspecified) https://cs.opensource.google/go/x/sync
+https://cs.opensource.google/go/x/sync/+/master:LICENSE
