@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Intel Corporation
+# Copyright (c) 2022 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,14 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.17-alpine3.15
+ARG BASE=golang:1.18-alpine3.16
 FROM ${BASE} AS builder
 
 ARG MAKE='make build'
 ARG ALPINE_PKG_BASE="make git gcc libc-dev zeromq-dev"
 ARG ALPINE_PKG_EXTRA=""
 
-RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
+RUN sed -e 's/dl-cdn[.]alpinelinux.org/dl-4.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
 
 WORKDIR /app
@@ -32,12 +32,12 @@ RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
 COPY . .
 RUN $MAKE
 
-FROM alpine:3.14
+FROM alpine:3.16
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
-  copyright='Copyright (c) 2021: Intel'
+  copyright='Copyright (c) 2022: Intel'
 
-RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
+RUN sed -e 's/dl-cdn[.]alpinelinux.org/dl-4.alpinelinux.org/g' -i~ /etc/apk/repositories
 RUN apk add --update --no-cache zeromq dumb-init
 
 COPY --from=builder /app/LICENSE /
