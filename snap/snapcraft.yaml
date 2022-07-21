@@ -1,4 +1,4 @@
-name:  edgex-device-rfid-llrp
+name: edgex-device-rfid-llrp
 base: core20
 adopt-info: metadata
 license: Apache-2.0
@@ -19,7 +19,6 @@ epoch: 4
 slots:
   edgex-secretstore-token:
     interface: content
-    content: edgex-secretstore-token
     source:
       write: [$SNAP_DATA/device-rfid-llrp]
 
@@ -38,7 +37,7 @@ apps:
     adapter: full
     command: bin/device-rfid-llrp $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
     command-chain:
-      - bin/startup-env-var.sh
+      - bin/source-env-file.sh
     environment:
       CONFIG_PRO_ARG: "--cp=consul://localhost:8500"
       CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp/res"
@@ -57,16 +56,15 @@ plugs:
     target: $SNAP_DATA/config/device-rfid-llrp
 
 parts:
-  hooks:
-    source: snap/local/hooks
+  helper-go:
+    source: snap/local/helper-go
     plugin: make
     build-snaps:
       - go/1.18/stable
     override-build: |
       cd $SNAPCRAFT_PART_SRC
       make build
-      install -DT ./cmd/configure/configure "$SNAPCRAFT_PART_INSTALL/snap/hooks/configure"
-      install -DT ./cmd/install/install "$SNAPCRAFT_PART_INSTALL/snap/hooks/install"
+      install -DT ./helper-go $SNAPCRAFT_PART_INSTALL/bin/helper-go
 
   device-rfid-llrp:
     after: [metadata]
@@ -86,21 +84,24 @@ parts:
       make build
 
       install -DT ./cmd/device-rfid-llrp "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
-      install -DT ./Attribution.txt "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/Attribution.txt"
-      install -DT ./LICENSE "$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp/LICENSE"
 
-      LLRP_RES_DIR="$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/"
-      mkdir -p "$LLRP_RES_DIR/profiles"
-      mkdir -p "$LLRP_RES_DIR/devices"
-      mkdir -p "$LLRP_RES_DIR/provision_watchers"
-      cp ./cmd/res/configuration.toml "$LLRP_RES_DIR/"
-      cp ./cmd/res/profiles/*.yaml "$LLRP_RES_DIR/profiles/"
-      cp ./cmd/res/provision_watchers/*.json "$LLRP_RES_DIR/provision_watchers/"
+      RES=$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/
+      mkdir -p $RES
+      cp    cmd/res/configuration.toml $RES
+      mkdir -p cmd/res/devices
+      cp -r cmd/res/profiles $RES
+      cp -r cmd/res/provision_watchers $RES
+      
+      DOC=$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp
+      mkdir -p $DOC
+      cp Attribution.txt $DOC/Attribution.txt
+      cp LICENSE $DOC/LICENSE
 
-
-  runtime-helpers:
+  local-bin:
     plugin: dump
-    source: snap/local/runtime-helpers
+    source: snap/local/bin
+    organize:
+      source-env-file.sh: bin/source-env-file.sh
 
   metadata:
     plugin: nil
