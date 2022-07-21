@@ -87,8 +87,8 @@ parts:
 
       RES=$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/
       mkdir -p $RES
+      mkdir -p $RES/devices
       cp    cmd/res/configuration.toml $RES
-      mkdir -p cmd/res/devices
       cp -r cmd/res/profiles $RES
       cp -r cmd/res/provision_watchers $RES
       
