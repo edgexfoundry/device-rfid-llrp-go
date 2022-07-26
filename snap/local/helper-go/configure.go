@@ -16,7 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0'
  */
 
-package hooks
+package main
+
+import (
+	hooks "github.com/canonical/edgex-snap-hooks/v2"
+	"github.com/canonical/edgex-snap-hooks/v2/log"
+	"github.com/canonical/edgex-snap-hooks/v2/options"
+)
 
 // ConfToEnv defines mappings from snap config keys to EdgeX environment variable
 // names that are used to override individual device-rfid-llrp's [Device]  configuration
@@ -49,4 +55,37 @@ var ConfToEnv = map[string]string{
 	// Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
 	// It is especially important to have this configured in the case of larger subnets such as /16 and /8
 	"app-custom.max-discover-duration-seconds": "APPCUSTOM_MAXDISCOVERDURATIONSECONDS",
+}
+
+// configure is called by the main function
+func configure() {
+
+	const service = "device-rfid-llrp"
+
+	log.SetComponentName("configure")
+
+	log.Info("Processing legacy env options")
+	envJSON, err := hooks.NewSnapCtl().Config(hooks.EnvConfig)
+	if err != nil {
+		log.Fatalf("Reading config 'env' failed: %v", err)
+	}
+	if envJSON != "" {
+		log.Debugf("envJSON: %s", envJSON)
+		err = hooks.HandleEdgeXConfig(service, envJSON, ConfToEnv)
+		if err != nil {
+			log.Fatalf("HandleEdgeXConfig failed: %v", err)
+		}
+	}
+
+	log.Info("Processing config options")
+	err = options.ProcessConfig(service)
+	if err != nil {
+		log.Fatalf("could not process config options: %v", err)
+	}
+
+	log.Info("Processing autostart options")
+	err = options.ProcessAutostart(service)
+	if err != nil {
+		log.Fatalf("could not process autostart options: %v", err)
+	}
 }
