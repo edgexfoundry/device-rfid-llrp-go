@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/edgexfoundry/device-sdk-go/v2/pkg/interfaces"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/common"
@@ -344,7 +345,7 @@ func (l *LLRPDevice) resetConn() {
 //
 // If the event is a new successful connection event,
 // it ensures the Reader has our desired configuration state.
-func (l *LLRPDevice) newReaderEventHandler(svc ServiceWrapper) llrp.MessageHandler {
+func (l *LLRPDevice) newReaderEventHandler(svc interfaces.DeviceServiceSDK) llrp.MessageHandler {
 	return llrp.MessageHandlerFunc(func(c *llrp.Client, msg llrp.Message) {
 		now := time.Now()
 
@@ -457,7 +458,7 @@ func processReport(readerStart time.Time, report *llrp.ROAccessReport) {
 }
 
 // onConnect is called when we open a new connection to a Reader.
-func (l *LLRPDevice) onConnect(svc ServiceWrapper) {
+func (l *LLRPDevice) onConnect(svc interfaces.DeviceServiceSDK) {
 	l.deviceMu.RLock()
 	isEnabled := l.isUp
 	l.deviceMu.RUnlock()

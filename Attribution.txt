@@ -239,3 +239,15 @@ https://github.com/go-kit/log/blob/main/LICENSE
 
 golang.org/x/sync (Unspecified) https://cs.opensource.google/go/x/sync
 https://cs.opensource.google/go/x/sync/+/master:LICENSE
+
+github.com/nats-io/nats.go (Unspecified) https://github.com/nats-io/nats.go
+https://github.com/nats-io/nats.go/blob/main/LICENSE
+
+github.com/nats-io/nkeys (Unspecified) https://github.com/nats-io/nkeys
+https://github.com/nats-io/nkeys/blob/master/LICENSE
+
+github.com/nats-io/nuid (Unspecified) https://github.com/nats-io/nuid
+https://github.com/nats-io/nuid/blob/master/LICENSE
+
+github.com/stretchr/objx (Unspecified) https://github.com/stretchr/objx
+https://github.com/stretchr/objx/blob/master/LICENSE

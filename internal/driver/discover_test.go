@@ -18,7 +18,10 @@ import (
 	"time"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-sdk-go/v2/pkg/interfaces/mocks"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/stretchr/testify/mock"
 )
 
 type inetTest struct {
@@ -30,7 +33,7 @@ type inetTest struct {
 }
 
 var (
-	svc = NewMockSdkService()
+	svc = &mocks.DeviceServiceSDK{}
 )
 
 func TestMain(m *testing.M) {
@@ -38,6 +41,8 @@ func TestMain(m *testing.M) {
 
 	driver.svc = svc
 	driver.lc = logger.NewClient("test", "DEBUG")
+
+	svc.On("Devices").Return([]models.Device{})
 
 	os.Exit(m.Run())
 }
@@ -163,6 +168,7 @@ func TestAutoDiscoverNaming(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
+			svc.On("GetDeviceByName", mock.Anything).Return(models.Device{}, fmt.Errorf("error")).Once()
 			emu := llrp.NewTestEmulator(!testing.Verbose())
 			if err := emu.StartAsync(scanPort); err != nil {
 				t.Fatalf("unable to start emulator: %+v", err)
@@ -224,7 +230,7 @@ func TestAutoDiscover(t *testing.T) {
 	params := makeParams()
 
 	// attempt to discover without emulator, expect none found
-	svc.clearDevices()
+
 	discovered := autoDiscover(context.Background(), params)
 	if len(discovered) != 0 {
 		t.Fatalf("expected 0 discovered devices, however got: %d", len(discovered))
@@ -260,14 +266,16 @@ func TestAutoDiscover(t *testing.T) {
 	}
 	emu.SetResponse(llrp.MsgGetReaderCapabilities, &readerCaps)
 
+	svc.On("GetDeviceByName", mock.Anything).Return(models.Device{}, fmt.Errorf("error")).Once()
 	discovered = autoDiscover(context.Background(), params)
 	if len(discovered) != 1 {
 		t.Fatalf("expected 1 discovered device, however got: %d", len(discovered))
 	}
-	svc.AddDiscoveredDevices(discovered)
 
 	// attempt to discover again WITH emulator, however expect emulator to be skipped
-	svc.resetAddedCount()
+
+	svc.On("GetDeviceByName", mock.Anything).Return(models.Device{Name: discovered[0].Name, Protocols: discovered[0].Protocols}, nil).Once()
+
 	discovered = autoDiscover(context.Background(), params)
 	if len(discovered) != 0 {
 		t.Fatalf("expected no devices to be discovered, but was %d", len(discovered))
@@ -276,8 +284,6 @@ func TestAutoDiscover(t *testing.T) {
 	if err := emu.Shutdown(); err != nil {
 		t.Errorf("error shutting down test emulator: %+v", err)
 	}
-	// reset
-	svc.clearDevices()
 }
 
 func mockIpWorker(ipCh <-chan uint32, result *inetTest) {
