@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/edgexfoundry/device-sdk-go/v2/pkg/interfaces"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v2/pkg/models"
 	"github.com/edgexfoundry/device-sdk-go/v2/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
@@ -91,7 +92,7 @@ type Driver struct {
 	addedWatchers bool
 	watchersMu    sync.Mutex
 
-	svc ServiceWrapper
+	svc interfaces.DeviceServiceSDK
 
 	// debounceTimer and debounceMu keep track of when to fire a debounced discovery call
 	debounceTimer *time.Timer
@@ -142,10 +143,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 
 	d.asyncCh = asyncCh
 	d.deviceCh = deviceCh
-	d.svc = &DeviceSDKService{
-		DeviceService: service.RunningService(),
-		lc:            lc,
-	}
+	d.svc = service.RunningService()
 
 	d.config = &ServiceConfig{}
 
