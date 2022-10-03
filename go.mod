@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/edgexfoundry/device-sdk-go/v2 v2.3.0-dev.30
-	github.com/edgexfoundry/go-mod-core-contracts/v2 v2.3.0-dev.17
+	github.com/edgexfoundry/go-mod-core-contracts/v2 v2.3.0-dev.18
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
 )
