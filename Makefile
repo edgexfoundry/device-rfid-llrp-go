@@ -29,11 +29,14 @@ CGOFLAGS=-ldflags "-linkmode=external \
 
 build: $(MICROSERVICES)
 
+build-nats:
+	make -e ADD_BUILD_TAGS=include_nats_messaging build
+
 tidy:
 	go mod tidy
 
 cmd/device-rfid-llrp:
-	$(GO) build $(CGOFLAGS) -o $@ ./cmd
+	$(GO) build -tags "$(ADD_BUILD_TAGS)" $(CGOFLAGS) -o $@ ./cmd
 
 unittest:
 	$(GO) test ./... -coverprofile=coverage.out ./...
@@ -53,12 +56,16 @@ clean:
 
 docker:
 	docker build \
+		--build-arg ADD_BUILD_TAGS=$(ADD_BUILD_TAGS) \
 		--build-arg http_proxy \
 		--build-arg https_proxy \
 		--label "git_sha=$(GIT_SHA)" \
 		-t edgexfoundry/device-rfid-llrp:$(GIT_SHA) \
 		-t edgexfoundry/device-rfid-llrp:$(VERSION)-dev \
 		.
+
+docker-nats:
+	make -e ADD_BUILD_TAGS=include_nats_messaging docker
 
 vendor:
 	go mod vendor
