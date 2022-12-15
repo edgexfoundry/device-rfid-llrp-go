@@ -251,3 +251,6 @@ https://github.com/nats-io/nuid/blob/master/LICENSE
 
 github.com/stretchr/objx (Unspecified) https://github.com/stretchr/objx
 https://github.com/stretchr/objx/blob/master/LICENSE
+
+github.com/Microsoft/go-winio (MIT) https://github.com/Microsoft/go-winio
+https://github.com/microsoft/go-winio/blob/master/LICENSE
