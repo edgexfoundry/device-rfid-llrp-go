@@ -16,14 +16,14 @@ MICROSERVICES=cmd/device-rfid-llrp
 
 # This pulls the version of the SDK from the go.mod file. It works by looking for the line
 # with the SDK and printing just the version number that comes after it.
-SDKVERSION=$(shell sed -En 's|.*github.com/edgexfoundry/device-sdk-go/v2 (v[\.0-9a-zA-Z-]+).*|\1|p' go.mod)
+SDKVERSION=$(shell sed -En 's|.*github.com/edgexfoundry/device-sdk-go/v3 (v[\.0-9a-zA-Z-]+).*|\1|p' go.mod)
 
 # this pulls the version from local VERSION file that is created by the Jenkins Pipeline.
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 
 GIT_SHA=$(shell git rev-parse HEAD)
 CGOFLAGS=-ldflags "-linkmode=external \
-				   -X github.com/edgexfoundry/device-sdk-go/v2/internal/common.SDKVersion=$(SDKVERSION) \
+				   -X github.com/edgexfoundry/device-sdk-go/v3/internal/common.SDKVersion=$(SDKVERSION) \
 				   -X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION)" \
 				   -trimpath -mod=readonly -buildmode=pie
 
