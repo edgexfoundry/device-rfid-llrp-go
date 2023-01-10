@@ -1,13 +1,5 @@
 .PHONY: build test unittest lint clean prepare update docker
 
-GO=CGO_ENABLED=1 GO111MODULE=on go
-
-# see https://shibumi.dev/posts/hardening-executables
-CGO_CPPFLAGS="-D_FORTIFY_SOURCE=2"
-CGO_CFLAGS="-O2 -pipe -fno-plt"
-CGO_CXXFLAGS="-O2 -pipe -fno-plt"
-CGO_LDFLAGS="-Wl,-O1,–sort-common,–as-needed,-z,relro,-z,now"
-
 ARCH=$(shell uname -m)
 
 MICROSERVICES=cmd/device-rfid-llrp
@@ -22,10 +14,7 @@ SDKVERSION=$(shell sed -En 's|.*github.com/edgexfoundry/device-sdk-go/v3 (v[\.0-
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 
 GIT_SHA=$(shell git rev-parse HEAD)
-CGOFLAGS=-ldflags "-linkmode=external \
-				   -X github.com/edgexfoundry/device-sdk-go/v3/internal/common.SDKVersion=$(SDKVERSION) \
-				   -X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION)" \
-				   -trimpath -mod=readonly -buildmode=pie
+GOFLAGS=-ldflags "-X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION)" -trimpath -mod=readonly
 
 build: $(MICROSERVICES)
 
@@ -36,17 +25,17 @@ tidy:
 	go mod tidy
 
 cmd/device-rfid-llrp:
-	$(GO) build -tags "$(ADD_BUILD_TAGS)" $(CGOFLAGS) -o $@ ./cmd
+	CGO_ENABLED=0 go build -tags "$(ADD_BUILD_TAGS)" $(GOFLAGS) -o $@ ./cmd
 
 unittest:
-	$(GO) test ./... -coverprofile=coverage.out ./...
+	go test ./... -coverprofile=coverage.out ./...
 
 lint:
 	@which golangci-lint >/dev/null || echo "WARNING: go linter not installed. To install, run\n  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b \$$(go env GOPATH)/bin v1.46.2"
 	@if [ "z${ARCH}" = "zx86_64" ] && which golangci-lint >/dev/null ; then golangci-lint run --config .golangci.yml ; else echo "WARNING: Linting skipped (not on x86_64 or linter not installed)"; fi
 
 test: unittest lint
-	$(GO) vet ./...
+	go vet ./...
 	gofmt -l $$(find . -type f -name '*.go'| grep -v "/vendor/")
 	[ "`gofmt -l $$(find . -type f -name '*.go'| grep -v "/vendor/")`" = "" ]
 	./bin/test-attribution-txt.sh
@@ -68,4 +57,4 @@ docker-nats:
 	make -e ADD_BUILD_TAGS=include_nats_messaging docker
 
 vendor:
-	go mod vendor
+	CGO_ENABLED=0 go mod vendor
