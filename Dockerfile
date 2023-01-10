@@ -19,7 +19,7 @@ FROM ${BASE} AS builder
 
 ARG ADD_BUILD_TAGS=""
 ARG MAKE="make -e ADD_BUILD_TAGS=$ADD_BUILD_TAGS build"
-ARG ALPINE_PKG_BASE="make git gcc libc-dev zeromq-dev"
+ARG ALPINE_PKG_BASE="make git"
 ARG ALPINE_PKG_EXTRA=""
 
 RUN apk add --no-cache ${ALPINE_PKG_BASE} ${ALPINE_PKG_EXTRA}
@@ -37,7 +37,7 @@ FROM alpine:3.16
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
   copyright='Copyright (c) 2022: Intel'
 
-RUN apk add --update --no-cache zeromq dumb-init
+RUN apk add --update --no-cache dumb-init
 
 COPY --from=builder /app/LICENSE /
 COPY --from=builder /app/Attribution.txt /
