@@ -46,4 +46,4 @@ COPY --from=builder /app/cmd/ /
 EXPOSE 59989
 
 ENTRYPOINT ["/device-rfid-llrp"]
-CMD ["-cp=consul.http://edgex-core-consul:8500", "--confdir=/res", "--registry"]
+CMD ["-cp=consul.http://edgex-core-consul:8500", "--registry"]
