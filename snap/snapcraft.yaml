@@ -50,7 +50,7 @@ apps:
       - bin/source-env-file.sh
     environment:
       CONFIG_PRO_ARG: "--cp=consul://localhost:8500"
-      CONF_ARG: "--confdir=$SNAP_DATA/config/device-rfid-llrp/res"
+      CONF_ARG: "--configDir=$SNAP_DATA/config/device-rfid-llrp/res"
       REGISTRY_ARG: "--registry"
       DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/profiles"
       DEVICE_DEVICESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/devices"
