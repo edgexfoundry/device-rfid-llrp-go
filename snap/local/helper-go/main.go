@@ -19,6 +19,8 @@ import (
 	"os"
 )
 
+const app = "device-rfid-llrp"
+
 func main() {
 	subCommand := os.Args[1]
 	switch subCommand {
