@@ -117,6 +117,7 @@ DataTransform = false
 MaxCmdOps = 128
 MaxCmdValueLen = 256
 ProfilesDir = "./res/profiles"
+ProvisionWatchersDir = "./res/provision_watchers"
 DevicesDir = ""
 UpdateLastConnected = false
 EnableAsyncReadings = true
