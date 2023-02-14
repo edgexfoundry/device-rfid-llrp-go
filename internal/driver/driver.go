@@ -10,10 +10,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,7 +22,6 @@ import (
 	"github.com/edgexfoundry/device-sdk-go/v3/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/common"
-	"github.com/edgexfoundry/go-mod-core-contracts/v3/dtos"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v3/models"
 	"github.com/pkg/errors"
 
@@ -51,9 +48,6 @@ const (
 	ActionStop     = "Stop"
 	AttribVendor   = "vendor"
 	AttribSubtype  = "subtype"
-
-	// enable this by default, otherwise discovery will not work.
-	registerProvisionWatchers = true
 
 	// discoverDebounceDuration is the amount of time to wait for additional changes to discover
 	// configuration before auto-triggering a discovery
@@ -88,9 +82,6 @@ type Driver struct {
 
 	config   *ServiceConfig
 	configMu sync.RWMutex
-
-	addedWatchers bool
-	watchersMu    sync.Mutex
 
 	svc interfaces.DeviceServiceSDK
 
@@ -709,67 +700,6 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		"unable to create addr for tcp protocol (%q, %q)", host, port)
 }
 
-// todo: remove this method once the Device SDK has been updated as per https://github.com/edgexfoundry/device-sdk-go/issues/1100
-func (d *Driver) addProvisionWatchers() error {
-
-	// this setting is a workaround for the fact that there is no standard way to define this directory using the SDK
-	// the snap needs to be able to change the location of the provision watchers
-	provisionWatcherFolder := d.config.AppCustom.ProvisionWatcherDir
-	if provisionWatcherFolder == "" {
-		provisionWatcherFolder = "res/provision_watchers"
-	}
-	d.lc.Infof("Adding provision watchers from %s", provisionWatcherFolder)
-
-	files, err := ioutil.ReadDir(provisionWatcherFolder)
-	if err != nil {
-		return err
-	}
-
-	d.lc.Debugf("%d provision watcher files found", len(files))
-
-	var errs []error
-	for _, file := range files {
-		filename := filepath.Join(provisionWatcherFolder, file.Name())
-		d.lc.Debugf("processing %s", filename)
-		var watcher dtos.ProvisionWatcher
-		data, err := ioutil.ReadFile(filename)
-		if err != nil {
-			errs = append(errs, errors.Wrap(err, "error reading file "+filename))
-			continue
-		}
-
-		if err := json.Unmarshal(data, &watcher); err != nil {
-			errs = append(errs, errors.Wrap(err, "error unmarshalling provision watcher "+filename))
-			continue
-		}
-
-		err = common.Validate(watcher)
-		if err != nil {
-			errs = append(errs, errors.Wrap(err, "provision watcher validation failed "+filename))
-			continue
-		}
-
-		if _, err := d.svc.GetProvisionWatcherByName(watcher.Name); err == nil {
-			continue // provision watcher already exists
-		}
-
-		watcherModel := dtos.ToProvisionWatcherModel(watcher)
-
-		d.lc.Infof("Adding provision watcher:%s", watcherModel.Name)
-		id, err := d.svc.AddProvisionWatcher(watcherModel)
-		if err != nil {
-			errs = append(errs, errors.Wrap(err, "error adding provision watcher "+watcherModel.Name))
-			continue
-		}
-		d.lc.Infof("Successfully added provision watcher: %s,  ID: %s", watcherModel.Name, id)
-	}
-
-	if errs != nil {
-		return MultiErr(errs)
-	}
-	return nil
-}
-
 // debouncedDiscover adds or updates a future call to Discover. This function is intended to be
 // called by the config watcher in response to any configuration changes related to discovery.
 // The reason Discover calls are being debounced is to allow the user to make multiple changes to
@@ -816,22 +746,6 @@ func (d *Driver) Discover() {
 	d.configMu.RLock()
 	maxSeconds := driver.config.AppCustom.MaxDiscoverDurationSeconds
 	d.configMu.RUnlock()
-
-	if registerProvisionWatchers {
-		d.watchersMu.Lock()
-		if !d.addedWatchers {
-			if err := d.addProvisionWatchers(); err != nil {
-				d.lc.Error("Error adding provision watchers. Newly discovered devices may fail to register with EdgeX.",
-					"error", err.Error())
-				// Do not return on failure, as it is possible there are alternative watchers registered.
-				// And if not, the discovered devices will just not be registered with EdgeX, but will
-				// still be available for discovery again.
-			} else {
-				d.addedWatchers = true
-			}
-		}
-		d.watchersMu.Unlock()
-	}
 
 	ctx := context.Background()
 	if maxSeconds > 0 {
