@@ -12,9 +12,9 @@ import (
 	"encoding"
 	"encoding/binary"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
-	"io/ioutil"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -221,7 +221,7 @@ func (m Message) Close() error {
 		return nil
 	}
 
-	_, err := io.Copy(ioutil.Discard, m.payload)
+	_, err := io.Copy(io.Discard, m.payload)
 	if err != nil {
 		return errors.Wrap(err, "failed to discard payload")
 	}
@@ -285,7 +285,7 @@ func newMessage(data io.Reader, payloadLen uint32, typ MessageType) Message {
 		var ok bool
 		payload, ok = data.(io.ReadCloser)
 		if !ok {
-			payload = ioutil.NopCloser(data)
+			payload = io.NopCloser(data)
 		}
 	} else if payloadLen != 0 {
 		panic("length >0, but data is nil")

@@ -7,10 +7,10 @@ package llrp
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"reflect"
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClient_readHeader(t *testing.T) {
@@ -157,7 +158,7 @@ func dummyRead(h *Header, rfid net.Conn) error {
 	if err := h.UnmarshalBinary(buf); err != nil {
 		return err
 	}
-	n, err := io.CopyN(ioutil.Discard, rfid, int64(h.payloadLen))
+	n, err := io.CopyN(io.Discard, rfid, int64(h.payloadLen))
 	if err != nil {
 		return errors.Wrapf(err, "payload read failed after %d bytes", n)
 	}
@@ -395,10 +396,10 @@ func TestClient_ManySenders(t *testing.T) {
 			//nolint:gosec // G404: Use of weak random number generator
 			sz := rand.Int31n(1024)
 			data := make([]byte, sz)
-			//nolint:gosec // G404: Use of weak random number generator
-			rand.Read(data)
+			_, err := crand.Read(data)
+			require.NoError(t, err)
 
-			_, _, err := c.SendMessage(ctx, MsgCustomMessage, data)
+			_, _, err = c.SendMessage(ctx, MsgCustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}
@@ -480,10 +481,12 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			//nolint:gosec // G404: Use of weak random number generator
 			sz := rand.Int31n(1024)
 			data := make([]byte, sz)
-			//nolint:gosec // G404: Use of weak random number generator
-			rand.Read(data)
+			_, err := crand.Read(data)
+			if err != nil {
+				sendErrs <- err
+			}
 
-			_, _, err := r.SendMessage(ctx, MsgCustomMessage, data)
+			_, _, err = r.SendMessage(ctx, MsgCustomMessage, data)
 			if err != nil {
 				sendErrs <- err
 			}

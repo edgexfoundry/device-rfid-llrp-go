@@ -11,13 +11,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/pkg/errors"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // ex: go test -reader="192.0.2.1:5084"
@@ -171,7 +171,7 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 	jfn := filepath.Join(dir, baseName+".json")
 
 	//nolint: gosec //G306: Expect WriteFile permissions to be 0600 or less
-	if err := ioutil.WriteFile(bfn, result, 0644); err != nil {
+	if err := os.WriteFile(bfn, result, 0644); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func writeCapture(dir string, idx uint32, result []byte, typ MessageType, decode
 	}
 
 	//nolint: gosec //G306: Expect WriteFile permissions to be 0600 or less
-	if err := ioutil.WriteFile(jfn, j, 0644); err != nil {
+	if err := os.WriteFile(jfn, j, 0644); err != nil {
 		return err
 	}
 

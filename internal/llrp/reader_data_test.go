@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -65,7 +65,7 @@ func BenchmarkUnmarshalRO(b *testing.B) {
 }
 
 func testRecordedData(t *testing.T, dir string) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,12 +122,12 @@ func compareMessages(msgName, prefix string) func(t *testing.T) {
 		var err error
 
 		// load data files
-		originalJSON, err = ioutil.ReadFile(prefix + ".json")
+		originalJSON, err = os.ReadFile(prefix + ".json")
 		if err != nil {
 			t.Fatalf("can't read .json file: %v", err)
 		}
 
-		originalBin, err = ioutil.ReadFile(prefix + ".bytes")
+		originalBin, err = os.ReadFile(prefix + ".bytes")
 		if err != nil {
 			t.Fatalf("can't read .bytes file: %v", err)
 		}
