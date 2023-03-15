@@ -1349,17 +1349,17 @@ type PerAntennaReceiveSensitivityRange struct {
 // the client uses the ROSpecID to modify its state, and the device may include the
 // ROSpecID in reports that reference it. Other relevant messages for controlling ROSpecs:
 //
-//     - Enable ROSpec
+//   - Enable ROSpec
 //
-//     - Disable ROSpec
+//   - Disable ROSpec
 //
-//     - Start ROSpec
+//   - Start ROSpec
 //
-//     - Stop ROSpec
+//   - Stop ROSpec
 //
-//     - Delete ROSpec
+//   - Delete ROSpec
 //
-//     - Get ROSpecs
+//   - Get ROSpecs
 type ROSpec struct {
 	ROSpecID           uint32
 	Priority           uint8

@@ -72,15 +72,15 @@ import (
 	"context"
 	"encoding/binary"
 	goErrs "errors"
-	"github.com/pkg/errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
@@ -448,13 +448,13 @@ func (c *Client) Connect(conn net.Conn) error {
 // You can use this in combination with `Close` to attempt a graceful shutdown,
 // followed by a forced shutdown if necessary:
 //
-//     ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-//	   defer cancel()
-//	   if err := r.Shutdown(ctx); err != nil {
-//	       if err := r.Close(); err != nil && !errors.Is(err, ErrClientClosed) {
-//		       panic(err)
-//         }
-//     }
+//	    ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+//		   defer cancel()
+//		   if err := r.Shutdown(ctx); err != nil {
+//		       if err := r.Close(); err != nil && !errors.Is(err, ErrClientClosed) {
+//			       panic(err)
+//	        }
+//	    }
 //
 // It's safe to call Shutdown multiple times,
 // but at most only one will return a nil error;
@@ -879,7 +879,7 @@ func (ackHandler) HandleMessage(c *Client, msg Message) {
 // it'll then get called with a new Message instance.
 // If the payload is buffered already, we give it an io.Reader wrapping that;
 // otherwise it's an io.LimitedReader with the connection and payload length.
-// After the handler returns, that LimitedReader is drained to ioutil.Discard
+// After the handler returns, that LimitedReader is drained to io.Discard
 // to ensure the full payload has been read from the net.Conn.
 //
 // Handlers are called via handleGuarded to protect against panics.
@@ -894,14 +894,14 @@ func (c *Client) passToHandler(hdr Header) (err error) {
 
 	if !needsReply && handler == nil && c.defaultHandler == nil {
 		c.logger.MsgUnhandled(hdr)
-		_, err = io.CopyN(ioutil.Discard, c.conn, int64(hdr.payloadLen))
+		_, err = io.CopyN(io.Discard, c.conn, int64(hdr.payloadLen))
 		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
 	}
 
 	payload := io.LimitReader(c.conn, int64(hdr.payloadLen))
 	defer func() {
 		c.logger.MsgHandled(hdr)
-		_, err = io.Copy(ioutil.Discard, payload)
+		_, err = io.Copy(io.Discard, payload)
 		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
 	}()
 

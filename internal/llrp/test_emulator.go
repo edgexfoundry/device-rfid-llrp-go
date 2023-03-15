@@ -20,7 +20,8 @@ import (
 // to allow changing
 //
 // NOTE: Unlike an actual LLRP server/reader, more than one simultaneous client are allowed to connect to it,
-//		 however each client will receive the same canned responses.
+//
+//	however each client will receive the same canned responses.
 type TestEmulator struct {
 	silent bool
 

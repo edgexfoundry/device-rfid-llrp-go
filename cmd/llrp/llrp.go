@@ -11,9 +11,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/pkg/errors"
-	"io/ioutil"
 	stdlog "log"
 	"net"
 	"os"
@@ -21,6 +18,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/pkg/errors"
 )
 
 var rfidAddr, roSpecPath, accessSpecPath, confPath, customPath string
@@ -243,7 +243,7 @@ func (fe *firstErr) save(err error) {
 }
 
 func sendConf(ctx context.Context, c *llrp.Client, confPath string) error {
-	data, err := ioutil.ReadFile(confPath)
+	data, err := os.ReadFile(confPath)
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func sendConf(ctx context.Context, c *llrp.Client, confPath string) error {
 }
 
 func sendCustom(ctx context.Context, c *llrp.Client, custom string) error {
-	data, err := ioutil.ReadFile(custom)
+	data, err := os.ReadFile(custom)
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func deleteAccess(ctx context.Context, c *llrp.Client, id uint32) error {
 }
 
 func sendAccess(ctx context.Context, c *llrp.Client, accessPath string) error {
-	data, err := ioutil.ReadFile(accessPath)
+	data, err := os.ReadFile(accessPath)
 	if err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func getSpec() (*llrp.ROSpec, error) {
 		return &llrp.ROSpec{}, nil
 	}
 
-	data, err := ioutil.ReadFile(roSpecPath)
+	data, err := os.ReadFile(roSpecPath)
 	if err != nil {
 		return nil, err
 	}
