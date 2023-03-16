@@ -1,7 +1,9 @@
 name: edgex-device-rfid-llrp
 base: core20
-adopt-info: metadata
 license: Apache-2.0
+summary: EdgeX RFID LLRP Device Service
+description: Refer to https://snapcraft.io/edgex-device-rfid-llrp
+adopt-info: device-rfid-llrp
 
 architectures:
   - build-on: amd64
@@ -45,15 +47,12 @@ apps:
 
   device-rfid-llrp:
     adapter: full
-    command: bin/device-rfid-llrp $CONFIG_PRO_ARG $CONF_ARG $REGISTRY_ARG
+    command: bin/device-rfid-llrp --configDir $SNAP_DATA/config/device-rfid-llrp/res --configProvider --registry
     command-chain:
       - bin/source-env-file.sh
     environment:
-      CONFIG_PRO_ARG: "--cp=consul://localhost:8500"
-      CONF_ARG: "--configDir=$SNAP_DATA/config/device-rfid-llrp/res"
-      REGISTRY_ARG: "--registry"
-      DEVICE_PROFILESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/profiles"
-      DEVICE_DEVICESDIR: "$SNAP_DATA/config/device-rfid-llrp/res/devices"
+      DEVICE_PROFILESDIR: $SNAP_DATA/config/device-rfid-llrp/res/profiles
+      DEVICE_DEVICESDIR: $SNAP_DATA/config/device-rfid-llrp/res/devices
       SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
       APPCUSTOM_PROVISIONWATCHERDIR: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
     daemon: simple
@@ -72,26 +71,32 @@ parts:
       install -DT ./helper-go $SNAPCRAFT_PART_INSTALL/bin/helper-go
 
   device-rfid-llrp:
-    after: [metadata]
     source: .
     plugin: make
-    build-packages: [git, pkg-config]
+    build-packages:
+      - git
     build-snaps:
       - go/1.20/stable
     override-build: |
       cd $SNAPCRAFT_PART_SRC
 
-      # the version is needed for the build
-      cat ./VERSION
+      if git describe ; then
+        VERSION=$(git describe --tags --abbrev=0 | sed 's/v//')
+      else
+        VERSION="0.0.0"
+      fi
 
-      make tidy
+      # set the version of the snap
+      snapcraftctl set-version $VERSION
+      
+      # write version to file for the build
+      echo $VERSION > VERSION
+
       make build
-
       install -DT ./cmd/device-rfid-llrp "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
 
       RES=$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/
       mkdir -p $RES
-      mkdir -p $RES/devices
       cp    cmd/res/configuration.toml $RES
       cp -r cmd/res/profiles $RES
       cp -r cmd/res/provision_watchers $RES
@@ -107,30 +112,6 @@ parts:
     organize:
       source-env-file.sh: bin/source-env-file.sh
 
-  metadata:
-    plugin: nil
-    source: https://github.com/canonical/edgex-snap-metadata.git
-    source-branch: appstream
-    source-depth: 1
-    override-build: |
-      # install the icon at the default internal path
-      install -DT edgex-snap-icon.png \
-        $SNAPCRAFT_PART_INSTALL/meta/gui/icon.png      
-      # change to this project's repo to get the version
-      cd $SNAPCRAFT_PROJECT_DIR
-      if git describe ; then
-        VERSION=$(git describe --tags --abbrev=0 | sed 's/v//')
-      else
-        VERSION="0.0.0"
-      fi
-      
-      # write version to file for the build
-      echo $VERSION > ./VERSION
-      # set the version of this snap
-      snapcraftctl set-version $VERSION
-    parse-info: [edgex-device-rfid-llrp.metainfo.xml]
-
- 
   # copy auto-configure.sh to /bin and make sure curl is installed
   auto-configure:
     plugin: dump
