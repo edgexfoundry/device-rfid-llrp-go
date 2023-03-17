@@ -239,10 +239,11 @@ func (info *discoveryInfo) updateExistingDevice(device contract.Device) error {
 			"oldInfo", fmt.Sprintf("%+v", tcpInfo),
 			"discoveredInfo", fmt.Sprintf("%+v", info))
 
-		device.Protocols["tcp"] = map[string]string{
+		device.Protocols["tcp"] = contract.ProtocolProperties{
 			"host": info.host,
 			"port": info.port,
 		}
+
 		// make sure it is enabled
 		device.OperatingState = contract.Up
 		shouldUpdate = true
@@ -276,7 +277,7 @@ func makeDeviceMap() map[string]contract.Device {
 			continue
 		}
 
-		host, port := tcpInfo["host"], tcpInfo["port"]
+		host, port := tcpInfo["host"].(string), tcpInfo["port"].(string)
 		if host == "" || port == "" {
 			driver.lc.Warn("Registered device is missing required tcp protocol information.",
 				"host", host,

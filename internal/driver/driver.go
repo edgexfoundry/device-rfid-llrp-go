@@ -19,7 +19,6 @@ import (
 
 	"github.com/edgexfoundry/device-sdk-go/v3/pkg/interfaces"
 	dsModels "github.com/edgexfoundry/device-sdk-go/v3/pkg/models"
-	"github.com/edgexfoundry/device-sdk-go/v3/pkg/service"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/common"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v3/models"
@@ -102,13 +101,6 @@ func (me MultiErr) Error() string {
 	return strings.Join(strs, "; ")
 }
 
-// EdgeX's Device SDK takes an interface{}
-// and uses a runtime-check to determine that it implements ProtocolDriver,
-// at which point it will abruptly exit without a panic.
-// This restores type-safety by making it so we can't compile
-// unless we meet the runtime-required interface.
-var _ dsModels.ProtocolDriver = (*Driver)(nil)
-
 // Instance returns the package-global Driver instance, creating it if necessary.
 // It must be initialized before use via its Initialize method.
 func Instance() *Driver {
@@ -123,18 +115,12 @@ func Instance() *Driver {
 
 // Initialize performs protocol-specific initialization for the device
 // service.
-func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.AsyncValues, deviceCh chan<- []dsModels.DiscoveredDevice) error {
-	if lc == nil {
-		// prevent panics from this annoyance
-		d.lc = logger.NewClient(ServiceName, "DEBUG")
-		d.lc.Error("EdgeX initialized us with a nil logger >:(")
-	} else {
-		d.lc = lc
-	}
+func (d *Driver) Initialize(sdk interfaces.DeviceServiceSDK) error {
+	d.lc = sdk.LoggingClient()
 
-	d.asyncCh = asyncCh
-	d.deviceCh = deviceCh
-	d.svc = service.RunningService()
+	d.asyncCh = sdk.AsyncValuesChannel()
+	d.deviceCh = sdk.DiscoveredDeviceChannel()
+	d.svc = sdk
 
 	d.config = &ServiceConfig{}
 
@@ -143,7 +129,7 @@ func (d *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *dsModels.As
 		return errors.Wrap(err, "custom driver configuration failed to load")
 	}
 
-	lc.Debugf("Custom config is : %+v", d.config)
+	d.lc.Debugf("Custom config is : %+v", d.config)
 
 	err = d.svc.ListenForCustomConfigChanges(&d.config.AppCustom, "AppCustom", d.updateWritableConfig)
 	if err != nil {
@@ -690,7 +676,7 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 		return nil, errors.New("missing tcp protocol")
 	}
 
-	host, port := tcpInfo["host"], tcpInfo["port"]
+	host, port := tcpInfo["host"].(string), tcpInfo["port"].(string)
 	if host == "" || port == "" {
 		return nil, errors.Errorf("tcp missing host or port (%q, %q)", host, port)
 	}
