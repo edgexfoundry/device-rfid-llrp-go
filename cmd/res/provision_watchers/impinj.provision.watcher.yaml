@@ -1,0 +1,8 @@
+  name: "llrp-impinj-provision-watcher"
+  identifiers: 
+    vendorPEN: "25882"
+    
+  blockingidentifiers: {}
+  profileName: "LLRP-Impinj-Profile"
+  serviceName: "edgex-device-rfid-llrp"
+  adminState: "UNLOCKED"

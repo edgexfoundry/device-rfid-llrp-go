@@ -1,0 +1,45 @@
+Writable:
+  LogLevel: "INFO"
+
+Service:
+  Host: "localhost"
+  Port: 59989
+  StartupMsg: "device llrp started"
+
+# uncomment when running from command-line in hybrid mode with -cp -o flags
+# Clients:
+#   core-metadata:
+#     Host: "localhost" 
+# Registry:
+#   Host: "localhost"
+  
+MessageBus:
+  # Host: localhost # uncomment when running from command-line in hybrid mode
+  Optional:
+    ClientId: "device-rfid-llrp"
+
+Device:
+  ProvisionWatchersDir: "./res/provision_watchers"
+  DevicesDir: "."
+  Discovery:
+    Enabled: true
+    Interval: "1h"
+
+AppCustom:
+  # List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+  # separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+  DiscoverySubnets: ""
+
+  # Maximum simultaneous network probes
+  ProbeAsyncLimit: 4000
+
+  # Maximum amount of seconds to wait for each IP probe before timing out.
+  # This will also be the minimum time the discovery process can take.
+  ProbeTimeoutSeconds: 2
+
+  # Port to scan for LLRP devices on
+  ScanPort: "5084"
+
+  # Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+  # It is especially important to have this configured in the case of larger subnets such as /16 and /8
+  MaxDiscoverDurationSeconds: 300
