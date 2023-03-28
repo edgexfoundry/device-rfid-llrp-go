@@ -53,7 +53,7 @@ make docker
 **Configure subnet information**
 >_**Note 1:** This script requires EdgeX and device-rfid-llrp to be running first._
 
->_**Note 2:** This step is optional if you already configured the subnets beforehand in the configuration.toml file._
+>_**Note 2:** This step is optional if you already configured the subnets beforehand in the configuration.yaml file._
 ```bash
 ./bin/auto-configure.sh
 ```
@@ -78,33 +78,33 @@ If using an IPv6-only network, you will need to [manually add your devices to Ed
 This service has the functionality to probe the local network in an effort to discover devices that support LLRP.
 
 This discovery also happens at a regular interval and can be configured via [EdgeX Consul][consul_discovery] 
-for existing installations, and [configuration.toml][config_toml] for default values.
+for existing installations, and [configuration.yaml][config_yaml] for default values.
 
-The additional discovery configuration can be modified via the `[AppCustom]` section of the [configuration.toml][config_toml] file.
+The additional discovery configuration can be modified via the `[AppCustom]` section of the [configuration.yaml][config_yaml] file.
 
->_**Note:** Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
+>_**Note:** Please read the [Notes on configuration.yaml](#Notes-on-configurationyaml) for things to be 
 aware of when modifying this file._
 
 
-```toml
-[AppCustom]
-# List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
-# separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
-DiscoverySubnets = ""
+```yaml
+AppCustom:
+    # List of IPv4 subnets to perform LLRP discovery process on, in CIDR format (X.X.X.X/Y)
+    # separated by commas ex: "192.168.1.0/24,10.0.0.0/24"
+    DiscoverySubnets: ""
 
-# Maximum simultaneous network probes
-ProbeAsyncLimit = 4000
+    # Maximum simultaneous network probes
+    ProbeAsyncLimit: 4000  
 
-# Maximum amount of seconds to wait for each IP probe before timing out.
-# This will also be the minimum time the discovery process can take.
-ProbeTimeoutSeconds = 2
+    # Maximum amount of seconds to wait for each IP probe before timing out.
+    # This will also be the minimum time the discovery process can take.
+    ProbeTimeoutSeconds: 2
 
-# Port to scan for LLRP devices on
-ScanPort = "5084"
+    # Port to scan for LLRP devices on
+    ScanPort: "5084"
 
-# Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
-# It is especially important to have this configured in the case of larger subnets such as /16 and /8
-MaxDiscoverDurationSeconds = 300
+    # Maximum amount of seconds the discovery process is allowed to run before it will be cancelled.
+    # It is especially important to have this configured in the case of larger subnets such as /16 and /8
+    MaxDiscoverDurationSeconds: 300
 ```
 
 The `DiscoverySubnets` config option defaults to blank, and needs to be provided before a discovery can occur.
@@ -180,25 +180,25 @@ is converted into lowercase hexadecimal and used as the `<ID>`. Example: `LLRP-1
 
 ### Manually Adding a Device
 You can add devices directly via [EdgeX's APIs][add_device]
-or via the [toml configuration][config_toml], as in the following example:
+or via the [yaml configuration][config_yaml], as in the following example:
 
->_Note: Please read the [Notes on configuration.toml](#Notes-on-configurationtoml) for things to be 
+>_Note: Please read the [Notes on configuration.yaml](#Notes-on-configurationyaml) for things to be 
 aware of when modifying this file._
 
-```
-[[DeviceList]]
-  Name = "Speedway"
-  Profile = "Device-LLRP-Profile"
-  Description = "LLRP RFID Reader"
-  Labels = ["LLRP", "RFID"]
-  [DeviceList.Protocols]
-    [DeviceList.Protocols.tcp]
-      host = "192.168.86.88"
-      port = "5084"
+```yaml
+DeviceList:
+  Name: "Speedway"
+  Profile: "Device-LLRP-Profile"
+  Description: "LLRP RFID Reader"
+  Labels: ["LLRP", "RFID"]
+  Protocols:
+    tcp:
+      host: "192.168.86.88"
+      port: "5084"
 ```
 
 [add_device]: https://app.swaggerhub.com/apis-docs/EdgeXFoundry1/core-metadata/2.1.0#/default/post_device
-[config_toml]: cmd/res/configuration.toml
+[config_yaml]: cmd/res/configuration.yaml
 [provision_watcher]: cmd/res/provision_watchers
 [impinj_watcher]: cmd/res/provision_watchers/impinj.provision.watcher.json
 [generic_watcher]: cmd/res/provision_watchers/llrp.provision.watcher.json
@@ -551,12 +551,12 @@ The following are particularly useful:
 [test_helper]: internal/llrp/test_helpers.go
 
 ## Footnotes
-### Notes on configuration.toml
-- Modifying the `configuration.toml` file will require you to rebuild the docker image 
+### Notes on configuration.yaml
+- Modifying the `configuration.yaml` file will require you to rebuild the docker image 
 and re-deploy using the new image
-- Any modifications made to the `configuration.toml` file will be ignored if this is not 
+- Any modifications made to the `configuration.yaml` file will be ignored if this is not 
   the first time you have deployed the service and EdgeX Consul is enabled. 
-  - Consul will always overwrite any modifications to the toml.
+  - Consul will always overwrite any modifications to the yaml.
   - To get around this behavior, you may delete the whole configuration group for this
     service within [EdgeX Consul][consul_devices].
 
