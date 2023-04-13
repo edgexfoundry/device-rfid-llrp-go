@@ -1,5 +1,6 @@
 //
 // Copyright (C) 2020 Intel Corporation
+// Copyright (C) 2023 IOTech Ltd
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -155,6 +156,10 @@ func (d *Driver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr, device.OperatingState)
 	}
 
+	return nil
+}
+
+func (d *Driver) Start() error {
 	return nil
 }
 
@@ -720,13 +725,16 @@ func (d *Driver) debouncedDiscover() {
 			d.debounceTimer = nil
 			d.debounceMu.Unlock()
 
-			d.Discover()
+			err := d.Discover()
+			if err != nil {
+				d.lc.Errorf("Failed to trigger discovery, %v", err)
+			}
 		}()
 	}
 }
 
 // Discover performs a discovery of LLRP readers on the network and passes them to EdgeX to get provisioned
-func (d *Driver) Discover() {
+func (d *Driver) Discover() error {
 	d.lc.Info("Discover was called.")
 
 	d.configMu.RLock()
@@ -742,6 +750,7 @@ func (d *Driver) Discover() {
 	}
 
 	d.discover(ctx)
+	return nil
 }
 
 func (d *Driver) discover(ctx context.Context) {
@@ -764,4 +773,12 @@ func (d *Driver) discover(ctx context.Context) {
 	d.lc.Info(fmt.Sprintf("Discovered %d new devices in %v.", len(result), time.Since(t1)))
 	// pass the discovered devices to the EdgeX SDK to be passed through to the provision watchers
 	d.deviceCh <- result
+}
+
+func (d *Driver) ValidateDevice(device contract.Device) error {
+	_, err := getAddr(device.Protocols)
+	if err != nil {
+		return fmt.Errorf("invalid protocol properties, %v", err)
+	}
+	return nil
 }

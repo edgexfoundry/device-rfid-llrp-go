@@ -245,3 +245,6 @@ https://github.com/stretchr/objx/blob/master/LICENSE
 
 github.com/Microsoft/go-winio (MIT) https://github.com/Microsoft/go-winio
 https://github.com/microsoft/go-winio/blob/master/LICENSE
+
+github.com/go-jose/go-jose/v3 (Apache-2.0) https://github.com/go-jose/go-jose
+https://github.com/go-jose/go-jose/blob/v3/LICENSE
