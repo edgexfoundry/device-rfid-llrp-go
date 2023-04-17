@@ -7,20 +7,23 @@ Service:
   StartupMsg: "device llrp started"
 
 # uncomment when running from command-line in hybrid mode with -cp -o flags
-# Clients:
-#   core-metadata:
-#     Host: "localhost" 
-# Registry:
+#Clients:
+# core-metadata:
 #   Host: "localhost"
+#Registry:
+# Host: "localhost"
   
 MessageBus:
-  # Host: localhost # uncomment when running from command-line in hybrid mode
+#  Host: localhost # uncomment when running from command-line in hybrid mode
   Optional:
     ClientId: "device-rfid-llrp"
 
 Device:
+  # This setting has common value (currently), but must be here for service local env overrides to apply when customized
+  ProfilesDir: "./res/profiles"
+  # This service doesn't define any static devices. Devices are added via auto provisioning
+  DevicesDir: ""
   ProvisionWatchersDir: "./res/provision_watchers"
-  DevicesDir: "."
   Discovery:
     Enabled: true
     Interval: "1h"
