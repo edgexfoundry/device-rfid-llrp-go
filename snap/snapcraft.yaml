@@ -1,5 +1,5 @@
 name: edgex-device-rfid-llrp
-base: core20
+base: core22
 license: Apache-2.0
 summary: EdgeX RFID LLRP Device Service
 description: Refer to https://snapcraft.io/edgex-device-rfid-llrp
@@ -29,32 +29,22 @@ plugs:
     interface: content
     target: $SNAP_DATA/config/device-rfid-llrp
 
-  # deprecated
-  device-config:
-    interface: content 
-    target: $SNAP_DATA/config/device-rfid-llrp
-
 apps:
   auto-configure:
-    adapter: none
     command: bin/auto-configure.sh
-    command-chain:
-      - snap/command-chain/snapcraft-runner 
     plugs:
       - network
       - network-observe # required for /operstate
       - network-control # required for "ip" 
 
   device-rfid-llrp:
-    adapter: full
     command: bin/device-rfid-llrp --configDir $SNAP_DATA/config/device-rfid-llrp/res --configProvider --registry
     command-chain:
       - bin/source-env-file.sh
     environment:
       DEVICE_PROFILESDIR: $SNAP_DATA/config/device-rfid-llrp/res/profiles
-      DEVICE_DEVICESDIR: $SNAP_DATA/config/device-rfid-llrp/res/devices
+      DEVICE_PROVISIONWATCHERSDIR: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
       SECRETSTORE_TOKENFILE: $SNAP_DATA/device-rfid-llrp/secrets-token.json
-      APPCUSTOM_PROVISIONWATCHERDIR: $SNAP_DATA/config/device-rfid-llrp/res/provision_watchers
     daemon: simple
     install-mode: disable
     plugs: [network, network-bind]
@@ -66,9 +56,9 @@ parts:
     build-snaps:
       - go/1.20/stable
     override-build: |
-      cd $SNAPCRAFT_PART_SRC
+      cd $CRAFT_PART_SRC
       make build
-      install -DT ./helper-go $SNAPCRAFT_PART_INSTALL/bin/helper-go
+      install -DT ./helper-go $CRAFT_PART_INSTALL/bin/helper-go
 
   device-rfid-llrp:
     source: .
@@ -78,7 +68,7 @@ parts:
     build-snaps:
       - go/1.20/stable
     override-build: |
-      cd $SNAPCRAFT_PART_SRC
+      cd $CRAFT_PART_SRC
 
       if git describe ; then
         VERSION=$(git describe --tags --abbrev=0 | sed 's/v//')
@@ -87,21 +77,19 @@ parts:
       fi
 
       # set the version of the snap
-      snapcraftctl set-version $VERSION
+      craftctl set version=$VERSION
       
       # write version to file for the build
       echo $VERSION > VERSION
 
       make build
-      install -DT ./cmd/device-rfid-llrp "$SNAPCRAFT_PART_INSTALL/bin/device-rfid-llrp"
+      install -DT ./cmd/device-rfid-llrp "$CRAFT_PART_INSTALL/bin/device-rfid-llrp"
 
-      RES=$SNAPCRAFT_PART_INSTALL/config/device-rfid-llrp/res/
+      RES=$CRAFT_PART_INSTALL/config/device-rfid-llrp/res/
       mkdir -p $RES
-      cp    cmd/res/configuration.yaml $RES
-      cp -r cmd/res/profiles $RES
-      cp -r cmd/res/provision_watchers $RES
+      cp -r cmd/res/* $RES
       
-      DOC=$SNAPCRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp
+      DOC=$CRAFT_PART_INSTALL/usr/share/doc/device-rfid-llrp
       mkdir -p $DOC
       cp Attribution.txt $DOC/Attribution.txt
       cp LICENSE $DOC/LICENSE
