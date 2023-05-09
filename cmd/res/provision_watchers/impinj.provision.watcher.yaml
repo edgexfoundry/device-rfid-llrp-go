@@ -1,10 +1,9 @@
 name: "llrp-impinj-provision-watcher"
-identifiers: 
+serviceName: "device-rfid-llrp"
+identifiers:
   vendorPEN: "25882"
-
-blockingidentifiers: {}
+blockingIdentifiers: {}
 adminState: "UNLOCKED"
 discoveredDevice:
   profileName: "LLRP-Impinj-Profile"
-  serviceName: "edgex-device-rfid-llrp"
   adminState: "UNLOCKED"

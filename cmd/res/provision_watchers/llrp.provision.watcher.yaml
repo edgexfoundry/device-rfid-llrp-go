@@ -1,11 +1,11 @@
 name: "llrp-provision-watcher"
-identifiers: 
+serviceName: "device-rfid-llrp"
+identifiers:
   vendorPEN: "."
-  
-blockingidentifiers: 
-  vendorPEN: "25882"
+blockingIdentifiers:
+  vendorPEN:
+    - "25882"
 adminState: "UNLOCKED"
 discoveredDevice:
   profileName: "LLRP-Device-Profile"
-  serviceName: "edgex-device-rfid-llrp"
   adminState: "UNLOCKED"
