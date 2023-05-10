@@ -192,7 +192,7 @@ func (d *Driver) NewLLRPDevice(name string, address net.Addr, opState contract.O
 
 				if isEnabled {
 					d.lc.Warn("Failed to connect to Device after multiple tries.", "device", name)
-					if err := d.svc.SetDeviceOpState(name, contract.Down); err != nil {
+					if err := d.svc.UpdateDeviceOperatingState(name, contract.Down); err != nil {
 						d.lc.Error("Failed to set device operating state to Disabled.",
 							"device", name, "error", err.Error())
 						// This is not likely, but might as well try again next round.
@@ -465,7 +465,7 @@ func (l *LLRPDevice) onConnect(svc interfaces.DeviceServiceSDK) {
 
 	if !isEnabled {
 		l.lc.Info("Device connection restored.", "device", l.name)
-		if err := svc.SetDeviceOpState(l.name, contract.Up); err != nil {
+		if err := svc.UpdateDeviceOperatingState(l.name, contract.Up); err != nil {
 			l.lc.Error("Failed to set device operating state to Enabled.",
 				"device", l.name, "error", err.Error())
 		} else {
