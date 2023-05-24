@@ -137,6 +137,10 @@ func (d *Driver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 		return errors.Wrap(err, "failed to listen to custom config changes")
 	}
 
+	return nil
+}
+
+func (d *Driver) Start() error {
 	registered := d.svc.Devices()
 	d.devicesMu.Lock()
 	defer d.devicesMu.Unlock()
@@ -156,10 +160,6 @@ func (d *Driver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 		d.activeDevices[device.Name] = d.NewLLRPDevice(device.Name, addr, device.OperatingState)
 	}
 
-	return nil
-}
-
-func (d *Driver) Start() error {
 	return nil
 }
 
