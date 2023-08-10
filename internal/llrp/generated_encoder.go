@@ -9,7 +9,7 @@ package llrp
 
 import (
 	"encoding/binary"
-	"github.com/pkg/errors"
+	"fmt"
 	"io"
 )
 
@@ -23,7 +23,7 @@ func (m *GetSupportedVersion) EncodeFields(w io.Writer) error {
 func (m *GetSupportedVersionResponse) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.CurrentVersion) << 5, byte(m.MaxSupportedVersion) << 5}); err != nil {
-		return errors.Wrap(err, "failed to write fields for GetSupportedVersionResponse")
+		return fmt.Errorf("failed to write fields for GetSupportedVersionResponse: %w", err)
 	}
 	return nil
 }
@@ -31,7 +31,7 @@ func (m *GetSupportedVersionResponse) EncodeFields(w io.Writer) error {
 // EncodeFields for Message 47, SetProtocolVersion.
 func (m *SetProtocolVersion) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(m.TargetVersion) << 5}); err != nil {
-		return errors.Wrap(err, "failed to write fields for SetProtocolVersion")
+		return fmt.Errorf("failed to write fields for SetProtocolVersion: %w", err)
 	}
 	return nil
 }
@@ -45,7 +45,7 @@ func (m *SetProtocolVersionResponse) EncodeFields(w io.Writer) error {
 func (m *GetReaderCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ReaderCapabilitiesRequestedData)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for GetReaderCapabilities")
+		return fmt.Errorf("failed to write fields for GetReaderCapabilities: %w", err)
 	}
 	return nil
 }
@@ -69,7 +69,7 @@ func (m *AddROSpecResponse) EncodeFields(w io.Writer) error {
 func (m *DeleteROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ROSpecID >> 24), byte(m.ROSpecID >> 16), byte(m.ROSpecID >> 8), byte(m.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for DeleteROSpec")
+		return fmt.Errorf("failed to write fields for DeleteROSpec: %w", err)
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func (m *DeleteROSpecResponse) EncodeFields(w io.Writer) error {
 func (m *StartROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ROSpecID >> 24), byte(m.ROSpecID >> 16), byte(m.ROSpecID >> 8), byte(m.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for StartROSpec")
+		return fmt.Errorf("failed to write fields for StartROSpec: %w", err)
 	}
 	return nil
 }
@@ -97,7 +97,7 @@ func (m *StartROSpecResponse) EncodeFields(w io.Writer) error {
 func (m *StopROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ROSpecID >> 24), byte(m.ROSpecID >> 16), byte(m.ROSpecID >> 8), byte(m.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for StopROSpec")
+		return fmt.Errorf("failed to write fields for StopROSpec: %w", err)
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (m *StopROSpecResponse) EncodeFields(w io.Writer) error {
 func (m *EnableROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ROSpecID >> 24), byte(m.ROSpecID >> 16), byte(m.ROSpecID >> 8), byte(m.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for EnableROSpec")
+		return fmt.Errorf("failed to write fields for EnableROSpec: %w", err)
 	}
 	return nil
 }
@@ -125,7 +125,7 @@ func (m *EnableROSpecResponse) EncodeFields(w io.Writer) error {
 func (m *DisableROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.ROSpecID >> 24), byte(m.ROSpecID >> 16), byte(m.ROSpecID >> 8), byte(m.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for DisableROSpec")
+		return fmt.Errorf("failed to write fields for DisableROSpec: %w", err)
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func (m *AddAccessSpecResponse) EncodeFields(w io.Writer) error {
 func (m *DeleteAccessSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.AccessSpecID >> 24), byte(m.AccessSpecID >> 16), byte(m.AccessSpecID >> 8), byte(m.AccessSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for DeleteAccessSpec")
+		return fmt.Errorf("failed to write fields for DeleteAccessSpec: %w", err)
 	}
 	return nil
 }
@@ -174,7 +174,7 @@ func (m *DeleteAccessSpecResponse) EncodeFields(w io.Writer) error {
 func (m *EnableAccessSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.AccessSpecID >> 24), byte(m.AccessSpecID >> 16), byte(m.AccessSpecID >> 8), byte(m.AccessSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for EnableAccessSpec")
+		return fmt.Errorf("failed to write fields for EnableAccessSpec: %w", err)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func (m *EnableAccessSpecResponse) EncodeFields(w io.Writer) error {
 func (m *DisableAccessSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.AccessSpecID >> 24), byte(m.AccessSpecID >> 16), byte(m.AccessSpecID >> 8), byte(m.AccessSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for DisableAccessSpec")
+		return fmt.Errorf("failed to write fields for DisableAccessSpec: %w", err)
 	}
 	return nil
 }
@@ -264,7 +264,7 @@ func (m *GetReaderConfig) EncodeFields(w io.Writer) error {
 		byte(m.AntennaID >> 8), byte(m.AntennaID), byte(m.RequestedData),
 		byte(m.GPIPortNum >> 8), byte(m.GPIPortNum),
 		byte(m.GPOPortNum >> 8), byte(m.GPOPortNum)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for GetReaderConfig")
+		return fmt.Errorf("failed to write fields for GetReaderConfig: %w", err)
 	}
 	return nil
 }
@@ -278,7 +278,7 @@ func (m *GetReaderConfigResponse) EncodeFields(w io.Writer) error {
 func (m *SetReaderConfig) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(m.ResetToFactoryDefaults) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for SetReaderConfig")
+		return fmt.Errorf("failed to write fields for SetReaderConfig: %w", err)
 	}
 	return nil
 }
@@ -303,10 +303,10 @@ func (m *CloseConnectionResponse) EncodeFields(w io.Writer) error {
 func (m *CustomMessage) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(m.VendorID >> 24), byte(m.VendorID >> 16), byte(m.VendorID >> 8), byte(m.VendorID), m.MessageSubtype}); err != nil {
-		return errors.Wrap(err, "failed to write fields for CustomMessage")
+		return fmt.Errorf("failed to write fields for CustomMessage: %w", err)
 	}
 	if _, err := w.Write(m.Data); err != nil {
-		return errors.Wrap(err, "failed to write Data")
+		return fmt.Errorf("failed to write Data: %w", err)
 	}
 	return nil
 }
@@ -321,7 +321,7 @@ func (p *AntennaID) getHeader() paramHeader {
 }
 func (p *AntennaID) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAntennaID")
+		return fmt.Errorf("failed to write fields for ParamAntennaID: %w", err)
 	}
 	return nil
 }
@@ -337,7 +337,7 @@ func (p *FirstSeenUTC) getHeader() paramHeader {
 func (p *FirstSeenUTC) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFirstSeenUTC")
+		return fmt.Errorf("failed to write fields for ParamFirstSeenUTC: %w", err)
 	}
 	return nil
 }
@@ -353,7 +353,7 @@ func (p *FirstSeenUptime) getHeader() paramHeader {
 func (p *FirstSeenUptime) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFirstSeenUptime")
+		return fmt.Errorf("failed to write fields for ParamFirstSeenUptime: %w", err)
 	}
 	return nil
 }
@@ -369,7 +369,7 @@ func (p *LastSeenUTC) getHeader() paramHeader {
 func (p *LastSeenUTC) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLastSeenUTC")
+		return fmt.Errorf("failed to write fields for ParamLastSeenUTC: %w", err)
 	}
 	return nil
 }
@@ -385,7 +385,7 @@ func (p *LastSeenUptime) getHeader() paramHeader {
 func (p *LastSeenUptime) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLastSeenUptime")
+		return fmt.Errorf("failed to write fields for ParamLastSeenUptime: %w", err)
 	}
 	return nil
 }
@@ -400,7 +400,7 @@ func (p *PeakRSSI) getHeader() paramHeader {
 }
 func (p *PeakRSSI) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamPeakRSSI")
+		return fmt.Errorf("failed to write fields for ParamPeakRSSI: %w", err)
 	}
 	return nil
 }
@@ -415,7 +415,7 @@ func (p *ChannelIndex) getHeader() paramHeader {
 }
 func (p *ChannelIndex) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamChannelIndex")
+		return fmt.Errorf("failed to write fields for ParamChannelIndex: %w", err)
 	}
 	return nil
 }
@@ -430,7 +430,7 @@ func (p *TagSeenCount) getHeader() paramHeader {
 }
 func (p *TagSeenCount) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamTagSeenCount")
+		return fmt.Errorf("failed to write fields for ParamTagSeenCount: %w", err)
 	}
 	return nil
 }
@@ -446,7 +446,7 @@ func (p *ROSpecID) getHeader() paramHeader {
 func (p *ROSpecID) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROSpecID")
+		return fmt.Errorf("failed to write fields for ParamROSpecID: %w", err)
 	}
 	return nil
 }
@@ -461,7 +461,7 @@ func (p *InventoryParameterSpecID) getHeader() paramHeader {
 }
 func (p *InventoryParameterSpecID) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamInventoryParameterSpecID")
+		return fmt.Errorf("failed to write fields for ParamInventoryParameterSpecID: %w", err)
 	}
 	return nil
 }
@@ -476,7 +476,7 @@ func (p *C1G2CRC) getHeader() paramHeader {
 }
 func (p *C1G2CRC) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2CRC")
+		return fmt.Errorf("failed to write fields for ParamC1G2CRC: %w", err)
 	}
 	return nil
 }
@@ -492,7 +492,7 @@ func (p *C1G2PC) getHeader() paramHeader {
 func (p *C1G2PC) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.EPCMemoryLength)<<3 | b2b(p.HasUserMemory)<<2 | b2b(p.HasXPC)<<1 | b2b(p.IsISO15961)<<0, p.AttributesOrAFI}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2PC")
+		return fmt.Errorf("failed to write fields for ParamC1G2PC: %w", err)
 	}
 	return nil
 }
@@ -508,7 +508,7 @@ func (p *EPC96) getHeader() paramHeader {
 func (p *EPC96) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		p.EPC[0], p.EPC[1], p.EPC[2], p.EPC[3], p.EPC[4], p.EPC[5], p.EPC[6], p.EPC[7], p.EPC[8], p.EPC[9], p.EPC[10], p.EPC[11]}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamEPC96")
+		return fmt.Errorf("failed to write fields for ParamEPC96: %w", err)
 	}
 	return nil
 }
@@ -523,7 +523,7 @@ func (p *SpecIndex) getHeader() paramHeader {
 }
 func (p *SpecIndex) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamSpecIndex")
+		return fmt.Errorf("failed to write fields for ParamSpecIndex: %w", err)
 	}
 	return nil
 }
@@ -538,7 +538,7 @@ func (p *ClientRequestOpSpecResult) getHeader() paramHeader {
 }
 func (p *ClientRequestOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamClientRequestOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamClientRequestOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -554,7 +554,7 @@ func (p *AccessSpecID) getHeader() paramHeader {
 func (p *AccessSpecID) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAccessSpecID")
+		return fmt.Errorf("failed to write fields for ParamAccessSpecID: %w", err)
 	}
 	return nil
 }
@@ -569,7 +569,7 @@ func (p *OpSpecID) getHeader() paramHeader {
 }
 func (p *OpSpecID) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamOpSpecID")
+		return fmt.Errorf("failed to write fields for ParamOpSpecID: %w", err)
 	}
 	return nil
 }
@@ -586,7 +586,7 @@ func (p *C1G2SingulationDetails) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.NumCollisionSlots >> 8), byte(p.NumCollisionSlots),
 		byte(p.NumEmptySlots >> 8), byte(p.NumEmptySlots)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2SingulationDetails")
+		return fmt.Errorf("failed to write fields for ParamC1G2SingulationDetails: %w", err)
 	}
 	return nil
 }
@@ -601,7 +601,7 @@ func (p *C1G2XPCW1) getHeader() paramHeader {
 }
 func (p *C1G2XPCW1) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2XPCW1")
+		return fmt.Errorf("failed to write fields for ParamC1G2XPCW1: %w", err)
 	}
 	return nil
 }
@@ -616,7 +616,7 @@ func (p *C1G2XPCW2) getHeader() paramHeader {
 }
 func (p *C1G2XPCW2) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2XPCW2")
+		return fmt.Errorf("failed to write fields for ParamC1G2XPCW2: %w", err)
 	}
 	return nil
 }
@@ -632,7 +632,7 @@ func (p *UTCTimestamp) getHeader() paramHeader {
 func (p *UTCTimestamp) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamUTCTimestamp")
+		return fmt.Errorf("failed to write fields for ParamUTCTimestamp: %w", err)
 	}
 	return nil
 }
@@ -648,7 +648,7 @@ func (p *Uptime) getHeader() paramHeader {
 func (p *Uptime) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 56), byte(*p >> 48), byte(*p >> 40), byte(*p >> 32), byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamUptime")
+		return fmt.Errorf("failed to write fields for ParamUptime: %w", err)
 	}
 	return nil
 }
@@ -696,13 +696,13 @@ func (p *GeneralDeviceCapabilities) EncodeFields(w io.Writer) error {
 		byte(p.MaxSupportedAntennas >> 8), byte(p.MaxSupportedAntennas), b2b(p.CanSetAntennaProperties)<<7 | b2b(p.HasUTCClock)<<6, 0x00,
 		byte(p.DeviceManufacturer >> 24), byte(p.DeviceManufacturer >> 16), byte(p.DeviceManufacturer >> 8), byte(p.DeviceManufacturer),
 		byte(p.Model >> 24), byte(p.Model >> 16), byte(p.Model >> 8), byte(p.Model)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGeneralDeviceCapabilities")
+		return fmt.Errorf("failed to write fields for ParamGeneralDeviceCapabilities: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.FirmwareVersion) >> 8), byte(len(p.FirmwareVersion) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of FirmwareVersion")
+		return fmt.Errorf("failed to write length of FirmwareVersion: %w", err)
 	}
 	if _, err := w.Write([]byte(p.FirmwareVersion)); err != nil {
-		return errors.Wrap(err, "failed to write FirmwareVersion")
+		return fmt.Errorf("failed to write FirmwareVersion: %w", err)
 	}
 	return nil
 }
@@ -718,7 +718,7 @@ func (p *ReceiveSensitivityTableEntry) getHeader() paramHeader {
 func (p *ReceiveSensitivityTableEntry) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Index >> 8), byte(p.Index),
 		byte(p.ReceiveSensitivity >> 8), byte(p.ReceiveSensitivity)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamReceiveSensitivityTableEntry")
+		return fmt.Errorf("failed to write fields for ParamReceiveSensitivityTableEntry: %w", err)
 	}
 	return nil
 }
@@ -734,13 +734,13 @@ func (p *PerAntennaAirProtocol) getHeader() paramHeader {
 func (p *PerAntennaAirProtocol) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.AntennaID >> 8), byte(p.AntennaID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamPerAntennaAirProtocol")
+		return fmt.Errorf("failed to write fields for ParamPerAntennaAirProtocol: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.AirProtocolIDs) >> 8), byte(len(p.AirProtocolIDs) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of AirProtocolIDs")
+		return fmt.Errorf("failed to write length of AirProtocolIDs: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.AirProtocolIDs); err != nil {
-		return errors.Wrap(err, "failed to write AirProtocolIDs")
+		return fmt.Errorf("failed to write AirProtocolIDs: %w", err)
 	}
 	return nil
 }
@@ -756,7 +756,7 @@ func (p *GPIOCapabilities) getHeader() paramHeader {
 func (p *GPIOCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.NumGPIs >> 8), byte(p.NumGPIs),
 		byte(p.NumGPOs >> 8), byte(p.NumGPOs)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGPIOCapabilities")
+		return fmt.Errorf("failed to write fields for ParamGPIOCapabilities: %w", err)
 	}
 	return nil
 }
@@ -778,7 +778,7 @@ func (p *LLRPCapabilities) EncodeFields(w io.Writer) error {
 		byte(p.MaxInventoryParameterSpecsPerAISpec >> 24), byte(p.MaxInventoryParameterSpecsPerAISpec >> 16), byte(p.MaxInventoryParameterSpecsPerAISpec >> 8), byte(p.MaxInventoryParameterSpecsPerAISpec),
 		byte(p.MaxAccessSpecs >> 24), byte(p.MaxAccessSpecs >> 16), byte(p.MaxAccessSpecs >> 8), byte(p.MaxAccessSpecs),
 		byte(p.MaxOpSpecsPerAccessSpec >> 24), byte(p.MaxOpSpecsPerAccessSpec >> 16), byte(p.MaxOpSpecsPerAccessSpec >> 8), byte(p.MaxOpSpecsPerAccessSpec)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLLRPCapabilities")
+		return fmt.Errorf("failed to write fields for ParamLLRPCapabilities: %w", err)
 	}
 	return nil
 }
@@ -811,7 +811,7 @@ func (p *RegulatoryCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.CountryCode >> 8), byte(p.CountryCode),
 		byte(p.CommunicationsStandard >> 8), byte(p.CommunicationsStandard)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRegulatoryCapabilities")
+		return fmt.Errorf("failed to write fields for ParamRegulatoryCapabilities: %w", err)
 	}
 	return nil
 }
@@ -859,7 +859,7 @@ func (p *TransmitPowerLevelTableEntry) getHeader() paramHeader {
 func (p *TransmitPowerLevelTableEntry) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Index >> 8), byte(p.Index),
 		byte(p.TransmitPowerValue >> 8), byte(p.TransmitPowerValue)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamTransmitPowerLevelTableEntry")
+		return fmt.Errorf("failed to write fields for ParamTransmitPowerLevelTableEntry: %w", err)
 	}
 	return nil
 }
@@ -890,7 +890,7 @@ func (p *FrequencyInformation) getHeader() paramHeader {
 }
 func (p *FrequencyInformation) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{b2b(p.Hopping) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFrequencyInformation")
+		return fmt.Errorf("failed to write fields for ParamFrequencyInformation: %w", err)
 	}
 	return nil
 }
@@ -905,13 +905,13 @@ func (p *FrequencyHopTable) getHeader() paramHeader {
 }
 func (p *FrequencyHopTable) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{p.HopTableID, 0x00}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFrequencyHopTable")
+		return fmt.Errorf("failed to write fields for ParamFrequencyHopTable: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.Frequencies) >> 8), byte(len(p.Frequencies) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Frequencies")
+		return fmt.Errorf("failed to write length of Frequencies: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.Frequencies); err != nil {
-		return errors.Wrap(err, "failed to write Frequencies")
+		return fmt.Errorf("failed to write Frequencies: %w", err)
 	}
 	return nil
 }
@@ -926,10 +926,10 @@ func (p *FixedFrequencyTable) getHeader() paramHeader {
 }
 func (p *FixedFrequencyTable) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(len(p.Frequencies) >> 8), byte(len(p.Frequencies) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Frequencies")
+		return fmt.Errorf("failed to write length of Frequencies: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.Frequencies); err != nil {
-		return errors.Wrap(err, "failed to write Frequencies")
+		return fmt.Errorf("failed to write Frequencies: %w", err)
 	}
 	return nil
 }
@@ -946,7 +946,7 @@ func (p *PerAntennaReceiveSensitivityRange) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.AntennaID >> 8), byte(p.AntennaID),
 		byte(p.ReceiveSensitivityIndexMin >> 8), byte(p.ReceiveSensitivityIndexMin),
 		byte(p.ReceiveSensitivityIndexMax >> 8), byte(p.ReceiveSensitivityIndexMax)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamPerAntennaReceiveSensitivityRange")
+		return fmt.Errorf("failed to write fields for ParamPerAntennaReceiveSensitivityRange: %w", err)
 	}
 	return nil
 }
@@ -998,7 +998,7 @@ func (p *ROSpec) getHeader() paramHeader {
 func (p *ROSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID), p.Priority, byte(p.ROSpecCurrentState)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROSpec")
+		return fmt.Errorf("failed to write fields for ParamROSpec: %w", err)
 	}
 	return nil
 }
@@ -1049,7 +1049,7 @@ func (p *ROSpecStartTrigger) getHeader() paramHeader {
 }
 func (p *ROSpecStartTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROSpecStartTrigger")
+		return fmt.Errorf("failed to write fields for ParamROSpecStartTrigger: %w", err)
 	}
 	return nil
 }
@@ -1077,7 +1077,7 @@ func (p *PeriodicTriggerValue) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Offset >> 24), byte(p.Offset >> 16), byte(p.Offset >> 8), byte(p.Offset),
 		byte(p.Period >> 24), byte(p.Period >> 16), byte(p.Period >> 8), byte(p.Period)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamPeriodicTriggerValue")
+		return fmt.Errorf("failed to write fields for ParamPeriodicTriggerValue: %w", err)
 	}
 	return nil
 }
@@ -1094,7 +1094,7 @@ func (p *GPITriggerValue) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Port >> 8), byte(p.Port), b2b(p.Event) << 7,
 		byte(p.Timeout >> 24), byte(p.Timeout >> 16), byte(p.Timeout >> 8), byte(p.Timeout)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGPITriggerValue")
+		return fmt.Errorf("failed to write fields for ParamGPITriggerValue: %w", err)
 	}
 	return nil
 }
@@ -1121,7 +1121,7 @@ func (p *ROSpecStopTrigger) getHeader() paramHeader {
 func (p *ROSpecStopTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.DurationTriggerValue >> 24), byte(p.DurationTriggerValue >> 16), byte(p.DurationTriggerValue >> 8), byte(p.DurationTriggerValue)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROSpecStopTrigger")
+		return fmt.Errorf("failed to write fields for ParamROSpecStopTrigger: %w", err)
 	}
 	return nil
 }
@@ -1151,10 +1151,10 @@ func (p *AISpec) getHeader() paramHeader {
 }
 func (p *AISpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(len(p.AntennaIDs) >> 8), byte(len(p.AntennaIDs) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of AntennaIDs")
+		return fmt.Errorf("failed to write length of AntennaIDs: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.AntennaIDs); err != nil {
-		return errors.Wrap(err, "failed to write AntennaIDs")
+		return fmt.Errorf("failed to write AntennaIDs: %w", err)
 	}
 	return nil
 }
@@ -1189,7 +1189,7 @@ func (p *AISpecStopTrigger) getHeader() paramHeader {
 func (p *AISpecStopTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.DurationTriggerValue >> 24), byte(p.DurationTriggerValue >> 16), byte(p.DurationTriggerValue >> 8), byte(p.DurationTriggerValue)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAISpecStopTrigger")
+		return fmt.Errorf("failed to write fields for ParamAISpecStopTrigger: %w", err)
 	}
 	return nil
 }
@@ -1208,7 +1208,7 @@ func (p *TagObservationTrigger) EncodeFields(w io.Writer) error {
 		byte(p.NumberOfAttempts >> 8), byte(p.NumberOfAttempts),
 		byte(p.T >> 8), byte(p.T),
 		byte(p.Timeout >> 24), byte(p.Timeout >> 16), byte(p.Timeout >> 8), byte(p.Timeout)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamTagObservationTrigger")
+		return fmt.Errorf("failed to write fields for ParamTagObservationTrigger: %w", err)
 	}
 	return nil
 }
@@ -1237,7 +1237,7 @@ func (p *InventoryParameterSpec) getHeader() paramHeader {
 func (p *InventoryParameterSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.InventoryParameterSpecID >> 8), byte(p.InventoryParameterSpecID), byte(p.AirProtocolID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamInventoryParameterSpec")
+		return fmt.Errorf("failed to write fields for ParamInventoryParameterSpec: %w", err)
 	}
 	return nil
 }
@@ -1264,7 +1264,7 @@ func (p *RFSurveySpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.AntennaID >> 8), byte(p.AntennaID),
 		byte(p.StartFrequency >> 24), byte(p.StartFrequency >> 16), byte(p.StartFrequency >> 8), byte(p.StartFrequency),
 		byte(p.EndFrequency >> 24), byte(p.EndFrequency >> 16), byte(p.EndFrequency >> 8), byte(p.EndFrequency)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFSurveySpec")
+		return fmt.Errorf("failed to write fields for ParamRFSurveySpec: %w", err)
 	}
 	return nil
 }
@@ -1281,7 +1281,7 @@ func (p *RFSurveySpecStopTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.Duration >> 24), byte(p.Duration >> 16), byte(p.Duration >> 8), byte(p.Duration),
 		byte(p.N >> 24), byte(p.N >> 16), byte(p.N >> 8), byte(p.N)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFSurveySpecStopTrigger")
+		return fmt.Errorf("failed to write fields for ParamRFSurveySpecStopTrigger: %w", err)
 	}
 	return nil
 }
@@ -1319,7 +1319,7 @@ func (p *AccessSpec) EncodeFields(w io.Writer) error {
 		byte(p.AccessSpecID >> 24), byte(p.AccessSpecID >> 16), byte(p.AccessSpecID >> 8), byte(p.AccessSpecID),
 		byte(p.AntennaID >> 8), byte(p.AntennaID), byte(p.AirProtocolID), b2b(p.IsActive) << 7,
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAccessSpec")
+		return fmt.Errorf("failed to write fields for ParamAccessSpec: %w", err)
 	}
 	return nil
 }
@@ -1335,7 +1335,7 @@ func (p *AccessSpecStopTrigger) getHeader() paramHeader {
 func (p *AccessSpecStopTrigger) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.OperationCountValue >> 8), byte(p.OperationCountValue)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAccessSpecStopTrigger")
+		return fmt.Errorf("failed to write fields for ParamAccessSpecStopTrigger: %w", err)
 	}
 	return nil
 }
@@ -1452,7 +1452,7 @@ func (p *ClientRequestOpSpec) getHeader() paramHeader {
 }
 func (p *ClientRequestOpSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamClientRequestOpSpec")
+		return fmt.Errorf("failed to write fields for ParamClientRequestOpSpec: %w", err)
 	}
 	return nil
 }
@@ -1561,7 +1561,7 @@ func (p *ClientRequestResponse) getHeader() paramHeader {
 func (p *ClientRequestResponse) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.AccessSpecID >> 24), byte(p.AccessSpecID >> 16), byte(p.AccessSpecID >> 8), byte(p.AccessSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamClientRequestResponse")
+		return fmt.Errorf("failed to write fields for ParamClientRequestResponse: %w", err)
 	}
 	return nil
 }
@@ -1577,7 +1577,7 @@ func (p *LLRPConfigurationStateValue) getHeader() paramHeader {
 func (p *LLRPConfigurationStateValue) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLLRPConfigurationStateValue")
+		return fmt.Errorf("failed to write fields for ParamLLRPConfigurationStateValue: %w", err)
 	}
 	return nil
 }
@@ -1592,13 +1592,13 @@ func (p *Identification) getHeader() paramHeader {
 }
 func (p *Identification) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.IDType)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamIdentification")
+		return fmt.Errorf("failed to write fields for ParamIdentification: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.ReaderID) >> 8), byte(len(p.ReaderID) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of ReaderID")
+		return fmt.Errorf("failed to write length of ReaderID: %w", err)
 	}
 	if _, err := w.Write(p.ReaderID); err != nil {
-		return errors.Wrap(err, "failed to write ReaderID")
+		return fmt.Errorf("failed to write ReaderID: %w", err)
 	}
 	return nil
 }
@@ -1614,7 +1614,7 @@ func (p *GPOWriteData) getHeader() paramHeader {
 func (p *GPOWriteData) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Port >> 8), byte(p.Port), b2b(p.Data) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGPOWriteData")
+		return fmt.Errorf("failed to write fields for ParamGPOWriteData: %w", err)
 	}
 	return nil
 }
@@ -1630,7 +1630,7 @@ func (p *KeepAliveSpec) getHeader() paramHeader {
 func (p *KeepAliveSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.Interval >> 24), byte(p.Interval >> 16), byte(p.Interval >> 8), byte(p.Interval)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamKeepAliveSpec")
+		return fmt.Errorf("failed to write fields for ParamKeepAliveSpec: %w", err)
 	}
 	return nil
 }
@@ -1647,7 +1647,7 @@ func (p *AntennaProperties) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{b2b(p.AntennaConnected) << 7,
 		byte(p.AntennaID >> 8), byte(p.AntennaID),
 		byte(p.AntennaGain >> 8), byte(p.AntennaGain)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAntennaProperties")
+		return fmt.Errorf("failed to write fields for ParamAntennaProperties: %w", err)
 	}
 	return nil
 }
@@ -1695,7 +1695,7 @@ func (p *AntennaConfiguration) getHeader() paramHeader {
 func (p *AntennaConfiguration) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.AntennaID >> 8), byte(p.AntennaID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAntennaConfiguration")
+		return fmt.Errorf("failed to write fields for ParamAntennaConfiguration: %w", err)
 	}
 	return nil
 }
@@ -1710,7 +1710,7 @@ func (p *RFReceiver) getHeader() paramHeader {
 }
 func (p *RFReceiver) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFReceiver")
+		return fmt.Errorf("failed to write fields for ParamRFReceiver: %w", err)
 	}
 	return nil
 }
@@ -1727,7 +1727,7 @@ func (p *RFTransmitter) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.HopTableID >> 8), byte(p.HopTableID),
 		byte(p.ChannelIndex >> 8), byte(p.ChannelIndex),
 		byte(p.TransmitPowerIndex >> 8), byte(p.TransmitPowerIndex)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFTransmitter")
+		return fmt.Errorf("failed to write fields for ParamRFTransmitter: %w", err)
 	}
 	return nil
 }
@@ -1743,7 +1743,7 @@ func (p *GPIPortCurrentState) getHeader() paramHeader {
 func (p *GPIPortCurrentState) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Port >> 8), byte(p.Port), b2b(p.Enabled) << 7, byte(p.State)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGPIPortCurrentState")
+		return fmt.Errorf("failed to write fields for ParamGPIPortCurrentState: %w", err)
 	}
 	return nil
 }
@@ -1758,7 +1758,7 @@ func (p *EventsAndReports) getHeader() paramHeader {
 }
 func (p *EventsAndReports) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{b2b(bool(*p)) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamEventsAndReports")
+		return fmt.Errorf("failed to write fields for ParamEventsAndReports: %w", err)
 	}
 	return nil
 }
@@ -1784,7 +1784,7 @@ func (p *ROReportSpec) getHeader() paramHeader {
 func (p *ROReportSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Trigger),
 		byte(p.N >> 8), byte(p.N)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROReportSpec")
+		return fmt.Errorf("failed to write fields for ParamROReportSpec: %w", err)
 	}
 	return nil
 }
@@ -1816,7 +1816,7 @@ func (p *TagReportContentSelector) getHeader() paramHeader {
 func (p *TagReportContentSelector) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.EnableROSpecID)<<7 | b2b(p.EnableSpecIndex)<<6 | b2b(p.EnableInventoryParamSpecID)<<5 | b2b(p.EnableAntennaID)<<4 | b2b(p.EnableChannelIndex)<<3 | b2b(p.EnablePeakRSSI)<<2 | b2b(p.EnableFirstSeenTimestamp)<<1 | b2b(p.EnableLastSeenTimestamp)<<0, b2b(p.EnableTagSeenCount)<<7 | b2b(p.EnableAccessSpecID)<<6}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamTagReportContentSelector")
+		return fmt.Errorf("failed to write fields for ParamTagReportContentSelector: %w", err)
 	}
 	return nil
 }
@@ -1831,7 +1831,7 @@ func (p *AccessReportSpec) getHeader() paramHeader {
 }
 func (p *AccessReportSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAccessReportSpec")
+		return fmt.Errorf("failed to write fields for ParamAccessReportSpec: %w", err)
 	}
 	return nil
 }
@@ -2082,10 +2082,10 @@ func (p *EPCData) getHeader() paramHeader {
 }
 func (p *EPCData) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.EPCNumBits >> 8), byte(p.EPCNumBits & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of EPC")
+		return fmt.Errorf("failed to write length of EPC: %w", err)
 	}
 	if _, err := w.Write(p.EPC); err != nil {
-		return errors.Wrap(err, "failed to write EPC")
+		return fmt.Errorf("failed to write EPC: %w", err)
 	}
 	return nil
 }
@@ -2152,7 +2152,7 @@ func (p *FrequencyRSSILevelEntry) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Frequency >> 24), byte(p.Frequency >> 16), byte(p.Frequency >> 8), byte(p.Frequency),
 		byte(p.Bandwidth >> 24), byte(p.Bandwidth >> 16), byte(p.Bandwidth >> 8), byte(p.Bandwidth), byte(p.AverageRSSI), byte(p.PeakRSSI)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFrequencyRSSILevelEntry")
+		return fmt.Errorf("failed to write fields for ParamFrequencyRSSILevelEntry: %w", err)
 	}
 	return nil
 }
@@ -2188,7 +2188,7 @@ func (p *EventNotificationState) getHeader() paramHeader {
 func (p *EventNotificationState) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.ReaderEventType >> 8), byte(p.ReaderEventType), b2b(p.NotificationEnabled) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamEventNotificationState")
+		return fmt.Errorf("failed to write fields for ParamEventNotificationState: %w", err)
 	}
 	return nil
 }
@@ -2327,7 +2327,7 @@ func (p *HoppingEvent) getHeader() paramHeader {
 }
 func (p *HoppingEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamHoppingEvent")
+		return fmt.Errorf("failed to write fields for ParamHoppingEvent: %w", err)
 	}
 	return nil
 }
@@ -2343,7 +2343,7 @@ func (p *GPIEvent) getHeader() paramHeader {
 func (p *GPIEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Port >> 8), byte(p.Port), b2b(p.Event) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamGPIEvent")
+		return fmt.Errorf("failed to write fields for ParamGPIEvent: %w", err)
 	}
 	return nil
 }
@@ -2360,7 +2360,7 @@ func (p *ROSpecEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID),
 		byte(p.PreemptingROSpecID >> 24), byte(p.PreemptingROSpecID >> 16), byte(p.PreemptingROSpecID >> 8), byte(p.PreemptingROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamROSpecEvent")
+		return fmt.Errorf("failed to write fields for ParamROSpecEvent: %w", err)
 	}
 	return nil
 }
@@ -2375,7 +2375,7 @@ func (p *ReportBufferLevelWarningEvent) getHeader() paramHeader {
 }
 func (p *ReportBufferLevelWarningEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamReportBufferLevelWarningEvent")
+		return fmt.Errorf("failed to write fields for ParamReportBufferLevelWarningEvent: %w", err)
 	}
 	return nil
 }
@@ -2458,10 +2458,10 @@ func (p *ReaderExceptionEvent) getHeader() paramHeader {
 }
 func (p *ReaderExceptionEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(len(p.Message) >> 8), byte(len(p.Message) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Message")
+		return fmt.Errorf("failed to write length of Message: %w", err)
 	}
 	if _, err := w.Write([]byte(p.Message)); err != nil {
-		return errors.Wrap(err, "failed to write Message")
+		return fmt.Errorf("failed to write Message: %w", err)
 	}
 	return nil
 }
@@ -2477,7 +2477,7 @@ func (p *RFSurveyEvent) getHeader() paramHeader {
 func (p *RFSurveyEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFSurveyEvent")
+		return fmt.Errorf("failed to write fields for ParamRFSurveyEvent: %w", err)
 	}
 	return nil
 }
@@ -2505,7 +2505,7 @@ func (p *AISpecEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID),
 		byte(p.SpecIndex >> 8), byte(p.SpecIndex)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAISpecEvent")
+		return fmt.Errorf("failed to write fields for ParamAISpecEvent: %w", err)
 	}
 	return nil
 }
@@ -2521,7 +2521,7 @@ func (p *AntennaEvent) getHeader() paramHeader {
 func (p *AntennaEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Event),
 		byte(p.AntennaID >> 8), byte(p.AntennaID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamAntennaEvent")
+		return fmt.Errorf("failed to write fields for ParamAntennaEvent: %w", err)
 	}
 	return nil
 }
@@ -2536,7 +2536,7 @@ func (p *ConnectionAttemptEvent) getHeader() paramHeader {
 }
 func (p *ConnectionAttemptEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamConnectionAttemptEvent")
+		return fmt.Errorf("failed to write fields for ParamConnectionAttemptEvent: %w", err)
 	}
 	return nil
 }
@@ -2583,13 +2583,13 @@ func (p *LLRPStatus) getHeader() paramHeader {
 func (p *LLRPStatus) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Status >> 8), byte(p.Status)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLLRPStatus")
+		return fmt.Errorf("failed to write fields for ParamLLRPStatus: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.ErrorDescription) >> 8), byte(len(p.ErrorDescription) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of ErrorDescription")
+		return fmt.Errorf("failed to write length of ErrorDescription: %w", err)
 	}
 	if _, err := w.Write([]byte(p.ErrorDescription)); err != nil {
-		return errors.Wrap(err, "failed to write ErrorDescription")
+		return fmt.Errorf("failed to write ErrorDescription: %w", err)
 	}
 	return nil
 }
@@ -2605,7 +2605,7 @@ func (p *FieldError) getHeader() paramHeader {
 func (p *FieldError) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.FieldIndex >> 8), byte(p.FieldIndex),
 		byte(p.ErrorCode >> 8), byte(p.ErrorCode)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamFieldError")
+		return fmt.Errorf("failed to write fields for ParamFieldError: %w", err)
 	}
 	return nil
 }
@@ -2641,7 +2641,7 @@ func (p *ParameterError) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.ParameterType >> 8), byte(p.ParameterType),
 		byte(p.ErrorCode >> 8), byte(p.ErrorCode)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamParameterError")
+		return fmt.Errorf("failed to write fields for ParamParameterError: %w", err)
 	}
 	return nil
 }
@@ -2658,7 +2658,7 @@ func (p *C1G2LLRPCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.SupportsBlockErase)<<7 | b2b(p.SupportsBlockWrite)<<6 | b2b(p.SupportsBlockPermalock)<<5 | b2b(p.SupportsTagRecommissioning)<<4 | b2b(p.SupportsUMIMethod2)<<3 | b2b(p.SupportsXPC)<<2,
 		byte(p.MaxSelectFiltersPerQuery >> 8), byte(p.MaxSelectFiltersPerQuery)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2LLRPCapabilities")
+		return fmt.Errorf("failed to write fields for ParamC1G2LLRPCapabilities: %w", err)
 	}
 	return nil
 }
@@ -2699,7 +2699,7 @@ func (p *UHFC1G2RFModeTableEntry) EncodeFields(w io.Writer) error {
 		byte(p.MinTariTime >> 24), byte(p.MinTariTime >> 16), byte(p.MinTariTime >> 8), byte(p.MinTariTime),
 		byte(p.MaxTariTime >> 24), byte(p.MaxTariTime >> 16), byte(p.MaxTariTime >> 8), byte(p.MaxTariTime),
 		byte(p.StepTariTime >> 24), byte(p.StepTariTime >> 16), byte(p.StepTariTime >> 8), byte(p.StepTariTime)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamUHFC1G2RFModeTableEntry")
+		return fmt.Errorf("failed to write fields for ParamUHFC1G2RFModeTableEntry: %w", err)
 	}
 	return nil
 }
@@ -2744,7 +2744,7 @@ func (p *C1G2InventoryCommand) getHeader() paramHeader {
 func (p *C1G2InventoryCommand) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.TagInventoryStateAware) << 7}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2InventoryCommand")
+		return fmt.Errorf("failed to write fields for ParamC1G2InventoryCommand: %w", err)
 	}
 	return nil
 }
@@ -2780,7 +2780,7 @@ func (p *C1G2Filter) getHeader() paramHeader {
 }
 func (p *C1G2Filter) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.TruncateAction) << 6}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Filter")
+		return fmt.Errorf("failed to write fields for ParamC1G2Filter: %w", err)
 	}
 	return nil
 }
@@ -2796,13 +2796,13 @@ func (p *C1G2TagInventoryMask) getHeader() paramHeader {
 func (p *C1G2TagInventoryMask) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.MemoryBank) << 6,
 		byte(p.MostSignificantBit >> 8), byte(p.MostSignificantBit)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryMask")
+		return fmt.Errorf("failed to write fields for ParamC1G2TagInventoryMask: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(p.TagMaskNumBits >> 8), byte(p.TagMaskNumBits & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of TagMask")
+		return fmt.Errorf("failed to write length of TagMask: %w", err)
 	}
 	if _, err := w.Write(p.TagMask); err != nil {
-		return errors.Wrap(err, "failed to write TagMask")
+		return fmt.Errorf("failed to write TagMask: %w", err)
 	}
 	return nil
 }
@@ -2818,7 +2818,7 @@ func (p *C1G2TagInventoryStateAwareFilterAction) getHeader() paramHeader {
 func (p *C1G2TagInventoryStateAwareFilterAction) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.Target), byte(p.FilterAction)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryStateAwareFilterAction")
+		return fmt.Errorf("failed to write fields for ParamC1G2TagInventoryStateAwareFilterAction: %w", err)
 	}
 	return nil
 }
@@ -2833,7 +2833,7 @@ func (p *C1G2TagInventoryStateUnawareFilterAction) getHeader() paramHeader {
 }
 func (p *C1G2TagInventoryStateUnawareFilterAction) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryStateUnawareFilterAction")
+		return fmt.Errorf("failed to write fields for ParamC1G2TagInventoryStateUnawareFilterAction: %w", err)
 	}
 	return nil
 }
@@ -2849,7 +2849,7 @@ func (p *C1G2RFControl) getHeader() paramHeader {
 func (p *C1G2RFControl) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.RFModeID >> 8), byte(p.RFModeID),
 		byte(p.Tari >> 8), byte(p.Tari)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2RFControl")
+		return fmt.Errorf("failed to write fields for ParamC1G2RFControl: %w", err)
 	}
 	return nil
 }
@@ -2877,7 +2877,7 @@ func (p *C1G2SingulationControl) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.Session) << 6,
 		byte(p.TagPopulation >> 8), byte(p.TagPopulation),
 		byte(p.TagTransitTime >> 24), byte(p.TagTransitTime >> 16), byte(p.TagTransitTime >> 8), byte(p.TagTransitTime)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2SingulationControl")
+		return fmt.Errorf("failed to write fields for ParamC1G2SingulationControl: %w", err)
 	}
 	return nil
 }
@@ -2893,7 +2893,7 @@ func (p *C1G2TagInventoryStateAwareSingulationAction) getHeader() paramHeader {
 func (p *C1G2TagInventoryStateAwareSingulationAction) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.SessionState)<<7 | byte(p.SLState)<<6}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2TagInventoryStateAwareSingulationAction")
+		return fmt.Errorf("failed to write fields for ParamC1G2TagInventoryStateAwareSingulationAction: %w", err)
 	}
 	return nil
 }
@@ -2936,19 +2936,19 @@ func (p *C1G2TargetTag) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.C1G2MemoryBank)<<6 | b2b(p.MatchFlag)<<5,
 		byte(p.MostSignificantBit >> 8), byte(p.MostSignificantBit)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2TargetTag")
+		return fmt.Errorf("failed to write fields for ParamC1G2TargetTag: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(p.TagMaskNumBits >> 8), byte(p.TagMaskNumBits & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of TagMask")
+		return fmt.Errorf("failed to write length of TagMask: %w", err)
 	}
 	if _, err := w.Write(p.TagMask); err != nil {
-		return errors.Wrap(err, "failed to write TagMask")
+		return fmt.Errorf("failed to write TagMask: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(p.TagDataNumBits >> 8), byte(p.TagDataNumBits & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of TagData")
+		return fmt.Errorf("failed to write length of TagData: %w", err)
 	}
 	if _, err := w.Write(p.TagData); err != nil {
-		return errors.Wrap(err, "failed to write TagData")
+		return fmt.Errorf("failed to write TagData: %w", err)
 	}
 	return nil
 }
@@ -2966,7 +2966,7 @@ func (p *C1G2Read) EncodeFields(w io.Writer) error {
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.WordAddress >> 8), byte(p.WordAddress),
 		byte(p.WordCount >> 8), byte(p.WordCount)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Read")
+		return fmt.Errorf("failed to write fields for ParamC1G2Read: %w", err)
 	}
 	return nil
 }
@@ -2983,13 +2983,13 @@ func (p *C1G2Write) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.WordAddress >> 8), byte(p.WordAddress)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Write")
+		return fmt.Errorf("failed to write fields for ParamC1G2Write: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.Data) >> 8), byte(len(p.Data) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Data")
+		return fmt.Errorf("failed to write length of Data: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.Data); err != nil {
-		return errors.Wrap(err, "failed to write Data")
+		return fmt.Errorf("failed to write Data: %w", err)
 	}
 	return nil
 }
@@ -3005,7 +3005,7 @@ func (p *C1G2Kill) getHeader() paramHeader {
 func (p *C1G2Kill) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.KillPassword >> 24), byte(p.KillPassword >> 16), byte(p.KillPassword >> 8), byte(p.KillPassword)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Kill")
+		return fmt.Errorf("failed to write fields for ParamC1G2Kill: %w", err)
 	}
 	return nil
 }
@@ -3029,7 +3029,7 @@ func (p *C1G2Lock) getHeader() paramHeader {
 func (p *C1G2Lock) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Lock")
+		return fmt.Errorf("failed to write fields for ParamC1G2Lock: %w", err)
 	}
 	return nil
 }
@@ -3045,7 +3045,7 @@ func (p *C1G2LockPayload) getHeader() paramHeader {
 func (p *C1G2LockPayload) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.LockPrivilege), byte(p.LockData)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2LockPayload")
+		return fmt.Errorf("failed to write fields for ParamC1G2LockPayload: %w", err)
 	}
 	return nil
 }
@@ -3063,7 +3063,7 @@ func (p *C1G2BlockErase) EncodeFields(w io.Writer) error {
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.WordAddress >> 8), byte(p.WordAddress),
 		byte(p.WordCount >> 8), byte(p.WordCount)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockErase")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockErase: %w", err)
 	}
 	return nil
 }
@@ -3080,13 +3080,13 @@ func (p *C1G2BlockWrite) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.WordAddress >> 8), byte(p.WordAddress)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockWrite")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockWrite: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.Data) >> 8), byte(len(p.Data) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Data")
+		return fmt.Errorf("failed to write length of Data: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.Data); err != nil {
-		return errors.Wrap(err, "failed to write Data")
+		return fmt.Errorf("failed to write Data: %w", err)
 	}
 	return nil
 }
@@ -3102,7 +3102,7 @@ func (p *C1G2EPCMemorySelector) getHeader() paramHeader {
 func (p *C1G2EPCMemorySelector) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		b2b(p.CRCEnabled)<<7 | b2b(p.PCBitsEnabled)<<6 | b2b(p.XPCBitsEnabled)<<5}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2EPCMemorySelector")
+		return fmt.Errorf("failed to write fields for ParamC1G2EPCMemorySelector: %w", err)
 	}
 	return nil
 }
@@ -3118,13 +3118,13 @@ func (p *C1G2ReadOpSpecResult) getHeader() paramHeader {
 func (p *C1G2ReadOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2ReadOpSpecResultType),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2ReadOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2ReadOpSpecResult: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.Data) >> 8), byte(len(p.Data) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of Data")
+		return fmt.Errorf("failed to write length of Data: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.Data); err != nil {
-		return errors.Wrap(err, "failed to write Data")
+		return fmt.Errorf("failed to write Data: %w", err)
 	}
 	return nil
 }
@@ -3141,7 +3141,7 @@ func (p *C1G2WriteOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2WriteOpSpecResultType),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.WordsWritten >> 8), byte(p.WordsWritten)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2WriteOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2WriteOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3157,7 +3157,7 @@ func (p *C1G2KillOpSpecResult) getHeader() paramHeader {
 func (p *C1G2KillOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2KillResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2KillOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2KillOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3173,7 +3173,7 @@ func (p *C1G2LockOpSpecResult) getHeader() paramHeader {
 func (p *C1G2LockOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2LockResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2LockOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2LockOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3189,7 +3189,7 @@ func (p *C1G2BlockEraseOpSpecResult) getHeader() paramHeader {
 func (p *C1G2BlockEraseOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2BlockEraseResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockEraseOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockEraseOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3206,7 +3206,7 @@ func (p *C1G2BlockWriteOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2BlockWriteResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.WordsWritten >> 8), byte(p.WordsWritten)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockWriteOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockWriteOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3222,7 +3222,7 @@ func (p *LoopSpec) getHeader() paramHeader {
 func (p *LoopSpec) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(*p >> 24), byte(*p >> 16), byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamLoopSpec")
+		return fmt.Errorf("failed to write fields for ParamLoopSpec: %w", err)
 	}
 	return nil
 }
@@ -3239,7 +3239,7 @@ func (p *SpecLoopEvent) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.ROSpecID >> 24), byte(p.ROSpecID >> 16), byte(p.ROSpecID >> 8), byte(p.ROSpecID),
 		byte(p.LoopCount >> 24), byte(p.LoopCount >> 16), byte(p.LoopCount >> 8), byte(p.LoopCount)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamSpecLoopEvent")
+		return fmt.Errorf("failed to write fields for ParamSpecLoopEvent: %w", err)
 	}
 	return nil
 }
@@ -3255,7 +3255,7 @@ func (p *C1G2Recommission) getHeader() paramHeader {
 func (p *C1G2Recommission) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.KillPassword >> 24), byte(p.KillPassword >> 16), byte(p.KillPassword >> 8), byte(p.KillPassword), b2b(p.SB3)<<2 | b2b(p.SB2)<<1 | b2b(p.LSB)<<0}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2Recommission")
+		return fmt.Errorf("failed to write fields for ParamC1G2Recommission: %w", err)
 	}
 	return nil
 }
@@ -3272,13 +3272,13 @@ func (p *C1G2BlockPermalock) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.OpSpecID >> 8), byte(p.OpSpecID),
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.BlockAddress >> 8), byte(p.BlockAddress)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockPermalock")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockPermalock: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.BlockMask) >> 8), byte(len(p.BlockMask) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of BlockMask")
+		return fmt.Errorf("failed to write length of BlockMask: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.BlockMask); err != nil {
-		return errors.Wrap(err, "failed to write BlockMask")
+		return fmt.Errorf("failed to write BlockMask: %w", err)
 	}
 	return nil
 }
@@ -3296,7 +3296,7 @@ func (p *C1G2GetBlockPermalockStatus) EncodeFields(w io.Writer) error {
 		byte(p.AccessPassword >> 24), byte(p.AccessPassword >> 16), byte(p.AccessPassword >> 8), byte(p.AccessPassword), byte(p.C1G2MemoryBank) << 6,
 		byte(p.BlockAddress >> 8), byte(p.BlockAddress),
 		byte(p.BlockRange >> 8), byte(p.BlockRange)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2GetBlockPermalockStatus")
+		return fmt.Errorf("failed to write fields for ParamC1G2GetBlockPermalockStatus: %w", err)
 	}
 	return nil
 }
@@ -3312,7 +3312,7 @@ func (p *C1G2RecommissionOpSpecResult) getHeader() paramHeader {
 func (p *C1G2RecommissionOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2RecommissionResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2RecommissionOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2RecommissionOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3328,7 +3328,7 @@ func (p *C1G2BlockPermalockOpSpecResult) getHeader() paramHeader {
 func (p *C1G2BlockPermalockOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2BlockPermalockResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2BlockPermalockOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2BlockPermalockOpSpecResult: %w", err)
 	}
 	return nil
 }
@@ -3344,13 +3344,13 @@ func (p *C1G2GetBlockPermalockStatusOpSpecResult) getHeader() paramHeader {
 func (p *C1G2GetBlockPermalockStatusOpSpecResult) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(p.C1G2GetBlockPermalockStatusResult),
 		byte(p.OpSpecID >> 8), byte(p.OpSpecID)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamC1G2GetBlockPermalockStatusOpSpecResult")
+		return fmt.Errorf("failed to write fields for ParamC1G2GetBlockPermalockStatusOpSpecResult: %w", err)
 	}
 	if _, err := w.Write([]byte{byte(len(p.PermalockStatuses) >> 8), byte(len(p.PermalockStatuses) & 0xFF)}); err != nil {
-		return errors.Wrap(err, "failed to write length of PermalockStatuses")
+		return fmt.Errorf("failed to write length of PermalockStatuses: %w", err)
 	}
 	if err := binary.Write(w, binary.BigEndian, p.PermalockStatuses); err != nil {
-		return errors.Wrap(err, "failed to write PermalockStatuses")
+		return fmt.Errorf("failed to write PermalockStatuses: %w", err)
 	}
 	return nil
 }
@@ -3365,7 +3365,7 @@ func (p *MaximumReceiveSensitivity) getHeader() paramHeader {
 }
 func (p *MaximumReceiveSensitivity) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(*p >> 8), byte(*p)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamMaximumReceiveSensitivity")
+		return fmt.Errorf("failed to write fields for ParamMaximumReceiveSensitivity: %w", err)
 	}
 	return nil
 }
@@ -3382,7 +3382,7 @@ func (p *RFSurveyFrequencyCapabilities) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.MinFrequency >> 24), byte(p.MinFrequency >> 16), byte(p.MinFrequency >> 8), byte(p.MinFrequency),
 		byte(p.MaxFrequency >> 24), byte(p.MaxFrequency >> 16), byte(p.MaxFrequency >> 8), byte(p.MaxFrequency)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamRFSurveyFrequencyCapabilities")
+		return fmt.Errorf("failed to write fields for ParamRFSurveyFrequencyCapabilities: %w", err)
 	}
 	return nil
 }
@@ -3399,10 +3399,10 @@ func (p *Custom) EncodeFields(w io.Writer) error {
 	if _, err := w.Write([]byte{
 		byte(p.VendorID >> 24), byte(p.VendorID >> 16), byte(p.VendorID >> 8), byte(p.VendorID),
 		byte(p.Subtype >> 24), byte(p.Subtype >> 16), byte(p.Subtype >> 8), byte(p.Subtype)}); err != nil {
-		return errors.Wrap(err, "failed to write fields for ParamCustom")
+		return fmt.Errorf("failed to write fields for ParamCustom: %w", err)
 	}
 	if _, err := w.Write(p.Data); err != nil {
-		return errors.Wrap(err, "failed to write Data")
+		return fmt.Errorf("failed to write Data: %w", err)
 	}
 	return nil
 }

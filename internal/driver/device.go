@@ -7,6 +7,8 @@ package driver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -16,7 +18,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/common"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v3/models"
-	"github.com/pkg/errors"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/retry"
@@ -312,7 +313,7 @@ func (l *LLRPDevice) closeLocked(ctx context.Context) error {
 		err = l.client.Shutdown(ctx)
 		if err != nil && !errors.Is(err, llrp.ErrClientClosed) {
 			_ = l.client.Close()
-			err = errors.Wrap(err, "failed to shutdown gracefully")
+			err = fmt.Errorf("failed to shutdown gracefully: %w", err)
 		}
 	} else { // otherwise, force close
 		err = l.client.Close()

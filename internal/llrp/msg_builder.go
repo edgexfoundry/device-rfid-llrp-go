@@ -6,7 +6,7 @@
 package llrp
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 	"io"
 	"sync"
 )
@@ -26,18 +26,18 @@ func encodeParams(w io.Writer, headers ...paramHeader) error {
 	for _, h := range headers {
 		if h.ParamType.IsTV() {
 			if n, err := w.Write([]byte{byte(h.ParamType | 0x80)}); err != nil {
-				return errors.Wrapf(err, "failed to write TV header for %v", h.ParamType)
+				return fmt.Errorf("failed to write TV header for %v: %w", h.ParamType, err)
 			} else if n < 1 {
-				return errors.Errorf("short write for %v: %d < 1", h.ParamType, n)
+				return fmt.Errorf("short write for %v: %d < 1", h.ParamType, n)
 			}
 		} else {
 			if n, err := w.Write([]byte{
 				byte(h.ParamType >> 8), byte(h.ParamType & 0xff),
 				byte(h.sz >> 8), byte(h.sz & 0xff),
 			}); err != nil {
-				return errors.Wrap(err, "failed to write parameter header")
+				return fmt.Errorf("failed to write parameter header: %w", err)
 			} else if n < 4 {
-				return errors.Errorf("short write: %d < 4", n)
+				return fmt.Errorf("short write: %d < 4", n)
 			}
 		}
 
@@ -80,7 +80,7 @@ func (mw *msgWriter) Write(mid messageID, out Outgoing) error {
 	}
 
 	if uint32(len(data)) > maxPayloadSz {
-		return errors.Errorf("outgoing payload size (%d) "+
+		return fmt.Errorf("outgoing payload size (%d) "+
 			"is larger than that permitted by LLRP", len(data))
 	}
 
@@ -91,6 +91,8 @@ func (mw *msgWriter) Write(mid messageID, out Outgoing) error {
 		return err
 	}
 
-	_, err = mw.w.Write(data)
-	return errors.Wrapf(err, "failed to write payload %v", mw.header)
+	if _, err = mw.w.Write(data); err != nil {
+		return fmt.Errorf("failed to write payload %v: %w", mw.header, err)
+	}
+	return nil
 }

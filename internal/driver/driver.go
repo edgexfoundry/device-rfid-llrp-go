@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -23,7 +24,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/clients/logger"
 	"github.com/edgexfoundry/go-mod-core-contracts/v3/common"
 	contract "github.com/edgexfoundry/go-mod-core-contracts/v3/models"
-	"github.com/pkg/errors"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
 )
@@ -127,14 +127,14 @@ func (d *Driver) Initialize(sdk interfaces.DeviceServiceSDK) error {
 
 	err := d.svc.LoadCustomConfig(d.config, "AppCustom")
 	if err != nil {
-		return errors.Wrap(err, "custom driver configuration failed to load")
+		return fmt.Errorf("custom driver configuration failed to load: %w", err)
 	}
 
 	d.lc.Debugf("Custom config is : %+v", d.config)
 
 	err = d.svc.ListenForCustomConfigChanges(&d.config.AppCustom, "AppCustom", d.updateWritableConfig)
 	if err != nil {
-		return errors.Wrap(err, "failed to listen to custom config changes")
+		return fmt.Errorf("failed to listen to custom config changes: %w", err)
 	}
 
 	return nil
@@ -217,7 +217,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 
 		switch reqs[i].DeviceResourceName {
 		default:
-			return nil, errors.Errorf("unknown resource type: %q", reqs[i].DeviceResourceName)
+			return nil, fmt.Errorf("unknown resource type: %q", reqs[i].DeviceResourceName)
 		case ResourceReaderConfig:
 			llrpReq = &llrp.GetReaderConfig{}
 			llrpResp = &llrp.GetReaderConfigResponse{}
@@ -238,7 +238,7 @@ func (d *Driver) handleReadCommands(devName string, p protocolMap, reqs []dsMode
 
 		cmdValue, err := dsModels.NewCommandValueWithOrigin(reqs[i].DeviceResourceName, reqs[i].Type, llrpResp, time.Now().UnixNano())
 		if err != nil {
-			return nil, errors.Wrapf(err, "Failed to create new command value with origin")
+			return nil, fmt.Errorf("failed to create new command value with origin: %w", err)
 		}
 
 		responses[i] = cmdValue
@@ -272,7 +272,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	}
 
 	if len(reqs) != len(params) {
-		return errors.Errorf("mismatched command requests and parameters: %d != %d", len(reqs), len(params))
+		return fmt.Errorf("mismatched command requests and parameters: %d != %d", len(reqs), len(params))
 	}
 
 	dev, _, err := d.getDevice(devName, p)
@@ -284,7 +284,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		m := reqs[idx].Attributes
 		val := m[key]
 		if val == "" {
-			return "", errors.Errorf("missing custom parameter attribute: %s", key)
+			return "", fmt.Errorf("missing custom parameter attribute: %s", key)
 		}
 		return val, nil
 	}
@@ -301,8 +301,10 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		}
 
 		var u uint64
-		u, err = strconv.ParseUint(value, 10, 64)
-		return u, errors.Wrapf(err, "unable to parse attribute %q with val %q as uint", key, value)
+		if u, err = strconv.ParseUint(value, 10, 64); err != nil {
+			return 0, fmt.Errorf("unable to parse attribute %q with val %q as uint: %w", key, value, err)
+		}
+		return u, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
@@ -323,7 +325,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		}
 
 		if vendor > uint64(math.MaxUint32) {
-			return errors.Errorf("resource %q vendor PEN %d exceeds uint32", customName, vendor)
+			return fmt.Errorf("resource %q vendor PEN %d exceeds uint32", customName, vendor)
 		}
 
 		subtype, err := getUintAttrib(0, AttribSubtype)
@@ -332,7 +334,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 		}
 
 		if subtype > uint64(math.MaxUint8) {
-			return errors.Errorf("resource %q message subtype %d exceeds uint8", customName, subtype)
+			return fmt.Errorf("resource %q message subtype %d exceeds uint8", customName, subtype)
 		}
 
 		b64payload, err := params[0].StringValue()
@@ -342,7 +344,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 
 		valData, err := base64.StdEncoding.DecodeString(b64payload)
 		if err != nil {
-			return errors.Errorf("unable to base64 decode attribute value for %q", customName)
+			return fmt.Errorf("unable to base64 decode attribute value for %q", customName)
 		}
 
 		llrpReq = &llrp.CustomMessage{
@@ -378,17 +380,17 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 
 	case ResourceROSpecID:
 		if len(params) != 2 {
-			return errors.Errorf("expected 2 resources for ROSpecID op, but got %d", len(params))
+			return fmt.Errorf("expected 2 resources for ROSpecID op, but got %d", len(params))
 		}
 
 		if params[1].DeviceResourceName != ResourceAction {
-			return errors.Errorf("expected Action resource with ROSpecID, but got %q",
+			return fmt.Errorf("expected Action resource with ROSpecID, but got %q",
 				params[1].DeviceResourceName)
 		}
 
 		roID, err := params[0].Uint32Value()
 		if err != nil {
-			return errors.Wrap(err, "failed to get access spec ID")
+			return fmt.Errorf("failed to get access spec ID: %w", err)
 		}
 
 		action, err := params[1].StringValue()
@@ -398,7 +400,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 
 		switch action {
 		default:
-			return errors.Errorf("unknown ROSpecID action: %q", action)
+			return fmt.Errorf("unknown ROSpecID action: %q", action)
 		case ActionEnable:
 			llrpReq = &llrp.EnableROSpec{ROSpecID: roID}
 			llrpResp = &llrp.EnableROSpecResponse{}
@@ -418,17 +420,17 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 
 	case ResourceAccessSpecID:
 		if len(reqs) != 2 {
-			return errors.Errorf("expected 2 resources for AccessSpecID op, but got %d", len(reqs))
+			return fmt.Errorf("expected 2 resources for AccessSpecID op, but got %d", len(reqs))
 		}
 
 		if params[1].DeviceResourceName != ResourceAction {
-			return errors.Errorf("expected Action resource with AccessSpecID, but got %q",
+			return fmt.Errorf("expected Action resource with AccessSpecID, but got %q",
 				params[1].DeviceResourceName)
 		}
 
 		asID, err := params[0].Uint32Value()
 		if err != nil {
-			return errors.Wrap(err, "failed to get access spec ID")
+			return fmt.Errorf("failed to get access spec ID: %w", err)
 		}
 
 		action, err := params[1].StringValue()
@@ -438,7 +440,7 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 
 		switch action {
 		default:
-			return errors.Errorf("unknown ROSpecID action: %q", action)
+			return fmt.Errorf("unknown ROSpecID action: %q", action)
 		case ActionEnable:
 			llrpReq = &llrp.EnableAccessSpec{AccessSpecID: asID}
 			llrpResp = &llrp.EnableAccessSpecResponse{}
@@ -454,11 +456,11 @@ func (d *Driver) handleWriteCommands(devName string, p protocolMap, reqs []dsMod
 	if reqData != nil {
 		if dataTarget != nil {
 			if err := json.Unmarshal(reqData, dataTarget); err != nil {
-				return errors.Wrap(err, "failed to unmarshal request")
+				return fmt.Errorf("failed to unmarshal request: %w", err)
 			}
 		} else {
 			if err := json.Unmarshal(reqData, llrpReq); err != nil {
-				return errors.Wrap(err, "failed to unmarshal request")
+				return fmt.Errorf("failed to unmarshal request: %w", err)
 			}
 		}
 	}
@@ -683,12 +685,14 @@ func getAddr(protocols protocolMap) (net.Addr, error) {
 
 	host, port := tcpInfo["host"].(string), tcpInfo["port"].(string)
 	if host == "" || port == "" {
-		return nil, errors.Errorf("tcp missing host or port (%q, %q)", host, port)
+		return nil, fmt.Errorf("tcp missing host or port (%q, %q)", host, port)
 	}
 
 	addr, err := net.ResolveTCPAddr("tcp", host+":"+port)
-	return addr, errors.Wrapf(err,
-		"unable to create addr for tcp protocol (%q, %q)", host, port)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create addr for tcp protocol (%q, %q): %w", host, port, err)
+	}
+	return addr, nil
 }
 
 // debouncedDiscover adds or updates a future call to Discover. This function is intended to be

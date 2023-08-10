@@ -8,8 +8,8 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"math"
 	"math/rand"
 	"os"

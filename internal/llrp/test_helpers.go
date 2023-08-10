@@ -7,8 +7,8 @@ package llrp
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"net"
 	"sync"
 	"sync/atomic"

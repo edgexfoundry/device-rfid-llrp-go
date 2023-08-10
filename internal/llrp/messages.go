@@ -11,10 +11,9 @@ import (
 	"bytes"
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -177,7 +176,10 @@ func (h *Header) WriteTo(w io.Writer) (int64, error) {
 	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
 	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
 	n, err := w.Write(header)
-	return int64(n), errors.Wrap(err, "WriteTo failed")
+	if err != nil {
+		return 0, fmt.Errorf("WriteTo failed: %w", err)
+	}
+	return int64(n), nil
 }
 
 // validateHeader returns an error if the parameters aren't valid for an LLRP header.
@@ -223,11 +225,10 @@ func (m Message) Close() error {
 
 	_, err := io.Copy(io.Discard, m.payload)
 	if err != nil {
-		return errors.Wrap(err, "failed to discard payload")
-	}
-
-	if c, ok := m.payload.(io.Closer); ok && c != nil {
-		return errors.Wrap(c.Close(), "message discarded, but close failed")
+		if c, ok := m.payload.(io.Closer); ok && c != nil {
+			return fmt.Errorf("message discarded, but close failed: %w", err)
+		}
+		return fmt.Errorf("failed to discard payload: %w", err)
 	}
 
 	return nil
@@ -238,11 +239,11 @@ func (m Message) Close() error {
 func (m Message) isResponseTo(reqType MessageType) error {
 	expectedRespType, ok := reqType.Converse()
 	if !ok {
-		return errors.Errorf("unknown request type %d", reqType)
+		return fmt.Errorf("unknown request type %d", reqType)
 	}
 
 	if m.typ != expectedRespType {
-		return errors.Errorf("response message type (%d) "+
+		return fmt.Errorf("response message type (%d) "+
 			"does not match request's expected response type (%d -> %d)",
 			m.typ, reqType, expectedRespType)
 	}
@@ -323,7 +324,7 @@ func NewByteMessage(typ MessageType, payload []byte) (m Message, err error) {
 
 // msgErr returns a new error for LLRP message issues.
 func msgErr(why string, v ...interface{}) error {
-	return errors.Errorf("invalid LLRP message: "+why, v...)
+	return fmt.Errorf("invalid LLRP message: "+why, v...)
 }
 
 type byteProvider interface {
@@ -352,13 +353,13 @@ func (m *Message) data() ([]byte, error) {
 	}
 
 	if m.payloadLen > MaxBufferedPayloadSz {
-		return nil, errors.Errorf("message payload exceeds buffer limit: %d > %d",
+		return nil, fmt.Errorf("message payload exceeds buffer limit: %d > %d",
 			m.payloadLen, MaxBufferedPayloadSz)
 	}
 
 	data := make([]byte, m.payloadLen)
 	if _, err := io.ReadFull(m.payload, data); err != nil {
-		return nil, errors.Wrapf(err, "failed to read data for %v", m)
+		return nil, fmt.Errorf("failed to read data for %v: %w", m, err)
 	}
 
 	m.payload = bytes.NewBuffer(data)

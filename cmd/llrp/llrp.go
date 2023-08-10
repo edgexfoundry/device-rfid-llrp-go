@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	stdlog "log"
@@ -20,7 +21,6 @@ import (
 	"time"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
-	"github.com/pkg/errors"
 )
 
 var rfidAddr, roSpecPath, accessSpecPath, confPath, customPath string
