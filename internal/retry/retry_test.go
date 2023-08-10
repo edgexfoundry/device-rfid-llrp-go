@@ -7,8 +7,8 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"testing"
 	"testing/quick"
 	"time"
@@ -121,7 +121,7 @@ func TestFError(t *testing.T) {
 		t.Error("expected errors.Is(et) to succeed")
 	}
 
-	et2 := errors.Wrap(errors.Wrap(et, "another error"), "yet another")
+	et2 := fmt.Errorf("yet another: %w", fmt.Errorf("another error: %w", et))
 
 	// Not all sub-errors are et2.
 	if errors.Is(err, et2) {

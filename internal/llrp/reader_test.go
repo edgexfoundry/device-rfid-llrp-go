@@ -10,6 +10,8 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -19,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,14 +154,14 @@ func TestClient_newMessage(t *testing.T) {
 func dummyRead(h *Header, rfid net.Conn) error {
 	buf := make([]byte, HeaderSz)
 	if n, err := io.ReadFull(rfid, buf); err != nil {
-		return errors.Wrapf(err, "header read failed after %d bytes", n)
+		return fmt.Errorf("header read failed after %d bytes: %w", n, err)
 	}
 	if err := h.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 	n, err := io.CopyN(io.Discard, rfid, int64(h.payloadLen))
 	if err != nil {
-		return errors.Wrapf(err, "payload read failed after %d bytes", n)
+		return fmt.Errorf("payload read failed after %d bytes: %w", n, err)
 	}
 	return nil
 }
@@ -188,7 +189,7 @@ func dummyReply(h *Header, rfid net.Conn) error {
 		return err
 	}
 	if n, err := rfid.Write(hdr); err != nil {
-		return errors.Wrapf(err, "write failed after %d bytes", n)
+		return fmt.Errorf("write failed after %d bytes: %w", n, err)
 	}
 	return nil
 }
@@ -199,7 +200,7 @@ func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 	//nolint:gosec // G404: Use of weak random number generator
 	rnd := rand.New(rand.NewSource(1))
 	if minSz > maxSz {
-		panic(errors.Errorf("bad sizes: %d > %d", minSz, maxSz))
+		panic(fmt.Errorf("bad sizes: %d > %d", minSz, maxSz))
 	}
 	dist := int64(maxSz - minSz)
 	min64 := int64(minSz)
@@ -220,7 +221,7 @@ func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 		}
 
 		if n, err := rfid.Write(data); err != nil {
-			return errors.Wrapf(err, "write header failed after %d bytes", n)
+			return fmt.Errorf("write header failed after %d bytes: %w", n, err)
 		}
 
 		if sz == 0 {
@@ -228,7 +229,7 @@ func randomReply(minSz, maxSz uint32) func(h *Header, rfid net.Conn) error {
 		}
 
 		if n, err := io.CopyN(rfid, rnd, sz); err != nil {
-			return errors.Wrapf(err, "write data failed after %d bytes", n)
+			return fmt.Errorf("write data failed after %d bytes: %w", n, err)
 		}
 		return nil
 	}
@@ -275,7 +276,9 @@ func TestClient_Connection(t *testing.T) {
 	connErrs := make(chan error, 1)
 	go func() {
 		defer close(connErrs)
-		connErrs <- errors.Wrap(c.Connect(client), "connect failed")
+		if err := c.Connect(client); err != nil {
+			connErrs <- fmt.Errorf("connect failed: %w", err)
+		}
 	}()
 
 	// lazy RFID device: discard incoming messages & send empty replies
@@ -298,7 +301,9 @@ func TestClient_Connection(t *testing.T) {
 				break
 			}
 		}
-		rfidErrs <- errors.Wrap(err, "mock failed")
+		if err != nil {
+			rfidErrs <- fmt.Errorf("mock failed: %w", err)
+		}
 	}()
 
 	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
@@ -379,7 +384,7 @@ func TestClient_ManySenders(t *testing.T) {
 			err = op(&h, rfid)
 			op, nextOp = nextOp, op
 		}
-		rfidErrs <- errors.Wrap(err, "mock failed")
+		rfidErrs <- fmt.Errorf("mock failed: %w", err)
 	}()
 
 	// send a bunch of messages all at once
@@ -461,7 +466,7 @@ func BenchmarkReader_ManySenders(b *testing.B) {
 			err = op(&h, rfid)
 			op, nextOp = nextOp, op
 		}
-		rfidErrs <- errors.Wrap(err, "mock failed")
+		rfidErrs <- fmt.Errorf("mock failed: %w", err)
 	}()
 
 	// send a bunch of messages all at once

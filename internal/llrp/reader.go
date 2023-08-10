@@ -71,7 +71,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	goErrs "errors"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -79,8 +80,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // Client represents a client connection to an LLRP-compatible RFID reader.
@@ -175,7 +174,7 @@ func (ro clientOpt) do(c *Client) {
 // This panics if given an unsupported version.
 func WithVersion(v VersionNum) ClientOpt {
 	if v < VersionMin || v > VersionMax {
-		panic(errors.Errorf("unsupported version %v", v))
+		panic(fmt.Errorf("unsupported version %v", v))
 	}
 	return clientOpt(func(c *Client) {
 		c.version = v
@@ -202,7 +201,7 @@ func WithVersion(v VersionNum) ClientOpt {
 // you should send a SetReaderConfiguration message.
 func WithTimeout(d time.Duration) ClientOpt {
 	if d < 0 {
-		panic(errors.Errorf("timeout should be at least 0, but is %v", d))
+		panic(fmt.Errorf("timeout should be at least 0, but is %v", d))
 	}
 	return clientOpt(func(c *Client) {
 		c.timeout = d
@@ -284,7 +283,7 @@ func (mhf MessageHandlerFunc) HandleMessage(c *Client, msg Message) {
 // If you override this, you'll need to acknowledge the KeepAlives yourself.
 func WithMessageHandler(mt MessageType, handler MessageHandler) ClientOpt {
 	if !mt.IsValid() {
-		panic(errors.Errorf("invalid message type for handler: %v", mt))
+		panic(fmt.Errorf("invalid message type for handler: %v", mt))
 	}
 
 	return clientOpt(func(c *Client) {
@@ -360,7 +359,7 @@ var (
 	// ErrClientClosed is returned if an operation is attempted on a closed Client,
 	// indicating that Shutdown or Close was called.
 	// It may be wrapped, so to check for it, use errors.Is.
-	ErrClientClosed = goErrs.New("client closed")
+	ErrClientClosed = errors.New("client closed")
 )
 
 // Connect to an LLRP-capable device and start processing messages.
@@ -472,19 +471,19 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	case MsgCloseConnectionResponse:
 		ccr := CloseConnectionResponse{}
 		if err := ccr.UnmarshalBinary(resp); err != nil {
-			return errors.WithMessage(err, "unable to read CloseConnectionResponse")
+			return fmt.Errorf("unable to read CloseConnectionResponse: %v", err)
 		}
 		ls = ccr.LLRPStatus
 	case MsgErrorMessage:
 		if err := ls.UnmarshalBinary(resp); err != nil {
-			return errors.WithMessage(err, "unable to read ErrorMessage response")
+			return fmt.Errorf("unable to read ErrorMessage response: %v", err)
 		}
 	default:
-		return errors.Errorf("unexpected response to CloseConnection: %v", rTyp)
+		return fmt.Errorf("unexpected response to CloseConnection: %v", rTyp)
 	}
 
 	if err := ls.Err(); err != nil {
-		return errors.WithMessage(err, "reader rejected CloseConnection")
+		return fmt.Errorf("reader rejected CloseConnection: %v", err)
 	}
 
 	return c.Close()
@@ -499,7 +498,7 @@ func (c *Client) Close() error {
 		close(c.done)
 		return nil
 	} else {
-		return errors.Wrap(ErrClientClosed, "attempt to close already closed connection")
+		return fmt.Errorf("attempt to close already closed connection: %w", ErrClientClosed)
 	}
 }
 
@@ -542,18 +541,16 @@ func (c *Client) SendFor(ctx context.Context, out Outgoing, in Incoming) error {
 	case MsgErrorMessage:
 		em := ErrorMessage{}
 		if err := em.UnmarshalBinary(respV); err != nil {
-			return errors.Wrapf(err,
-				"expected message response %v, but got an error message; "+
-					"however, it failed to unmarshal properly", expT)
+			return fmt.Errorf("expected message response %v, but got an error message; "+
+				"however, it failed to unmarshal properly: %w", expT, err)
 		}
-		return errors.Wrapf(em.LLRPStatus.Err(),
-			"expected message response %v, but got an error message", expT)
+		return fmt.Errorf("expected message response %v, but got an error message: %w", expT, em.LLRPStatus.Err())
 	default:
-		return errors.Errorf("expected message response %v, but got %v", expT, respT)
+		return fmt.Errorf("expected message response %v, but got %v", expT, respT)
 	}
 
 	if err := in.UnmarshalBinary(respV); err != nil {
-		return errors.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
+		return fmt.Errorf("failed to unmarshal %v\nraw data: 0x%02x\npartial unmarshal:\n%+v",
 			respT, respV, in)
 	}
 
@@ -580,7 +577,7 @@ func (c *Client) SendMessage(ctx context.Context, typ MessageType, data []byte) 
 	select {
 	case <-c.ready: // ensure the connection is negotiated
 	case <-c.done:
-		return 0, nil, errors.Wrap(ErrClientClosed, "message not sent")
+		return 0, nil, fmt.Errorf("message not sent: %w", ErrClientClosed)
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
 	}
@@ -625,12 +622,12 @@ func (c *Client) SendNoWait(ctx context.Context, m Message) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-c.done:
-		return errors.Wrap(ErrClientClosed, "message not sent")
+		return fmt.Errorf("message not sent: %w", ErrClientClosed)
 	}
 
 	select {
 	case <-c.done:
-		return errors.Wrap(ErrClientClosed, "message not sent")
+		return fmt.Errorf("message not sent: %w", ErrClientClosed)
 	case <-ctx.Done():
 		return ctx.Err()
 	case c.sendQueue <- request{msg: m}:
@@ -651,8 +648,10 @@ func (c *Client) writeHeader(h Header) error {
 	binary.BigEndian.PutUint32(header[6:10], uint32(h.id))
 	binary.BigEndian.PutUint32(header[2:6], h.payloadLen+HeaderSz)
 	binary.BigEndian.PutUint16(header[0:2], uint16(h.version)<<10|uint16(h.typ))
-	_, err := c.conn.Write(header)
-	return errors.Wrapf(err, "failed to write header")
+	if _, err := c.conn.Write(header); err != nil {
+		return fmt.Errorf("failed to write header: %w", err)
+	}
+	return nil
 }
 
 // readHeader returns the next message header from the connection.
@@ -666,18 +665,20 @@ func (c *Client) writeHeader(h Header) error {
 func (c *Client) readHeader() (mh Header, err error) {
 	if c.timeout > 0 {
 		if err = c.conn.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
-			err = errors.Wrap(err, "failed to set read deadline")
+			err = fmt.Errorf("failed to set read deadline: %w", err)
 			return
 		}
 	}
 
 	buf := make([]byte, HeaderSz)
 	if _, err = io.ReadFull(c.conn, buf); err != nil {
-		err = errors.Wrap(err, "failed to read header")
+		err = fmt.Errorf("failed to read header: %w", err)
 		return
 	}
 
-	err = errors.WithMessage(mh.UnmarshalBinary(buf), "failed to unmarshal header")
+	if mh.UnmarshalBinary(buf) != nil {
+		err = fmt.Errorf("failed to unmarshal header: %v", mh.UnmarshalBinary(buf))
+	}
 	return
 }
 
@@ -708,11 +709,11 @@ func (c *Client) handleIncoming() error {
 		hdr, err := c.readHeader()
 		if err != nil {
 			if !receivedClosed {
-				return errors.WithMessage(err, "failed to get next message")
+				return fmt.Errorf("failed to get next message: %v", err)
 			}
 
 			if !(errors.Is(err, io.EOF) || os.IsTimeout(err) || errors.Is(err, io.ErrClosedPipe)) {
-				return errors.WithMessage(err, "unexpected error after reader closed")
+				return fmt.Errorf("unexpected error after reader closed: %v", err)
 			}
 
 			// EOF/io.Timeout after CloseConnection should wait for reader to close
@@ -730,9 +731,9 @@ func (c *Client) handleIncoming() error {
 		switch err {
 		case nil:
 		case io.EOF:
-			return errors.Wrap(io.ErrUnexpectedEOF, "failed to read full payload")
+			return fmt.Errorf("failed to read full payload: %w", io.ErrUnexpectedEOF)
 		default:
-			return errors.Wrap(err, "failed to process response")
+			return fmt.Errorf("failed to process response: %w", err)
 		}
 	}
 }
@@ -818,7 +819,7 @@ func (c *Client) handleOutgoing() error {
 
 		if c.timeout > 0 {
 			if err := c.conn.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
-				return errors.Wrap(err, "failed to set write deadline")
+				return fmt.Errorf("failed to set write deadline: %w", err)
 			}
 		}
 
@@ -839,13 +840,13 @@ func (c *Client) handleOutgoing() error {
 		}
 
 		if msg.payload == nil {
-			return errors.Errorf("message data is nil, but has length >0 (%v)", msg)
+			return fmt.Errorf("message data is nil, but has length >0 (%v)", msg)
 		}
 
 		// It assumes that msg.payload is cooperating and will return EOF
 		// or another error and blocks until then.
 		if n, err := io.Copy(c.conn, msg.payload); err != nil {
-			return errors.Wrapf(err, "write failed after %d bytes for %v", n, msg)
+			return fmt.Errorf("write failed after %d bytes for %v: %w", n, msg, err)
 		}
 	}
 }
@@ -894,15 +895,18 @@ func (c *Client) passToHandler(hdr Header) (err error) {
 
 	if !needsReply && handler == nil && c.defaultHandler == nil {
 		c.logger.MsgUnhandled(hdr)
-		_, err = io.CopyN(io.Discard, c.conn, int64(hdr.payloadLen))
-		return errors.Wrapf(err, "failed to discard payload for %v", hdr)
+		if _, err = io.CopyN(io.Discard, c.conn, int64(hdr.payloadLen)); err != nil {
+			return fmt.Errorf("failed to discard payload for %v: %w", hdr, err)
+		}
+		return nil
 	}
 
 	payload := io.LimitReader(c.conn, int64(hdr.payloadLen))
 	defer func() {
 		c.logger.MsgHandled(hdr)
-		_, err = io.Copy(io.Discard, payload)
-		err = errors.Wrapf(err, "failed to discard payload for %v", hdr)
+		if _, err = io.Copy(io.Discard, payload); err != nil {
+			err = fmt.Errorf("failed to discard payload for %v: %w", hdr, err)
+		}
 	}()
 
 	if needsReply {
@@ -944,7 +948,7 @@ func (c *Client) handleGuarded(handler MessageHandler, msg Message) {
 		if err, ok := r.(error); ok {
 			c.logger.HandlerPanic(msg.Header, err)
 		} else {
-			c.logger.HandlerPanic(msg.Header, errors.Errorf("handler panic: %v", r))
+			c.logger.HandlerPanic(msg.Header, fmt.Errorf("handler panic: %v", r))
 		}
 	}()
 
@@ -1000,7 +1004,7 @@ func (c *Client) send(ctx context.Context, m Message) (Message, error) {
 	select {
 	case <-c.done:
 		close(tokenChan)
-		return Message{}, errors.Wrap(ErrClientClosed, "message not sent")
+		return Message{}, fmt.Errorf("message not sent: %w", ErrClientClosed)
 	case <-ctx.Done():
 		close(tokenChan)
 		return Message{}, ctx.Err()
@@ -1014,7 +1018,7 @@ func (c *Client) send(ctx context.Context, m Message) (Message, error) {
 	select {
 	case <-c.done:
 		token.cancel()
-		return Message{}, errors.Wrap(ErrClientClosed, "message sent, but not awaited")
+		return Message{}, fmt.Errorf("message sent, but not awaited: %w", ErrClientClosed)
 	case <-ctx.Done():
 		token.cancel()
 		return Message{}, ctx.Err()
@@ -1037,7 +1041,7 @@ func (c *Client) checkInitialMessage() error {
 	c.logger.ReceivedMsg(hdr, c.version)
 
 	if hdr.payloadLen > MaxBufferedPayloadSz {
-		return errors.Errorf("initial connection message has huge size; "+
+		return fmt.Errorf("initial connection message has huge size; "+
 			"it almost certainly not a valid ReaderEventNotification: %d "+
 			"(note: max buffered payload size is %d)",
 			hdr.payloadLen, MaxBufferedPayloadSz)
@@ -1045,7 +1049,7 @@ func (c *Client) checkInitialMessage() error {
 
 	buf := make([]byte, hdr.payloadLen)
 	if _, err := io.ReadFull(c.conn, buf); err != nil {
-		return errors.Wrap(err, "failed to read message payload")
+		return fmt.Errorf("failed to read message payload: %w", err)
 	}
 
 	if h, ok := c.handlers[hdr.typ]; ok {
@@ -1053,17 +1057,17 @@ func (c *Client) checkInitialMessage() error {
 	}
 
 	if hdr.typ != MsgReaderEventNotification {
-		return errors.Errorf("expected %v, but got %v", MsgReaderEventNotification, hdr.typ)
+		return fmt.Errorf("expected %v, but got %v", MsgReaderEventNotification, hdr.typ)
 	}
 
 	ren := ReaderEventNotification{}
 	if err := ren.UnmarshalBinary(buf); err != nil {
-		return errors.Wrap(err, "failed to unmarshal ReaderEventNotification")
+		return fmt.Errorf("failed to unmarshal ReaderEventNotification: %w", err)
 	}
 
 	connAttempt := ren.ReaderEventNotificationData.ConnectionAttemptEvent
 	if connAttempt == nil {
-		return errors.Errorf("initial reader event did not include connection attempt: %v", ren)
+		return fmt.Errorf("initial reader event did not include connection attempt: %v", ren)
 	}
 
 	switch ConnectionAttemptEventType(*connAttempt) {
@@ -1115,7 +1119,7 @@ func (c *Client) getSupportedVersion(ctx context.Context) (*GetSupportedVersionR
 	// As a result, we have to check the type to know what parts to decode.
 	switch resp.typ {
 	default:
-		return nil, errors.Errorf("unexpected response to %v: %v", MsgGetSupportedVersion, resp)
+		return nil, fmt.Errorf("unexpected response to %v: %v", MsgGetSupportedVersion, resp)
 	case MsgErrorMessage:
 		errMsg := ErrorMessage{}
 		// If the reader only supports v1.0.1, it returns VersionUnsupported.
@@ -1136,7 +1140,10 @@ func (c *Client) getSupportedVersion(ctx context.Context) (*GetSupportedVersionR
 		}
 	}
 
-	return &sv, errors.WithMessagef(sv.LLRPStatus.Err(), "%v returned an error", resp)
+	if sv.LLRPStatus.Err() != nil {
+		return nil, fmt.Errorf("%v returned an error: %v", resp, sv.LLRPStatus.Err())
+	}
+	return &sv, nil
 }
 
 // negotiate LLRP versions with the RFID device.

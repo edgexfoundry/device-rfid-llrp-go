@@ -298,8 +298,8 @@ class GoWriter:
                 self.write('return ' + ret)
 
     def reterr(self, msg: Optional[str], params: Optional[List[str]] = None, wrap: bool = False):
-        """Writes code to return an error, using 'return err' or one of
-        New, Errorf, Wrap, or Wrapf if there are params and/or wrap is True."""
+        """Writes code to return an error, using 'return err' or
+        errors.New, or fmt.Errorf if there are params and/or wrap is True."""
         if msg and (msg.count('%') != (len(params) if params else 0)):
             raise Error(f'got "{params}", but need {msg.count("%")} params for this error: "{msg}"')
 
@@ -310,11 +310,11 @@ class GoWriter:
 
         msg = msg.replace('\n', '" +\n"')
         if wrap and params:
-            self.write(f'return errors.Wrapf(err, "{msg}", {", ".join(params)})', auto_break=True)
+            self.write(f'return fmt.Errorf("{msg}: %w", {", ".join(params)}, err)', auto_break=True)
         elif wrap and not params:
-            self.write(f'return errors.Wrap(err, "{msg}")')
+            self.write(f'return fmt.Errorf("{msg}: %w", err)')
         elif params:
-            self.write(f'return errors.Errorf("{msg}", {", ".join(params)})', auto_break=True)
+            self.write(f'return fmt.Errorf("{msg}", {", ".join(params)})', auto_break=True)
         else:
             self.write(f'return errors.New("{msg}")')
 
@@ -1730,7 +1730,7 @@ def write_unmarshal_code(w: GoWriter, types: Dict[str, DataType],
 
         with w.paren('import'):
             w.write('"encoding/binary"')
-            w.write('"github.com/pkg/errors"')
+            w.write('"fmt"')
 
     w.comment("hasEnoughBytes returns an error if there aren't "
               "enough bytes to read the parameter.")
@@ -1786,9 +1786,9 @@ def write_encode_code(w, types, parameters, messages, write_header=False):
         w.write('\npackage llrp\n\n')
 
         with w.paren('import'):
-            w.write('"io"')
             w.write('"encoding/binary"')
-            w.write('"github.com/pkg/errors"')
+            w.write('"fmt"')
+            w.write('"io"')
 
     for m in messages.values():
         w.comment(f'EncodeFields for Message {m.type_id}, {m.name}.')
@@ -1806,9 +1806,9 @@ def write_test_code(w, types, parameters, messages, write_header=False):
 
         with w.paren('import'):
             # w.write('"encoding/binary"')
+            # w.write('"errors"')
             w.write('"testing"')
             w.write('"reflect"')
-            # w.write('"github.com/pkg/errors"')
 
         w.write('')
 

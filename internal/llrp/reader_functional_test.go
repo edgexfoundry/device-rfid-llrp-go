@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -16,8 +17,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // ex: go test -reader="192.0.2.1:5084"
@@ -109,7 +108,7 @@ func collectData() error {
 	} {
 		if err := getAndWrite(r, toSend.mt, toSend.out, toSend.in); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				errs = append(errs, errors.WithMessagef(err, "failed to get response for %v", toSend.mt))
+				errs = append(errs, fmt.Errorf("failed to get response for %v: %v", toSend.mt, err))
 			} else {
 				return err
 			}
@@ -159,7 +158,7 @@ func getAndWrite(r *Client, mt MessageType, payload encoding.BinaryMarshaler, re
 
 	expR, ok := mt.Converse()
 	if ok && expR != resultT {
-		return errors.Errorf("expected %v; got %v", expR, mt)
+		return fmt.Errorf("expected %v; got %v", expR, mt)
 	}
 
 	return writeCapture("testdata", 0, result, resultT, resultValue)
