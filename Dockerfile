@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Intel Corporation
+# Copyright (c) 2023 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-ARG BASE=golang:1.20-alpine3.17
+ARG BASE=golang:1.21-alpine3.18
 FROM ${BASE} AS builder
 
 ARG ADD_BUILD_TAGS=""
@@ -32,10 +32,10 @@ RUN [ ! -d "vendor" ] && go mod download all || echo "skipping..."
 COPY . .
 RUN $MAKE
 
-FROM alpine:3.17
+FROM alpine:3.18
 
 LABEL license='SPDX-License-Identifier: Apache-2.0' \
-  copyright='Copyright (c) 2022: Intel'
+  copyright='Copyright (c) 2023: Intel'
 
 RUN apk add --update --no-cache dumb-init
 
