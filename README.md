@@ -38,12 +38,8 @@ make docker
 **Run EdgeX Jakarta**
 
 - [Docker](https://github.com/edgexfoundry/edgex-compose/tree/jakarta)
-- [Snap](https://snapcraft.io/edgexfoundry)
 
 **Run device-rfid-llrp**
-- Snap
-    - For the snap, refer to the [snap](snap) directory.
-
 - Docker
     - Use [compose-builder](https://github.com/edgexfoundry/edgex-compose/tree/jakarta/compose-builder)
     - For non secure mode `make gen ds-llrp no-secty`
