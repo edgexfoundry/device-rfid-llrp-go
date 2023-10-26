@@ -21,6 +21,9 @@ vendor/
 cmd/device-rfid-llrp
 glide.lock
 
+coverage.out
+VERSION
+
 # Very Important: This line is needed to keep your credentials from being checked into github.
 **/.env
 
