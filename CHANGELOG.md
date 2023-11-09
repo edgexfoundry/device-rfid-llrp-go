@@ -10,6 +10,36 @@
 - [go-mod-secrets](https://github.com/edgexfoundry/go-mod-secrets/blob/main/CHANGELOG.md) (indirect dependency)
 - [go-mod-configuration](https://github.com/edgexfoundry/go-mod-configuration/blob/main/CHANGELOG.md) (indirect dependency)
 
+
+## [v3.1.0] Napa - 2023-11-15 (Only compatible with the 3.x releases)
+
+
+### ✨  Features
+
+- Remove snap packaging ([#261](https://github.com/edgexfoundry/device-rfid-llrp-go/issues/261)) ([ec76fef…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/ec76fefacd564d5a805f4b6ee2c3fdcc17777694))
+```text
+
+BREAKING CHANGE: Remove snap packaging ([#261](https://github.com/edgexfoundry/device-rfid-llrp-go/issues/261))
+
+```
+
+
+### ♻ Code Refactoring
+
+- Remove obsolete comments from config file ([#263](https://github.com/edgexfoundry/device-rfid-llrp-go/issues/263)) ([a457c92…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/a457c9218e2f2d18d865ffb73302d735402b2cfc))
+- Replace github.com/pkg/errors with errors ([d9392d6…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/d9392d64b2716c69a3fa73cacae0ad3d93159cfa))
+
+
+### 👷 Build
+
+- Upgrade to go-1.21, Linter1.54.2 and Alpine 3.18 ([#249](https://github.com/edgexfoundry/device-rfid-llrp-go/issues/249)) ([40e7fd9…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/40e7fd9457312c7ba73491b63d6fc33ef6c19e69))
+
+
+### 🤖 Continuous Integration
+
+- Add automated release workflow on tag creation ([c07abfb…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/c07abfb52c8088b08d188c7a5744e77525c2764f))
+
+
 ## [v3.0.0] Minnesota - 2023-05-31 (Only compatible with the 3.x releases)
 
 ### Features ✨
