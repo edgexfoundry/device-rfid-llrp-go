@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/edgexfoundry/device-rfid-llrp-go/internal/llrp"
+	"github.com/edgexfoundry/device-rfid-llrp-go/pkg/llrp"
 )
 
 var rfidAddr, roSpecPath, accessSpecPath, confPath, customPath string
