@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/edgexfoundry/device-rfid-llrp-go/pkg/llrp"
-	dsModels "github.com/edgexfoundry/device-sdk-go/v3/pkg/models"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/v3/models"
+	dsModels "github.com/edgexfoundry/device-sdk-go/v4/pkg/models"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v4/models"
 )
 
 const (

@@ -6,14 +6,14 @@ https://github.com/cenkalti/backoff/blob/master/LICENSE
 edsrzf/mmap-go (BSD-3) https://github.com/edsrzf/mmap-go
 https://github.com/edsrzf/mmap-go/blob/master/LICENSE
 
-edgexfoundry/go-mod-core-contracts/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-core-contracts/v3
-https://github.com/edgexfoundry/go-mod-core-contracts/v3/blob/master/LICENSE
+edgexfoundry/go-mod-core-contracts/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-core-contracts/v4
+https://github.com/edgexfoundry/go-mod-core-contracts/v4/blob/master/LICENSE
 
-edgexfoundry/go-mod-registry/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-registry/v3
+edgexfoundry/go-mod-registry/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-registry/v4
 https://github.com/edgexfoundry/go-mod-registry/blob/master/LICENSE
 
-edgexfoundry/device-sdk-go/v3 (Apache 2.0) https://github.com/edgexfoundry/device-sdk-go/v3
-https://github.com/edgexfoundry/device-sdk-go/v3/blob/master/LICENSE
+edgexfoundry/device-sdk-go/v4 (Apache 2.0) https://github.com/edgexfoundry/device-sdk-go/v4
+https://github.com/edgexfoundry/device-sdk-go/v4/blob/master/LICENSE
 
 go-kit/kit (MIT) github.com/go-kit/kit
 https://github.com/go-kit/kit/blob/master/LICENSE
@@ -111,14 +111,14 @@ https://github.com/OneOfOne/xxhash/blob/master/LICENCE
 hashicorp/consul/api (Mozilla Public License 2.0) https://github.com/hashicorp/consul/api
 https://github.com/hashicorp/consul/blob/master/LICENSE
 
-edgexfoundry/go-mod-bootstrap/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-bootstrap/v3
-https://github.com/edgexfoundry/go-mod-bootstrap/v3/blob/master/LICENSE
+edgexfoundry/go-mod-bootstrap/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-bootstrap/v4
+https://github.com/edgexfoundry/go-mod-bootstrap/v4/blob/master/LICENSE
 
-edgexfoundry/go-mod-secret/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-secrets/v3
+edgexfoundry/go-mod-secret/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-secrets/v4
 https://github.com/edgexfoundry/go-mod-secrets/blob/master/LICENSE
 
-edgexfoundry/go-mod-configuration/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-configuration/v3
-https://github.com/edgexfoundry/go-mod-configuration/v3/blob/master/LICENSE
+edgexfoundry/go-mod-configuration/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-configuration/v4
+https://github.com/edgexfoundry/go-mod-configuration/v4/blob/master/LICENSE
 
 fxamacker/cbor (MIT) https://github.com/fxamacker/cbor/v2
 https://github.com/fxamacker/cbor/blob/master/LICENSE
@@ -153,7 +153,7 @@ https://github.com/davecgh/go-spew/blob/master/LICENSE
 eclipse/paho.mqtt.golang (Eclipse Public License 2.0) https://github.com/eclipse/paho.mqtt.golang
 https://github.com/eclipse/paho.mqtt.golang/blob/master/LICENSE
 
-edgexfoundry/go-mod-messaging/v3 (Apache 2.0) https://github.com/edgexfoundry/go-mod-messaging/v3
+edgexfoundry/go-mod-messaging/v4 (Apache 2.0) https://github.com/edgexfoundry/go-mod-messaging/v4
 https://github.com/edgexfoundry/go-mod-messaging/blob/master/LICENSE
 
 github.com/fatih/color (MIT) https://github.com/fatih/color

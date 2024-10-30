@@ -8,7 +8,7 @@ package main
 import (
 	device_llrp "github.com/edgexfoundry/device-rfid-llrp-go"
 	"github.com/edgexfoundry/device-rfid-llrp-go/internal/driver"
-	"github.com/edgexfoundry/device-sdk-go/v3/pkg/startup"
+	"github.com/edgexfoundry/device-sdk-go/v4/pkg/startup"
 )
 
 func main() {
