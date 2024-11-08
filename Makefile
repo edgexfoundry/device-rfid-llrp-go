@@ -1,9 +1,9 @@
 .PHONY: build test unittest lint clean prepare update docker
 
 # change the following boolean flag to enable or disable the Full RELRO (RELocation Read Only) for linux ELF (Executable and Linkable Format) binaries
-ENABLE_FULL_RELRO:="true"
+ENABLE_FULL_RELRO=true
 # change the following boolean flag to enable or disable PIE for linux binaries which is needed for ASLR (Address Space Layout Randomization) on Linux, the ASLR support on Windows is enabled by default
-ENABLE_PIE:="true"
+ENABLE_PIE=true
 
 ARCH=$(shell uname -m)
 
@@ -18,16 +18,17 @@ SDKVERSION=$(shell sed -En 's|.*github.com/edgexfoundry/device-sdk-go/v4 (v[\.0-
 # this pulls the version from local VERSION file that is created by the Jenkins Pipeline.
 VERSION=$(shell cat ./VERSION 2>/dev/null || echo 0.0.0)
 
-GIT_SHA=$(shell git rev-parse HEAD)
-GOFLAGS=-ldflags "-X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION) \
-                  -X github.com/edgexfoundry/device-sdk-go/v4/internal/common.SDKVersion=$(SDKVERSION)" \
-                   -trimpath -mod=readonly
-
-ifeq ($(ENABLE_FULL_RELRO), "true")
-	GOFLAGS += -ldflags "-bindnow"
+ifeq ($(ENABLE_FULL_RELRO), true)
+	ENABLE_FULL_RELRO_GOFLAGS = -bindnow
 endif
 
-ifeq ($(ENABLE_PIE), "true")
+GIT_SHA=$(shell git rev-parse HEAD)
+GOFLAGS=-ldflags "-X github.com/edgexfoundry/device-rfid-llrp-go.Version=$(VERSION) \
+                  -X github.com/edgexfoundry/device-sdk-go/v4/internal/common.SDKVersion=$(SDKVERSION) \
+                  $(ENABLE_FULL_RELRO_GOFLAGS)" \
+                   -trimpath -mod=readonly
+
+ifeq ($(ENABLE_PIE), true)
 	GOFLAGS += -buildmode=pie
 endif
 
