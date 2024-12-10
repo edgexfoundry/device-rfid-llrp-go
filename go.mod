@@ -3,7 +3,7 @@ module github.com/edgexfoundry/device-rfid-llrp-go
 go 1.23
 
 require (
-	github.com/edgexfoundry/device-sdk-go/v4 v4.0.0-dev.9
+	github.com/edgexfoundry/device-sdk-go/v4 v4.0.0-dev.10
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.0-dev.14
 	github.com/stretchr/testify v1.10.0
 )
