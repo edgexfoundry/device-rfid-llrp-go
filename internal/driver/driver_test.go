@@ -110,7 +110,7 @@ func TestHandleRead(t *testing.T) {
 				t.Fatal("command value is nil")
 			}
 
-			if testCase.name != cv.DeviceResourceName {
+			if cv != nil && testCase.name != cv.DeviceResourceName {
 				t.Errorf("expected %s; got %s", testCase.name, cv.DeviceResourceName)
 			}
 
