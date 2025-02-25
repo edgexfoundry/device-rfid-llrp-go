@@ -10,6 +10,27 @@
 - [go-mod-secrets](https://github.com/edgexfoundry/go-mod-secrets/blob/main/CHANGELOG.md) (indirect dependency)
 - [go-mod-configuration](https://github.com/edgexfoundry/go-mod-configuration/blob/main/CHANGELOG.md) (indirect dependency)
 
+## [4.0.0] Odessa - 2025-03-12 (Only compatible with the 4.x releases)
+
+### ✨  Features
+
+- Enable PIE support for ASLR and full RELRO ([be40ce9…](https://github.com/edgexfoundry/device-rest-go/commit/be40ce9c5fc91884215293b6bf7bbda8bd3c0d2f))
+
+### ♻ Code Refactoring
+
+- Allow the LLRP package to be imported by others ([14e8eb7…](https://github.com/edgexfoundry/device-rfid-llrp-go/commit/14e8eb7d7f4eee0b29d9e816e25ce3adc8d21199)) 
+- Update module to v4 ([6bfdd3f…](https://github.com/edgexfoundry/device-rest-go/commit/6bfdd3ff5f3e792eafad2b4c95b01495d5837e2e))
+```text
+BREAKING CHANGE: update go module to v4
+```
+
+### 🐛 Bug Fixes
+
+- Only one ldflags flag is allowed ([ec1ec23…](https://github.com/edgexfoundry/device-rest-go/commit/ec1ec23295ae906f939fdcce9f1e5a4eef1babde))
+
+### 👷 Build
+
+- Upgrade to go-1.23, Linter1.61.0 and Alpine 3.20 ([21d3830…](https://github.com/edgexfoundry/device-rest-go/commit/21d3830f1720a37f1895b62ff4ca15d755f1aed1))
 
 ## [v3.1.0] Napa - 2023-11-15 (Only compatible with the 3.x releases)
 
