@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/edgexfoundry/device-sdk-go/v4 v4.0.0
 	github.com/edgexfoundry/go-mod-core-contracts/v4 v4.0.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
