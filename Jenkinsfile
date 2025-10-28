@@ -15,5 +15,6 @@
 //
 
 edgeXBuildGoApp (
-    project: 'device-rfid-llrp-go'
+    project: 'device-rfid-llrp-go',
+    goVersion: '1.23'
 )
